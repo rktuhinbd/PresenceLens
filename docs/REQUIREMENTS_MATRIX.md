@@ -1,0 +1,165 @@
+# Requirements Matrix
+
+Authoritative source: `../_source/assessment.pdf` — "Senior App Developer Technical
+Assessment", 4 pages, 3 embedded screenshots.
+
+Extraction method: `pdftotext -layout` + `pdftotext -raw` + `pdfplumber` word-level
+cross-check; all three embedded screenshots rendered at 8x and read visually.
+See [RESEARCH.md](RESEARCH.md) `RF-01`.
+
+## Status vocabulary
+
+| Status | Meaning |
+| --- | --- |
+| `TODO` | Not started, or not objectively verified. |
+| `PARTIAL` | Some evidence exists; requirement not fully satisfied. |
+| `DONE` | Implemented **and** verified by the stated verification method. |
+| `BLOCKED` | Cannot proceed; see PROJECT_STATE.md blockers. |
+
+Nothing is `DONE` until its own Verification column has been executed and its
+evidence recorded. A passing Android baseline build is **not** evidence for any
+feature requirement.
+
+## Source authority note
+
+The PDF distinguishes two levels of UI direction, and this matrix preserves that
+distinction:
+
+- **Android (p1):** *"Please refer to the following screenshot for building the UI
+  for this task"* — the p2 screenshot is **prescriptive**.
+- **Flutter (p3):** *"Suggested UI:"* — the p3 screenshots are **advisory**.
+
+Rows derived from a screenshot rather than from sentence text are marked
+`[screenshot-derived]`.
+
+---
+
+## GEN — General engineering requirements
+
+| ID | Requirement | PDF source | Planned implementation | Verification method | Status |
+| --- | --- | --- | --- | --- | --- |
+| GEN-01 | State Management: use a robust solution (BLoC/Cubit), Kotlin Flow. | p1, General Requirements b1 | Flutter: BLoC/Cubit. Android: `StateFlow` + `Flow` in ViewModels (UDF). See [ADR-006](DECISIONS.md#adr-006). | Code review; unit tests over Cubit/ViewModel state transitions. | TODO |
+| GEN-02 | Architecture: any Layered Architecture for Flutter (MVVM/MVI). | p1, General Requirements b2 | Flutter: `presentation / domain / data` layers. See [ARCHITECTURE.md](ARCHITECTURE.md). | Directory structure review; dependency direction check (no domain→presentation import). | TODO |
+| GEN-03 | Local Storage: any local data persistence following best practices. | p1, General Requirements b3 | Android: DataStore for office coordinates ([ADR-002](DECISIONS.md#adr-002)). Flutter: SQLite queue + filesystem images ([ADR-005](DECISIONS.md#adr-005)). | Persistence survives process death — verified by kill-and-relaunch on device. | TODO |
+| GEN-04 | Error Handling: graceful handling of permissions and hardware failures. | p1, General Requirements b4 | Explicit modelled states for permission denied / permanently denied, location services off, low location quality, camera unavailable/denied, storage failure. | Manual failure-injection matrix (G7); unit tests over error state mapping. | TODO |
+| GEN-05 | Project Title: give an appropriate name; show creativity. | p1, header | Project named **PresenceLens**. Name is applied in repo and `rootProject.name`; still needs README title + description. | README §1 present and states name + description. | PARTIAL |
+| GEN-06 | Demonstrate proficiency in **both** Native Android and Flutter. | p1, Objective | Two applications delivered: `android-attendance/` (Kotlin) and Flutter app (not yet created). | Both apps build and run; both covered in README. | TODO |
+| GEN-07 | API integration. | p1, Objective | No API is provided (p3 Note). Satisfied via a mock API layer with deterministic Success/Failed responses behind a real repository/client seam. See [ADR-008](DECISIONS.md#adr-008) and FLT-15. | Mock client unit tests covering success and failure paths. | TODO |
+| GEN-08 | Adherence to software development best practices. | p1, Objective | Layer separation, testable business rules, no unjustified abstractions, formatter/linter clean, meaningful commits. | Formatter/linter pass + test run + `git diff` inspection before each gate exit. | TODO |
+| GEN-09 | Estimated duration: 48–72 hours (3 days). | p1, header | Gated plan sized to the window. See [EXECUTION_PLAN.md](EXECUTION_PLAN.md). | Gate completion timestamps in PROJECT_STATE.md. | TODO |
+
+---
+
+## AND — Native Android (Task 1: Geo-Fenced Attendance System)
+
+| ID | Requirement | PDF source | Planned implementation | Verification method | Status |
+| --- | --- | --- | --- | --- | --- |
+| AND-01 | Task 1 must be **Native Android**. | p1, Task 1 heading | Kotlin + Jetpack Compose app in `android-attendance/`. | Project is a native Android Gradle project; `assembleDebug` passes. | TODO |
+| AND-02 | Location-aware attendance trigger with **high accuracy**. | p1, Task 1 intro | Fused Location Provider with high-accuracy priority + continuous foreground updates; accuracy surfaced in UI state. See [ADR-001](DECISIONS.md#adr-001). | Emulator route playback across the boundary; accuracy value asserted present in state. | TODO |
+| AND-03 | Create `AttendanceScreen`. | p1, Task 1 intro | Composable named exactly `AttendanceScreen`. | Symbol exists with that name; Compose UI test targets it. | TODO |
+| AND-04 | User sets office location **and** marks attendance **on the same screen**. | p1, Task 1 intro | Single `AttendanceScreen` hosts both the setup card and the attendance action; no navigation between them. | Compose UI test: both affordances present in one composition. | TODO |
+| AND-05 | Setup Phase: a button labelled "Set Office Location". | p1, Setup Phase | Outlined button with that exact label. | Compose UI test asserts node with text "Set Office Location". | TODO |
+| AND-06 | That button must **fetch the current GPS coordinates**. | p1, Setup Phase | One-shot high-accuracy current-location request on click, distinct from the streaming updates. | Instrumented/manual: pressing it captures and displays live coordinates. | TODO |
+| AND-07 | Coordinates must be **saved locally**. | p1, Setup Phase | DataStore Preferences (`office_lat`, `office_lon`, `captured_at`). See [ADR-002](DECISIONS.md#adr-002). | Set location → force-stop → relaunch → coordinates still present. | TODO |
+| AND-08 | "Mark Attendance" enabled/functional **only** when current location is within a **50-metre radius** of the saved coordinates. | p1, Validation Phase | Pure `AttendanceRule` in domain layer returning in-range/out-of-range from (current, office, 50 m); button `enabled` bound to it **and** the click path re-checks. | Unit tests at 0 m, 49.9 m, exactly 50 m, 50.1 m, 120 m + UI test that the button is disabled out of range. | TODO |
+| AND-09 | Feedback: **real-time** distance indicator (e.g. "You are 120m away from the office"). | p1, Feedback | Distance recomputed on every location emission and rendered continuously. | Manual emulator walk-in: value updates without user action; UI test on formatted string. | TODO |
+| AND-10 | UI must follow the provided screenshot. | p1, UI bullet + p2 screenshot | Compose implementation preserving the p2 reference information architecture, ordering, controls, and overall composition (AND-13…AND-21), executed to the quality bar in [ADR-012](DECISIONS.md#adr-012) — reference-layout fidelity with premium native Material 3 execution, not a literal low-fidelity clone. | Side-by-side comparison against the p2 reference, recorded in README §5; ADR-012 constraints checked at G3. | TODO |
+| AND-11 | UI built with **Jetpack Compose**. | p1, UI bullet | Compose only; no XML layouts for the feature. | No feature-level layout XML; Compose BOM present in `app/build.gradle.kts`. | TODO |
+| AND-12 | Android state management via **Kotlin Flow**. | p1, General Requirements b1 (applied to Android) | ViewModel exposing a single `StateFlow<AttendanceUiState>`; location as a cold `Flow` from a `callbackFlow`. | Unit test drives the flow and asserts emitted state sequence. | TODO |
+| AND-13 | `[screenshot-derived]` Top app bar: back affordance + title "Attendance". | p2 screenshot | Compose `TopAppBar` with navigation icon and title. | Visual comparison. | TODO |
+| AND-14 | `[screenshot-derived]` "STEP 1: OFFICE CONTEXT" card with a status dot. | p2 screenshot | Card with overline label and a state-coloured indicator dot (set / not set). | Visual comparison. | TODO |
+| AND-15 | `[screenshot-derived]` Map/location visual with a coordinate readout pill ("Lat: …, Lon: …"). | p2 screenshot | **No Google Maps SDK** ([ADR-003](DECISIONS.md#adr-003), ACCEPTED). Original, dependency-free location surface drawn with Compose vector/project-owned assets, retaining the panel's position, visual weight, and information role: office context, pin/status, 50 m radius, and the coordinate pill. No Maps branding, no third-party tiles, no API key; must not imply interactivity it lacks. | Visual comparison; coordinate pill shows persisted values; renders fully on a clean clone with no key configured. | TODO |
+| AND-16 | `[screenshot-derived]` Helper copy above the button: office location must be correctly identified. | p2 screenshot | Supporting text in the setup card. | Visual comparison. | TODO |
+| AND-17 | `[screenshot-derived]` Circular distance gauge: large "120m" + "AWAY" caption + coloured progress arc. | p2 screenshot | Custom Compose `Canvas` arc gauge driven by distance/threshold ratio. | Visual comparison; gauge fraction unit-tested. | TODO |
+| AND-18 | `[screenshot-derived]` Range status chip ("OUT OF RANGE", red) with an in-range counterpart. | p2 screenshot | Chip bound to the same domain decision as AND-08. | Visual comparison; UI test for both states. | TODO |
+| AND-19 | `[screenshot-derived]` Guidance copy: "Move within 50 meters of the designated office location to enable check-in." | p2 screenshot | Supporting text under the chip when out of range. | Visual comparison. | TODO |
+| AND-20 | `[screenshot-derived]` Locked attendance region: dashed container + lock icon + disabled "Mark Attendance" button. | p2 screenshot | Dashed-border container, lock icon, disabled primary button; unlocks when in range. | Visual comparison; UI test on enabled/disabled. | TODO |
+| AND-21 | `[screenshot-derived]` Caption "AVAILABLE 09:00 AM - 10:30 AM". **Presentation detail only.** | p2 screenshot only; **no sentence in the PDF requires a time window** | Render the caption for fidelity. It **must never become an attendance eligibility rule** ([ADR-011](DECISIONS.md#adr-011), ACCEPTED; resolves [AMB-02](#ambiguities)). The 50 m radius (AND-08) remains the sole functional condition. | Visual comparison; **plus a G3 code review confirming no path consults the availability window when computing button enablement**. | TODO |
+
+---
+
+## FLT — Flutter (Task 2: Advanced Camera & Sync Engine)
+
+| ID | Requirement | PDF source | Planned implementation | Verification method | Status |
+| --- | --- | --- | --- | --- | --- |
+| FLT-01 | Task 2 must be **Flutter**. | p2, Task 2 heading | Flutter app at `flutter-camera-sync/` (not yet created). | `flutter build apk` succeeds. | TODO |
+| FLT-02 | Build a camera preview screen `CameraPreviewScreen`. | p2, Custom Camera UI | Widget named exactly `CameraPreviewScreen`. | Symbol exists with that name; widget test mounts it. | TODO |
+| FLT-03 | Zoom: **pinch-to-zoom**. | p2, Zoom sub-bullet | Scale gestures mapped onto the controller zoom range, clamped to device min/max. | Manual on physical device; unit test on the gesture-to-zoom mapping function. | TODO |
+| FLT-04 | Zoom: **a slider**. | p2, Zoom sub-bullet | Vertical zoom slider bound to the same zoom state as pinch and presets. | Manual on device; widget test drives the slider. | TODO |
+| FLT-05 | Zoom: **rounded buttons** (0.5x, 1x, ...). | p2, Zoom sub-bullet — **text truncated in the source PDF**, resumes p3 with "available back cameras)." | Rounded preset buttons derived **dynamically from the device reported zoom range and available back cameras**, so the implementation holds under every plausible reading of the lost text. See [AMB-01](#ambiguities). | Manual on a multi-camera device; unit test that presets are derived from the reported range. | TODO |
+| FLT-06 | Manual Focus: **tap-to-focus**. | p3, Manual Focus | Tap maps preview coordinates to a normalised focus point; focus point plus exposure point set on the controller. | Manual on physical device; unit test on the coordinate normalisation. | TODO |
+| FLT-07 | Tap-to-focus **visual indicator at the tap point**. | p3, Manual Focus | Animated focus reticle drawn at the tap coordinates, auto-dismissing. | Manual on device; widget test asserts the indicator appears at the tapped offset. | TODO |
+| FLT-08 | Batch Management: capture **multiple batches** of images. | p3, Batch Management | Explicit `Batch` entity; captures append to the open batch; the batch is closed and enqueued on upload. See [AMB-10](#ambiguities). | Unit tests over the batch lifecycle; manual capture of two or more batches. | TODO |
+| FLT-09 | Show a list of **"Pending Uploads"**. | p3, Batch Management | Upload Manager screen listing queued items with per-item state. | Widget test renders a seeded queue; manual verification. | TODO |
+| FLT-10 | Resilient Sync Engine: implement a **background worker** (e.g. `workmanager`) to monitor connectivity. | p3, Resilient Sync Engine | Network-constrained background task that drains the queue; connectivity observed via a connectivity stream. | Manual: background the app with items queued, restore network, observe the drain without reopening the app. | TODO |
+| FLT-11 | On API failure from **low bandwidth or no internet**, images must **remain in the local queue**. | p3, Resilient Sync Engine | Failure paths never delete queue rows or image files; only terminal success removes an item. Failure reason recorded per attempt. | Failure injection: force both failure modes, assert the row and the file still exist afterwards. | TODO |
+| FLT-12 | **Automatically retry** once a stable connection is detected, **without user intervention**. | p3, Resilient Sync Engine | Retry driven by connectivity transitions plus exponential backoff with an attempt counter; no user action anywhere in the path. See [AMB-15](#ambiguities) on the meaning of "stable". | Airplane mode on then off with the app backgrounded; assert the upload completes untouched. | TODO |
+| FLT-13 | Mock API: no API is provided — comment out the API call methods and classes **or** use hard-coded mock Success and Failed responses. | p3, Note | A real `UploadApi` seam with a `MockUploadApi` returning **deterministic** Success/Failed (selectable, not random) so failure paths are demonstrable on demand. See [ADR-008](DECISIONS.md#adr-008). | Unit tests for both outcomes; README documents how a reviewer switches them. | TODO |
+| FLT-14 | Flutter state management via **BLoC/Cubit**. | p1, General Requirements bullet 1, applied to Flutter | Cubits/BLoCs for camera, batch, and sync; named in README section 2 per DOC-04. | Unit tests asserting state transitions. | TODO |
+| FLT-15 | Flutter **layered architecture** (MVVM/MVI). | p1, General Requirements bullet 2 | `presentation` / `domain` / `data` with inward-only dependencies. | Structure review; import-direction check. | TODO |
+| FLT-16 | Flutter **local persistence**. | p1, General Requirements bullet 3 | SQLite for queue and batch metadata; images on the filesystem with persisted paths. See [ADR-005](DECISIONS.md#adr-005). | Queue survives app kill and device reboot. | TODO |
+| FLT-17 | `[screenshot-derived, advisory]` Camera overlay: close, flash, settings, vertical zoom slider with range labels, preset zoom buttons, last-capture thumbnail with count badge, shutter, camera flip, and an "UPLOAD BATCH (n)" call to action. | p3 left screenshot, labelled **"Suggested UI"** | Implement the controls that carry mandated behaviour (FLT-03 to FLT-08); treat purely decorative elements as optional. | Visual comparison against the p3 reference. | TODO |
+| FLT-18 | `[screenshot-derived, advisory]` Upload Manager: connectivity chip ("STABLE LINK"), batch sync progress bar and percentage, uploaded-of-total line, "PAUSE ALL", "PENDING UPLOADS (n)", per-item states (WAITING FOR CONNECTION / RETRYING with attempt counter / UPLOADING with percentage / SYNCED / IN QUEUE), and "START NEW UPLOAD BATCH". | p3 right screenshot, labelled **"Suggested UI"** | Implement the five per-item states — they map directly onto the mandated sync behaviour in FLT-10 to FLT-12 — plus the connectivity chip and batch progress. | Visual comparison; widget test rendering all five item states. | TODO |
+| FLT-19 | `[screenshot-derived, advisory]` The retry attempt counter is user visible (the reference shows "ATTEMPT 3/5"). | p3 right screenshot | Persist and display the attempt count per queue item. | Widget test on the retrying state. | TODO |
+
+---
+
+## DOC — README and documentation requirements
+
+| ID | Requirement | PDF source | Planned implementation | Verification method | Status |
+| --- | --- | --- | --- | --- | --- |
+| DOC-01 | Repository must include a **well-structured `README.md`**. | p3, Deliverables item 2 | Root `README.md` covering both apps, with the five mandated sections in order. | File exists at repo root; all five sections present. | TODO |
+| DOC-02 | Section 1 — Project Title and Description. | p4, Guidelines item 1 | Title "PresenceLens" plus a description of both applications. | Section present and not a placeholder. | TODO |
+| DOC-03 | Section 2 — Project Structure / Approaches: explain the architectural approach (e.g. Layered Architecture, BLoC Pattern). | p4, Guidelines item 2 | Layer diagram and prose for both apps, linked to ARCHITECTURE.md. | Section present and matches the shipped code structure. | TODO |
+| DOC-04 | Section 2 — name the **main BLoC/Cubit classes used**, in **1-2 sentences**. | p4, Guidelines item 2 | An explicit named list of the Cubits/BLoCs (and the Android ViewModels), each with a one-line responsibility. | Every named class exists in source. | TODO |
+| DOC-05 | Section 3 — **Generative AI Usage**: a brief explanation of how AI was used. Explicitly **mandatory**. | p4, Guidelines item 3 | README section 3 summarising tools, models, and where AI contributed, sourced from [AI_USAGE.md](AI_USAGE.md). | Section present and consistent with AI_USAGE.md. | TODO |
+| DOC-06 | Section 3 — include **some of the essential prompts** entered for this project. | p4, Guidelines item 3 | A curated set of the actual load-bearing prompts, quoted. | Prompts present and traceable to AI_USAGE.md entries. | TODO |
+| DOC-07 | Section 4 — **How to Run**: steps to clone the repo and run the app. | p4, Guidelines item 4 | Clone, prerequisites (JDK, Android SDK, Flutter version), per-app build and run commands, and the runtime permissions needed. | Executed verbatim against a clean clone at gate G9. | TODO |
+| DOC-08 | Section 5 — **Screenshots**: include screenshots or GIFs of the running application. | p4, Guidelines item 5 | Screenshots of both apps, plus GIFs of the two behaviours only motion can prove: crossing the 50 m boundary, and offline-to-online auto-retry. | Assets committed and rendering in the README on GitHub. | TODO |
+
+---
+
+## SUB — Submission and deliverables
+
+| ID | Requirement | PDF source | Planned implementation | Verification method | Status |
+| --- | --- | --- | --- | --- | --- |
+| SUB-01 | Complete, **functioning** source code uploaded to a **public GitHub repository**. | p3, Deliverables item 1 | Push to a public GitHub remote once the human approves. Agents must not push (AGENTS.md Git Rules). | Repository loads while signed out; a clean clone builds. | TODO |
+| SUB-02 | The repository must include the README.md documentation. | p3, Deliverables item 2 | Covered by DOC-01 to DOC-08. | All DOC rows are `DONE`. | TODO |
+| SUB-03 | Provide a **link to the built release APK** (e.g. Google Drive or another file-sharing service). | p3, Deliverables item 3 | Build release APKs and host them; link from the README. Signing strategy in [ADR-010](DECISIONS.md#adr-010). Scope ambiguity in [AMB-09](#ambiguities) — the plan is to ship **both** apps' release APKs. | `assembleRelease` and `flutter build apk --release` both succeed; each APK installs on a clean device from the shared link. | TODO |
+
+---
+
+## EXP — Evaluator expectations that materially affect execution
+
+| ID | Expectation | PDF source | How execution responds | Verification method | Status |
+| --- | --- | --- | --- | --- | --- |
+| EXP-01 | Candidates must **understand the tasks on their own**; this is part of the evaluation. | p4, Expectations item 1 | Requirements extracted directly from the PDF into this matrix; ambiguities recorded rather than silently resolved; nothing invented. | This matrix reconciles one-to-one with the PDF at the G9 audit. | TODO |
+| EXP-02 | **Creative usage of AI tools** is allowed, provided the output is quality work and the candidate understands the project. | p4, Expectations item 2 | AI used for extraction, planning, and drafting under gate and ADR discipline; every retained artefact must be explainable by the author. | AI_USAGE.md maintained with the human verification column filled per entry. | TODO |
+| EXP-03 | **Flexible and open to suggestions** — a better technical or feature approach is welcomed and appreciated. | p4, Expectations item 3 | Deliberate improvements are permitted, must be recorded as ADRs, and must never displace a mandated requirement. | Each enhancement traceable to an ADR; no mandatory row downgraded. | TODO |
+| EXP-04 | **Down to the Detail** — a detail-oriented individual completing the tasks in due time, missing no detail. | p4, Expectations item 4 | Screenshot-level detail captured (AND-13 to AND-21, FLT-17 to FLT-19); source-document defects logged (AMB-01, AMB-08); a binary submission checklist. | [SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md) fully ticked at G9. | TODO |
+
+---
+
+## Ambiguities
+
+Open questions in the source document. None of these may be silently resolved: each
+is either decided in an ADR or escalated to the human. Recorded here so a future
+session does not re-derive them.
+
+| ID | Ambiguity | Evidence | Current handling |
+| --- | --- | --- | --- |
+| AMB-01 | **Source text is lost across the p2/p3 page boundary.** Page 2 ends mid-sentence at `buttons (0.5x, 1x, ..` and page 3 resumes at `available back cameras).` Character-level inspection confirms no hidden text exists — the content is genuinely missing from the PDF, not merely unextracted. The exact zoom preset set is therefore unknown. | p2 final text run ends at x=490.3, y(top)=778.1 with the literal token `..`; p3 first run is `available back cameras).` | Build zoom presets **dynamically from the device reported range and available back cameras** (FLT-05), which satisfies any plausible completion of the sentence. No human decision required. |
+| AMB-02 | **Attendance availability window.** The p2 reference screenshot shows "AVAILABLE 09:00 AM - 10:30 AM", but no sentence anywhere in the PDF requires a time window. | p2 screenshot only | **RESOLVED** — [ADR-011](DECISIONS.md#adr-011) `ACCEPTED` at G0.1 review. The caption is preserved as presentation detail and **must not** become an eligibility rule; the mandated 50 m radius (AND-08) stays the sole gate. |
+| AMB-03 | **Is a real map required?** The p2 screenshot shows a map tile with a coordinate pill, but no sentence requires a map; the written requirement is only to fetch and save coordinates. | p1 Setup Phase text vs p2 screenshot | **RESOLVED** — [ADR-003](DECISIONS.md#adr-003) `ACCEPTED` at G0.1 review. No Google Maps SDK; an original dependency-free location surface preserves the panel's position and information role. A Maps key cannot be committed and would break clean-clone builds (DOC-07, SUB-01). |
+| AMB-04 | **"STEP 1" implies a step 2 that is never specified.** The card is titled "STEP 1: OFFICE CONTEXT" but no STEP 2 appears in text or screenshot. | p2 screenshot | Treat the screen as two visual stages on one screen (office context, then attendance), consistent with AND-04. Label retained for visual fidelity. No behavioural inference drawn. |
+| AMB-05 | **"API integration" is listed in the Objective, but no API is provided.** | p1 Objective vs p3 Note | Satisfied by a real client seam with a deterministic mock implementation (GEN-07, FLT-13, ADR-008). |
+| AMB-06 | **State-management wording is not partitioned per app.** "Use a robust solution (BLoC/Cubit), Kotlin Flow" does not say which applies where. | p1, General Requirements bullet 1 | Read as BLoC/Cubit for Flutter and Kotlin Flow for Android — the only reading consistent with the two named platforms. Recorded, not assumed silently. |
+| AMB-07 | **Architecture requirement is scoped only to Flutter.** "Any Layered Architecture **for Flutter** (MVVM/MVI)" leaves the Android architecture unstated. | p1, General Requirements bullet 2 | Android architecture chosen deliberately in [ADR-006](DECISIONS.md#adr-006) rather than assumed. |
+| AMB-08 | **The PDF's own numbering is malformed.** On p4 items run together: "...in 1-2 sentences. 3. Generative AI Usage..." and "...how the project works. 3. Flexible and open to suggestions...". Both lists therefore appear to skip a number. | p4 | Resolved by content, not by numbering: the README has **5** sections and Expectations has **4** items. Captured as DOC-02 to DOC-08 and EXP-01 to EXP-04. |
+| AMB-09 | **"the built release APK" is singular, but the assessment has two apps.** | p3, Deliverables item 3 | Ship **both** release APKs and label them clearly. Over-delivering here is cheap; guessing wrong is not. |
+| AMB-10 | **A "batch" boundary is never defined.** "Capture multiple batches of images" does not say what opens or closes a batch. | p3, Batch Management | Define explicitly: a batch opens on first capture after the previous one is enqueued, and closes when the user triggers upload. Documented in ARCHITECTURE.md so the reviewer sees the rule. |
+| AMB-11 | **The suggested upload list shows non-image files** (`.dat`, `.png`, `.csv`, `.zip`, `.json`) at gigabyte sizes, which conflicts with "the images must remain in the local queue". | p3 right screenshot vs p3 text | Text wins: the queue holds captured images. The screenshot is treated as generic illustration (it is labelled "Suggested UI"). |
+| AMB-12 | **Target platforms for the Flutter app are unspecified** (Android only, or iOS too). | Not stated | Android is the only platform with a mandated deliverable (SUB-03 release APK) and the only one verifiable on this machine. Scope to Android; state this in the README rather than leaving it implied. |
+| AMB-13 | **"Real-time" distance is not quantified** — no update interval is given. | p1, Feedback | Choose a defensible interval and justify it in ADR-001; surface it in the README so the reviewer sees it was a decision, not an accident. |
+| AMB-14 | **"High accuracy" is not quantified.** | p1, Task 1 intro | Use the high-accuracy priority and additionally model a low-quality-fix state (GEN-04), rather than silently trusting any fix. |
+| AMB-15 | **"A stable connection" is not defined**, and connectivity APIs report link presence, not reachability. | p3, Resilient Sync Engine | Treat "stable" as reachability-confirmed rather than merely connected. Requires library verification — see [RESEARCH.md](RESEARCH.md) `ER-07`. |
