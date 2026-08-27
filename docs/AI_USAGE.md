@@ -170,3 +170,61 @@ matches their design intent, and that no mandated requirement shifted during the
 
 **Not done, deliberately.** ADR-010 (release signing) remains `PROPOSED` and unchosen
 per the human's instruction; blocker B-01 is retained so it resurfaces at G8.
+
+---
+
+## Entry 003 — G1 Android foundation: dependency research and Hilt evaluation
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-28 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Sonnet 5 |
+| **Gate** | G1 — Android Foundation |
+| **Purpose** | Turn the Android bootstrap into a foundation ready for feature work: resolve the two open research questions blocking dependency choices, add only the minimal dependency set the accepted architecture requires, and author Android-scoped AI guidance files — without implementing any attendance feature logic. |
+
+**Prompt summary.** Read PROJECT_STATE.md, REQUIREMENTS_MATRIX.md, ARCHITECTURE.md,
+DECISIONS.md, and EXECUTION_PLAN.md first. Inspect the current project and report its
+toolchain. Propose the minimal dependency set for the accepted architecture,
+critically evaluating whether Hilt earns its place in a one-screen, single-module app
+rather than adding it by default. Create `android-attendance/AGENTS.md` and
+`android-attendance/CLAUDE.md`. Explicitly out of scope: `AttendanceScreen`,
+location tracking, distance calculation, persistence behaviour, attendance
+eligibility, final UI.
+
+**Method.** `ER-02` and `ER-04` explicitly forbid answering from memory — the
+toolchain (AGP 9.3.2, Kotlin 2.2.10, Compose BOM 2026.02.01) is recent enough that
+recalled artifact versions would be a guess. Live web research (`WebSearch`/
+`WebFetch` against `developer.android.com`, `developers.google.com`, and
+cross-checks on `mvnrepository.com`) confirmed current stable coordinates before any
+were pinned.
+
+**Result.**
+
+- `ER-02` and `ER-04` closed (`RF-21`, `RF-22`); two additional findings recorded for
+  traceability (`RF-23`, `RF-24`).
+- Dependencies added: `com.google.android.gms:play-services-location:21.4.0`
+  (ADR-001), `androidx.datastore:datastore-preferences:1.2.1` (ADR-002),
+  `androidx.lifecycle:lifecycle-viewmodel-compose` and `-runtime-compose:2.11.0`
+  (ADR-006), `org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0` (declared
+  explicitly rather than relied on transitively, since `domain`/`data` use `Flow`
+  directly). `lifecycle-runtime-ktx` bumped to the same `2.11.0` to keep one
+  lifecycle version in the catalog.
+- **Hilt rejected.** The object graph at G1 is a location source, a coordinate
+  store, a pure rule, and one ViewModel — small and shallow enough that
+  constructor injection delivers the property that matters (every collaborator
+  substitutable in tests) without annotation processing or a composition
+  framework. This confirms ADR-009 rather than reopening it; no new ADR was
+  needed since the decision was already recorded and did not change.
+- `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` declared in the manifest
+  (declaration only). Template `ExampleUnitTest`/`ExampleInstrumentedTest`
+  removed. Build re-verified: `clean`, `assembleDebug`, `testDebugUnitTest` all
+  pass.
+- **Deliberately not done:** the `domain`/`data`/`presentation` package skeleton.
+  EXECUTION_PLAN.md lists it under G1, but PROJECT_STATE.md's own "first actions"
+  list for this gate does not, and empty packages with no classes yet would be
+  scaffolding without content. Left for the start of G2, when `AttendanceRule` and
+  friends give the packages something real to hold.
+
+**Human verification.** PENDING — the author should confirm the dependency
+versions and the Hilt rejection reasoning before G2 begins building on top of them.

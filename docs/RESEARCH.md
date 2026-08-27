@@ -9,11 +9,13 @@ section becomes a bug later.
 - **Assumptions requiring device/emulator validation** — cannot be settled by reading;
   only hardware answers them.
 
-**Sourcing rule.** No URLs are cited here, because no agent fetched one. Findings
-marked *(G0.1 human review)* were verified by the human reviewer against **official
-Android Developers documentation** on 2026-08-28 and are attributed to that review
-rather than to a fabricated citation. Everything else in section 1 was observed
-directly in this environment. Items in section 2 remain open questions, not findings.
+**Sourcing rule.** Findings marked *(G0.1 human review)* were verified by the human
+reviewer against **official Android Developers documentation** on 2026-08-28 and are
+attributed to that review rather than to a fabricated citation, since no agent had web
+access at that time. From G1 onward, the agent session had live web access; findings
+marked "live web research this session" name the pages actually fetched. No finding is
+ever cited to a URL that was not fetched during the session doing the citing. Items in
+section 2 remain open questions, not findings.
 
 ---
 
@@ -43,6 +45,10 @@ Each was observed directly in this environment on 2026-08-28.
 | RF-18 | **Android recommends a minimum geofence radius of roughly 100–150 m for best results.** A 50 m eligibility rule sits well below that, making `GeofencingClient` a poor semantic and technical fit for immediate on-screen validation. | Official Android Developers documentation *(G0.1 human review)*. Closes `ER-03`; promotes ADR-001 to `ACCEPTED`. |
 | RF-19 | **DataStore is intended for small, simple datasets; Room is preferred for complex datasets, partial updates, or referential integrity.** A single office coordinate pair falls squarely in DataStore's intended range. | Official Android Developers documentation *(G0.1 human review)*. Confirms ADR-002. |
 | RF-20 | **Command-line builds are viable.** The human verified from PowerShell: Gradle sync PASS, clean PASS, `assembleDebug` PASS, emulator launch PASS. PowerShell with the Gradle wrapper is therefore the documented CLI build path. | Manual verification by the human reviewer, 2026-08-28 *(G0.1 human review)*. Resolves `DA-07`. |
+| RF-21 | **`FusedLocationProviderClient` ships in `com.google.android.gms:play-services-location`, current stable `21.4.0`.** No API redesign at this version affects the streaming-updates-plus-one-shot-current-location shape ADR-001 already specifies. | Live web research this session (`developers.google.com/android/guides/releases`, cross-checked against `mvnrepository.com`), 2026-08-28. Closes `ER-02`. Unlike G0.1, this session had live web access, so the coordinate is cited directly rather than attributed to human review. |
+| RF-22 | **Preferences DataStore's current stable artifact is `androidx.datastore:datastore-preferences:1.2.1`.** `datastore-preferences-core` is the Android-free variant; not needed here since the app is Android-only. No Proto DataStore is warranted — the stored shape (two doubles plus a timestamp) has no schema-evolution need Proto solves and Preferences already satisfies ADR-002. | Live web research this session (`developer.android.com/jetpack/androidx/releases/datastore`, cross-checked against `mvnrepository.com`), 2026-08-28. Closes `ER-04`. |
+| RF-23 | **Current stable coordinates for the Compose-facing lifecycle libraries are `androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0` and `androidx.lifecycle:lifecycle-runtime-compose:2.11.0`** (released 2026-06-17), matching the already-pinned Kotlin 2.2.10 / Compose BOM 2026.02.01 baseline. `lifecycle-runtime-ktx` bumped from `2.6.1` to `2.11.0` for one consistent lifecycle version across the catalog. | Live web research this session (`developer.android.com/jetpack/androidx/releases/lifecycle`), 2026-08-28. Supports ADR-006 (`AND-12`); not a numbered `ER` item, recorded for traceability. |
+| RF-24 | **Current stable `org.jetbrains.kotlinx:kotlinx-coroutines-android` is `1.11.0`**, compatible with Kotlin 2.2.10. Declared explicitly rather than relied on transitively from `lifecycle-runtime-ktx`, since `domain`/`data` use `Flow`/`callbackFlow` directly (ADR-006, ADR-001). | Live web research this session (`mvnrepository.com`, `github.com/Kotlin/kotlinx.coroutines`), 2026-08-28. |
 
 ---
 
@@ -54,8 +60,6 @@ details are a poor substitute for current documentation.
 
 | ID | Question | Gates | Why it matters |
 | --- | --- | --- | --- |
-| ER-02 | Current recommended `FusedLocationProviderClient` API surface and priority constants at this SDK level, and the correct dependency coordinate/version for Play Services Location. | G2, ADR-001 | Determines the exact `LocationDataSource` implementation and the first new dependency added to the catalog. |
-| ER-04 | Preferences DataStore vs Proto DataStore, and the correct artifact coordinate for this Compose/Kotlin version. **Narrowed:** the DataStore-vs-Room question is closed by `RF-19`; only the variant and coordinate remain. | G2 | ADR-002 is settled in principle. This is now a dependency-coordinate question, not an architectural one. |
 | ER-05 | Flutter `camera` plugin capability matrix at 3.41: zoom range and set-zoom, focus-point and exposure-point support, and **whether an ultra-wide 0.5x lens is exposed as a separate camera or as a zoom level below 1.0**. | G5, FLT-03 to FLT-07 | Decides whether 0.5x is a zoom value or a camera switch — a structural difference in `CameraDataSource`. Compounded by AMB-01, where the source text for this very bullet is lost. |
 | ER-06 | `workmanager` (or equivalent) status and compatibility with Flutter 3.41 / Dart 3.11, and its behaviour under current Android background-execution limits at `targetSdk` 37. | G6, FLT-10 | The assessment names `workmanager` only as an example. If it is unmaintained or incompatible at this SDK level, an equivalent must be chosen deliberately and recorded as an ADR. |
 | ER-07 | Whether the chosen connectivity library reports **reachability** or only link presence, and how to detect a genuinely usable connection. | G6, FLT-12, AMB-15 | "Once a **stable** connection is detected" is the mandated trigger. Link-present-but-unusable is exactly the low-bandwidth case FLT-11 calls out, so getting this wrong defeats the requirement. |
@@ -71,6 +75,8 @@ Retained with their original IDs so existing references stay valid.
 | --- | --- | --- |
 | ER-01 | Does AGP 9.x provide built-in Kotlin support, making a separate `org.jetbrains.kotlin.android` plugin unnecessary? | **CLOSED — yes.** AGP 9+ enables built-in Kotlin support by default, so RF-08 is expected behaviour. See `RF-17`. |
 | ER-03 | Official guidance on minimum reliable geofence radius and transition latency. | **CLOSED.** Android recommends roughly 100–150 m minimum radius for best results, well above this feature's 50 m rule. See `RF-18`; ADR-001 is now `ACCEPTED`. |
+| ER-02 | Current recommended `FusedLocationProviderClient` API surface and the correct dependency coordinate for Play Services Location. | **CLOSED at G1 (2026-08-28).** `com.google.android.gms:play-services-location:21.4.0`; no API-shape change affecting ADR-001's design. See `RF-21`. |
+| ER-04 | Preferences DataStore vs Proto DataStore, and the correct artifact coordinate. | **CLOSED at G1 (2026-08-28).** `androidx.datastore:datastore-preferences:1.2.1`; Preferences confirmed sufficient, no schema-evolution need for Proto. See `RF-22`. |
 
 ---
 
