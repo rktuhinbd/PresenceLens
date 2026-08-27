@@ -228,3 +228,59 @@ were pinned.
 
 **Human verification.** PENDING — the author should confirm the dependency
 versions and the Hilt rejection reasoning before G2 begins building on top of them.
+
+---
+
+## Entry 004 — G2 Android attendance domain & office-location persistence
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-28 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Sonnet 5 |
+| **Gate** | G2 — Android Location & Domain |
+| **Purpose** | Implement the pure domain model and rule behind AND-08 (50 m eligibility), the Haversine distance calculation feeding AND-09, and the DataStore-backed office-location persistence behind AND-07/GEN-03 — vertical-slice only, no GPS, no ViewModel, no UI. |
+
+**Prompt summary.** Read PROJECT_STATE.md, REQUIREMENTS_MATRIX.md, DECISIONS.md,
+ARCHITECTURE.md, and `android-attendance/AGENTS.md` first, then implement: a
+validated `GeoCoordinates` model; `AttendanceRule` with a named 50 m constant and
+exact boundary tests at 0/49.9/50.0/50.1/120 m; a pure Haversine `DistanceCalculator`
+with identity/symmetry tests; an `OfficeLocationRepository` interface with a DataStore
+Preferences implementation, testable on the JVM without Robolectric or a `Context`.
+Explicitly out of scope: FusedLocationProvider, permission UI, `AttendanceScreen`,
+the final ViewModel, Google Maps, network submission.
+
+**Method.** Package layout follows ARCHITECTURE.md exactly:
+`domain/model` (`GeoCoordinates`, `OfficeLocation`, the `OfficeLocationRepository`
+interface — kept in `domain` per ADR-002/ARCHITECTURE.md so implementations stay
+swappable behind a fake in future ViewModel tests), `domain/attendance`
+(`AttendanceRule`, `DistanceCalculator`, `ProximityResult`), `data/local`
+(`DataStoreOfficeLocationRepository`, plus a `Context.officeLocationDataStore`
+extension as the production construction seam). The DataStore repository takes a
+`DataStore<Preferences>` instance directly rather than a `Context`, so JVM unit tests
+construct one with `PreferenceDataStoreFactory.create` against a JUnit
+`TemporaryFolder` file — no Robolectric, no Android global state.
+
+**Result.**
+
+- 17 unit tests added, all passing: 5 `GeoCoordinates` validation tests, 3
+  `DistanceCalculator` tests (identity, known-distance, symmetry), 5 `AttendanceRule`
+  boundary tests, 4 `DataStoreOfficeLocationRepository` tests (absent initially, save
+  and read back, overwrite, clear).
+- **One real defect found and fixed by the test suite itself:** the exact-50.0 m
+  boundary test failed on the first run. Round-tripping a target distance through
+  degrees→radians→trig→radians→degrees does not land on a bit-identical value, so a
+  distance of exactly 50 m could compute as `50.000000000002` and fail a naive `<=`
+  check. Fixed with a documented sub-micrometre epsilon
+  (`BOUNDARY_EPSILON_METERS = 1e-6`) in `AttendanceRule` — negligible against any real
+  GPS fix's accuracy, but removes floating-point flakiness at the boundary the
+  assessment explicitly tests.
+- Added `kotlinx-coroutines-test` to the version catalog (test-only dependency) to
+  drive the DataStore `Flow` assertions with `runTest`/`UnconfinedTestDispatcher`.
+- `testDebugUnitTest` and `assembleDebug` both pass; `git diff --check` clean; diff
+  scoped to the intended new domain/data files plus the two catalog/build edits.
+
+**Human verification.** PENDING — the author should confirm the boundary-epsilon
+justification is acceptable and that `OfficeLocationRepository` living in
+`domain.model` (rather than a separate `domain.office` package) reads as the right
+call before G3 wires it into the ViewModel.

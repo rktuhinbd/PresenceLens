@@ -1,0 +1,28 @@
+package io.github.rktuhinbd.presencelens.attendance.domain.attendance
+
+import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+/**
+ * Great-circle distance between two coordinates via the Haversine formula.
+ * Pure and Android-independent: no `android.location.Location`.
+ */
+object DistanceCalculator {
+
+    internal const val EARTH_RADIUS_METERS = 6_371_000.0
+
+    fun distanceMeters(from: GeoCoordinates, to: GeoCoordinates): Double {
+        val lat1 = Math.toRadians(from.latitude)
+        val lat2 = Math.toRadians(to.latitude)
+        val deltaLat = Math.toRadians(to.latitude - from.latitude)
+        val deltaLon = Math.toRadians(to.longitude - from.longitude)
+
+        val a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+            cos(lat1) * cos(lat2) * sin(deltaLon / 2) * sin(deltaLon / 2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return EARTH_RADIUS_METERS * c
+    }
+}
