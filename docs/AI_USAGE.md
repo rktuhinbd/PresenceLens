@@ -284,3 +284,82 @@ construct one with `PreferenceDataStoreFactory.create` against a JUnit
 justification is acceptable and that `OfficeLocationRepository` living in
 `domain.model` (rather than a separate `domain.office` package) reads as the right
 call before G3 wires it into the ViewModel.
+
+---
+
+## Entry 005 — G3 Android location layer, ViewModel, and AttendanceScreen
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-28 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Opus 5 |
+| **Gate** | G3 — Android UI, Polish, Testing |
+| **Purpose** | Complete Native Android Task 1 end to end: the real Fused Location layer, the ViewModel and single UI state, runtime permission/service UX, and `AttendanceScreen` against the p2 reference. |
+
+**Prompt summary.** Delivery-sprint mode. Close G2 with a local commit, then implement
+the location data layer (FusedLocationProviderClient, foreground only, lifecycle-aware,
+`callbackFlow`) with explicit handling for missing permission, approximate-only,
+services disabled, acquiring, usable, and failed; the `AttendanceViewModel` with one
+coherent `AttendanceUiState` where the UI computes no distance, eligibility, permission
+state, or persistence decision; Compose-compatible permission UX with no dialog loop;
+and the full `AttendanceScreen` preserving the reference information architecture with
+premium native Material 3 execution. Binding constraints: no Google Maps, no API key,
+no background location, no `GeofencingClient`, no alpha/preview design libraries, the
+availability caption must never gate eligibility, and the 50 m rule must keep coming
+from the tested domain component. Authorised to commit locally; not to push.
+
+**Method.** Four decisions are worth recording because they were judgement calls, not
+transcriptions of the brief:
+
+1. **Fix accuracy warns, it never blocks.** GEN-04/AMB-14 ask for a low-quality-fix
+   state, and it would have been easy to disable Mark Attendance on a wide error
+   radius. That would have changed the mandated behaviour: AND-08 names distance as
+   the *only* condition. A degraded fix therefore raises a visible caution and changes
+   nothing else. Coarse-only *permission* is different and is refused outright, because
+   `android-attendance/AGENTS.md` states that approximate location cannot resolve a
+   50 m boundary at all.
+2. **Lifecycle-awareness has no manual switch.** `collectAsStateWithLifecycle` →
+   `stateIn(WhileSubscribed)` → `callbackFlow`'s `awaitClose` means leaving the screen
+   removes the platform callback with no start/stop call for a future maintainer to
+   forget. This is asserted, not assumed: `FakeLocationDataSource` counts live
+   subscriptions and a test proves the count returns to zero.
+3. **`AttendanceUiState` is one data class holding a sealed `AttendanceStatus`, not a
+   sealed hierarchy at the top level.** ARCHITECTURE.md specifies a sealed hierarchy;
+   the property it exists for is that a distance cannot be rendered without a fix. That
+   property is preserved exactly — the distance lives inside `Tracking` — while the
+   screen's always-present sections stay renderable in every state, which a top-level
+   sealed type would have made awkward for a single-surface screen (AND-04).
+4. **No icon dependency.** Compose Material3 1.4.0 no longer brings
+   `material-icons-core` onto the classpath. Rather than add a dependency for nine
+   glyphs, the icons are project-owned stroked vector drawables — which also removes
+   any third-party asset-licence question from a public submission (SUB-01).
+
+The Task-to-coroutine bridge for `getCurrentLocation` is six hand-written lines rather
+than an added `kotlinx-coroutines-play-services` dependency, for the same reason.
+
+**Result.**
+
+- 39 unit tests added (56 total, all passing): 19 `AttendanceViewModel` state-behaviour
+  tests against hand-written fakes, plus `LocationQuality`, `DistanceFormatter`,
+  `ProximityGeometry`, bearing, and repository tests.
+- `assembleDebug` passes; `lintDebug` reports **0 errors** (10 warnings: six
+  dependency-version advisories against the toolchain deliberately pinned at G1, and
+  four `PluralsCandidate` notices on strings whose only numeric argument is the fixed
+  50 m radius).
+- **A pre-existing test defect was found and fixed.** Two of G2's four DataStore tests
+  were failing on this Windows host and had been masked by a cached Gradle result — the
+  suite had not actually re-run since it was written. DataStore commits a write by
+  renaming a temp file over the target, and `File.renameTo` on Windows refuses to
+  overwrite an existing file, so *any* second write failed. This is a host-filesystem
+  limitation, not Android behaviour and not a defect in the repository. Multi-write
+  behaviour (overwrite, clear) and read-failure recovery now run against an in-memory
+  `DataStore<Preferences>`; the real file-backed round trip is retained separately.
+  The claim of "17 passing tests" in the G2 record was therefore stale when written.
+- Three local commits created: the G2 milestone, the location layer, and the screen.
+
+**Human verification.** PENDING — the author should (a) run the emulator verification
+steps in PROJECT_STATE.md, (b) confirm the accuracy-warns-never-blocks reading of
+AMB-14 is the intended one, and (c) confirm the restructured DataStore tests are an
+acceptable response to the Windows rename limitation rather than something to solve by
+changing the persistence layer.
