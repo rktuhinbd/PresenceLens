@@ -705,6 +705,14 @@ it state-driven.
    panel, and one haptic — replacing the snackbar for that event. The confirmation is
    shown only while the eligibility it confirms still holds.
 
+   **Revised at G3.7 (2026-08-28), on human review of the app on a physical device.**
+   The completed state as delivered here said the same thing three times — an
+   "ATTENDANCE MARKED" overline, a relabelled disabled button reading "Attendance
+   marked", and a green outline around both. It now renders **no control at all**: the
+   status card carries the headline, and a single compact confirmation records the time
+   and the distance verified at the moment of the mark. The rule that the confirmation
+   does not outlive its eligibility is unchanged, and so is the haptic.
+
 ### Reasoning
 
 - Directive 2 of the approved brief requires every blocked state to explain why the

@@ -22,7 +22,7 @@ data class AttendanceUiState(
     val status: AttendanceStatus = AttendanceStatus.AcquiringFix,
     val isCapturingOfficeLocation: Boolean = false,
     val message: AttendanceMessage? = null,
-    val attendanceMarkedAtEpochMillis: Long? = null
+    val markedAttendance: MarkedAttendance? = null
 ) {
 
     /** Non-null only while both a fix and a saved office exist. */
@@ -39,6 +39,19 @@ data class AttendanceUiState(
      */
     val canMarkAttendance: Boolean
         get() = (status as? AttendanceStatus.Tracking)?.proximity?.isEligible == true
+
+    /**
+     * Whether the screen's primary job is finished and it should present itself as complete.
+     *
+     * One value, read by the status card, by the action area, and by the presenter, so a
+     * completed action cannot end up confirmed in one place and still offered in another.
+     *
+     * A mark only counts while the eligibility it recorded still holds: walk out of the radius
+     * and the screen goes back to guiding the user rather than leaving a confirmation standing
+     * over a place where attendance is no longer possible.
+     */
+    val isAttendanceConfirmed: Boolean
+        get() = markedAttendance != null && canMarkAttendance
 
     /**
      * "Set Office Location" needs the app to be receiving positions at all. It stays disabled
@@ -58,6 +71,22 @@ data class AttendanceUiState(
             else -> false
         }
 }
+
+/**
+ * A mark taken in this session, with the two facts the confirmation states: when it happened,
+ * and the distance that was verified at that moment.
+ *
+ * The pair travels together so the screen cannot show a time without the distance that earned
+ * it, and the distance is captured rather than read live - "location verified" describes the
+ * reading the rule was applied to, not wherever the user has drifted since.
+ *
+ * The assessment provides no attendance API (p3 Note), so this is session-scoped local state
+ * and nothing more: no record, no history, no backend.
+ */
+data class MarkedAttendance(
+    val atEpochMillis: Long,
+    val distanceMeters: Double
+)
 
 /**
  * The screen's conditions as a closed set rather than as independent booleans, so a

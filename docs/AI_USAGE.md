@@ -613,3 +613,59 @@ the install/launch smoke test were all executed and their output inspected in th
 session — not asserted from memory. **Still pending from the human:** confirming the
 `key.properties` and `.jks` backups were made, and the final side-by-side install check
 on the device intended for actual submission upload.
+
+## Entry 008 — G3.7 Android success-state refinement
+
+**Date.** 2026-08-28
+**Model / tool.** Claude Opus 5 via Claude Code.
+
+**Human prompt, in substance.** After reviewing the built app on a real device, the
+human rejected the post-attendance presentation as redundant: the completed state said
+"ATTENDANCE MARKED", showed a large button-shaped surface also reading "Attendance
+marked", drew a green success border around both, and left the eligible-distance copy
+still explaining that Mark Attendance was unlocked. The brief was narrow and explicit —
+refine the success state only, keep everything before the mark unchanged, remove the
+completed "button", replace it with a compact confirmation carrying the time and the
+verified distance, make the top status card read as complete, shorten the eligible
+distance copy, and freeze every business rule, the location layer, persistence, the
+architecture, the signing identity, and Flutter. The human supplied the intended copy
+and information hierarchy.
+
+**What the AI did.**
+
+1. **Made "the screen has finished its job" a single derived value.**
+   `AttendanceUiState.isAttendanceConfirmed` is read by the status-card presenter, by
+   the action area, and by the new `AttendanceStatusPresenter.markAttendanceAction`, so
+   the headline, the confirmation, and the availability of the action cannot disagree.
+2. **Replaced the completed control rather than restyling it.** `MarkAttendanceAction`
+   is a closed set — `AVAILABLE`, `BLOCKED`, `COMPLETED` — because "completed" is not a
+   shade of "disabled". In `COMPLETED` the panel renders no `Button`, no dashed/solid
+   outline and no overline; a `uiautomator` dump of the running app was used to confirm
+   no `Mark Attendance` node and no clickable node survives in that state.
+3. **Captured the verified distance at the moment of the mark.** `MarkedAttendance`
+   (time + distance) replaces the bare timestamp, so "Location verified · 1 m from
+   office" states the reading the 50 m rule was applied to rather than a live value that
+   drifts afterwards. The 50 m rule, the Haversine calculation, the freshness policy and
+   the data sources were not touched.
+4. **Semantics.** The confirmation is one node with one sentence
+   (`clearAndSetSemantics`), announced as a statement — TalkBack no longer meets a
+   control-shaped element that cannot be pressed.
+
+**Where the AI exercised judgement beyond the literal instruction.** The supplied
+sketch put the confirmation in the success colour role. Rendered, that produced two
+saturated green blocks repeating the same headline — the repetition the sprint existed
+to remove. The confirmation was demoted to the screen's own `surfaceContainerLow` card
+role with the check keeping the success colour, so the green announcement stays
+singular. The sketch's three stacked lines were also folded into two, with the time on
+the trailing edge, which is what makes the target footprint reduction achievable; both
+changes are within the brief's stated permission to improve the layout, and are flagged
+here rather than buried.
+
+**Verified, not assumed.** `clean` → `testDebugUnitTest` (**95 tests**, 0 failures) →
+`assembleDebug` → `lintDebug` (0 errors) → `git diff --check`. The before/after states
+were driven on `emulator-5554` in both light and dark: the ready face is unchanged and
+still actionable, the marked face carries one headline, one receipt, the live distance
+context and Office hours, and the attendance region's measured height falls from 467 px
+to 300 px (**~36 % shorter**). Leaving the radius was exercised and still retires the
+confirmation and restores the locked CTA; returning restores the confirmation with its
+originally verified time and distance.

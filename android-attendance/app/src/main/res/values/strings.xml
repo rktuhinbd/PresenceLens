@@ -59,7 +59,7 @@
     <string name="range_status_in">IN RANGE</string>
     <string name="range_status_out">OUT OF RANGE</string>
     <string name="range_guidance_out">Move within %1$d m to mark attendance.</string>
-    <string name="range_guidance_in">You’re inside the radius — Mark Attendance is unlocked.</string>
+    <string name="range_guidance_in">You’re within the attendance area.</string>
     <string name="content_description_distance_gauge_pending">Distance to the office is not available yet</string>
     <string name="content_description_distance_gauge">You are %1$s from the office. The attendance radius is %2$d metres.</string>
 
@@ -67,11 +67,14 @@
     <string name="mark_attendance">Mark Attendance</string>
     <string name="mark_attendance_locked">ATTENDANCE LOCKED</string>
     <string name="mark_attendance_ready">READY TO MARK</string>
-    <string name="mark_attendance_done">ATTENDANCE MARKED</string>
-    <string name="mark_attendance_done_action">Attendance marked</string>
     <string name="office_hours_label">Office hours</string>
     <string name="office_hours_value">09:00 AM – 10:30 AM</string>
     <string name="content_description_attendance_locked">Attendance is locked until you are inside the attendance radius</string>
+
+    <!-- Compact confirmation shown in place of the action once attendance is marked -->
+    <string name="attendance_confirmation_title">Attendance marked</string>
+    <string name="attendance_confirmation_detail">Location verified · %1$s from office</string>
+    <string name="content_description_attendance_confirmation">Attendance marked at %1$s. Location verified, %2$s from the office.</string>
 
     <!-- Why Mark Attendance is unavailable, shown beside the disabled button (AND-20) -->
     <string name="blocked_reason_office_not_set">Set your office location to continue.</string>
@@ -118,7 +121,7 @@
     <string name="status_ready_title">Ready to mark attendance</string>
     <string name="status_ready_body">You’re %1$s from the office, inside the %2$d m radius.</string>
     <string name="status_marked_title">Attendance marked</string>
-    <string name="status_marked_body">Recorded on this device at %1$s. No attendance server is involved.</string>
+    <string name="status_marked_body">Your location was verified at %1$s.</string>
 
     <!-- Fix quality caution (AMB-14) -->
     <string name="status_degraded_accuracy_title">Location accuracy is low</string>

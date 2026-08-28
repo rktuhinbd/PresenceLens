@@ -5,12 +5,13 @@ Resumption document. Read this first, then the active gate in
 [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md).
 
 Last updated: 2026-08-28
-Overall status: **G3.6 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
+Overall status: **G3.7 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
 implemented end to end, passes all automated verification, and has been driven through
 every state on an emulator. A location-state oscillation found by manual testing has been
-root-caused and fixed ([ADR-014](DECISIONS.md#adr-014)). The rows whose stated verification
-method is a Compose UI test remain `PARTIAL`; a manual walkthrough is not that method.**
-Current gate: **G3.6 — Android stability and final UX polish (complete)**
+root-caused and fixed ([ADR-014](DECISIONS.md#adr-014)); the post-attendance state was
+rebuilt at G3.7 after a physical-device review. The rows whose stated verification method
+is a Compose UI test remain `PARTIAL`; a manual walkthrough is not that method.**
+Current gate: **G3.7 — Android success-state refinement (complete)**
 
 ## Progress
 
@@ -19,7 +20,7 @@ Current gate: **G3.6 — Android stability and final UX polish (complete)**
 | Requirements extracted from the PDF | Complete — 64 requirements, 15 ambiguities |
 | Architecture defined | Complete (both apps) |
 | ADRs | 14 recorded — 12 `ACCEPTED`, 2 `PROPOSED` (ADR-009 technical revisit, ADR-010 deferred to G8). ADR-013's two open interpretive calls were **ruled on and accepted** at G3.6. |
-| **Android feature implementation** | **Complete, stabilised and polished.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). Location is now a retained value with a named freshness bound rather than a stream of provider verdicts ([ADR-014](DECISIONS.md#adr-014)). 90 unit tests pass; emulator walkthrough executed. |
+| **Android feature implementation** | **Complete, stabilised and polished.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). Location is now a retained value with a named freshness bound rather than a stream of provider verdicts ([ADR-014](DECISIONS.md#adr-014)). The post-attendance state was rebuilt at G3.7 so a completed action stops being rendered as a control. 95 unit tests pass; emulator walkthrough executed. |
 | **Flutter application** | **0% — project not created** |
 | README / submission artefacts | Not started |
 
@@ -29,8 +30,8 @@ Current gate: **G3.6 — Android stability and final UX polish (complete)**
 | --- | --- |
 | Android Gradle sync | PASS (Android Studio and PowerShell) |
 | Android `clean` | PASS (PowerShell CLI, verified at G1) |
-| Android `assembleDebug` | PASS — re-verified after the G3.6 pass, 2026-08-28 |
-| Android `testDebugUnitTest` | PASS — **90 tests**, 0 failures, 2026-08-28 |
+| Android `assembleDebug` | PASS — re-verified after the G3.7 pass, 2026-08-28 |
+| Android `testDebugUnitTest` | PASS — **95 tests**, 0 failures, 2026-08-28 |
 | Android `lintDebug` | PASS — **0 errors**, 10 warnings (6 dependency-version advisories, 4 `PluralsCandidate`) |
 | `git diff --check` | CLEAN |
 | `domain` free of Android imports | PASS — verified by grep over `domain/` |
@@ -45,12 +46,12 @@ Current gate: **G3.6 — Android stability and final UX polish (complete)**
 | Android `assembleRelease` | **PASS, SIGNED — 2026-08-28.** ADR-010 resolved; `apksigner verify` passed (APK Signature Scheme v2, 2048-bit RSA); installed and smoke-tested on `emulator-5554` |
 | Flutter project | **NOT CREATED** |
 
-### Unit test breakdown (90)
+### Unit test breakdown (95)
 
 | Suite | Tests | Covers |
 | --- | --- | --- |
-| `AttendanceViewModelTest` | 31 | Permission, approximate-only, services-off, acquiring, real provider failure, revoked mid-stream (both routes), office-not-set, office restored, per-emission distance, the 50 m boundary in both directions, degraded-fix behaviour, office capture + persistence, capture failure, storage failure, mark-attendance in range / out of range / on a stale fix, message lifecycle, subscription teardown, **and the eight G3.6 stability cases** — availability flapping, the no-flash assertion over the whole emitted sequence, escalation only after the acquisition window, staleness at and past the limit, recovery into eligible and into out-of-range, no subscription restart on a repeated grant, and the freshness tick producing no state churn |
-| `AttendanceStatusPresenterTest` | 16 | All thirteen status-card conditions, the action each offers, all seven blocked-button reasons, that a stale fix reads as progress rather than failure, and that the success confirmation does not outlive the eligibility it confirms |
+| `AttendanceViewModelTest` | 32 | Permission, approximate-only, services-off, acquiring, real provider failure, revoked mid-stream (both routes), office-not-set, office restored, per-emission distance, the 50 m boundary in both directions, degraded-fix behaviour, office capture + persistence, capture failure, storage failure, mark-attendance in range / out of range / on a stale fix, message lifecycle, subscription teardown, **and the eight G3.6 stability cases** — availability flapping, the no-flash assertion over the whole emitted sequence, escalation only after the acquisition window, staleness at and past the limit, recovery into eligible and into out-of-range, no subscription restart on a repeated grant, and the freshness tick producing no state churn, **plus the G3.7 case** — a mark records both its time and the distance verified at that instant, and leaving the radius retires the confirmation without rewriting the mark |
+| `AttendanceStatusPresenterTest` | 20 | All thirteen status-card conditions, the action each offers, all seven blocked-button reasons, that a stale fix reads as progress rather than failure, that the success confirmation does not outlive the eligibility it confirms, and **the four G3.7 success-state cases** — eligible-and-unmarked offers the action and reads "Ready to mark attendance", eligible-and-marked reads "Attendance marked" and resolves to `COMPLETED` (no actionable CTA, no blocker), the headline stops inviting an action already done, and the confirmation carries the recorded time and the verified distance |
 | `AttendanceRuleTest` | 5 | AND-08 at 0 / 49.9 / 50.0 / 50.1 / 120 m |
 | `DistanceCalculatorTest` | 5 | Haversine identity, known distance, symmetry; bearing at the four cardinals and its normalisation |
 | `DistanceFormatterTest` | 6 | Metres, the kilometre switch, rounding, and non-finite input |
@@ -143,6 +144,57 @@ a manual walkthrough is not that method, and inflating them would be exactly the
 unearned `DONE` the charter forbids.
 
 ## Active objective
+
+**G3.7 — Android success-state refinement. Complete 2026-08-28.**
+
+**The finding.** A human review of the built app on a **physical device** rejected the
+post-attendance presentation. Not a defect — a redundancy. The completed state said the
+same thing three times over: an "ATTENDANCE MARKED" overline, a full-width button-shaped
+surface reading "Attendance marked", and a green outline drawn around both; meanwhile the
+eligible-distance copy still read "You're inside the radius — Mark Attendance is
+unlocked", explaining an action that had already been taken. A completed action was still
+being rendered as an action.
+
+**The change** (success state only; everything before the mark is untouched):
+
+1. **`isAttendanceConfirmed` is one derived value** on `AttendanceUiState`, read by the
+   status-card presenter, by the action area, and by the new
+   `AttendanceStatusPresenter.markAttendanceAction`. The headline, the confirmation, and
+   the availability of the action are now incapable of disagreeing.
+2. **`MarkAttendanceAction` — `AVAILABLE` / `BLOCKED` / `COMPLETED`.** "Completed" is not
+   a shade of "disabled". In `COMPLETED` the panel renders **no `Button`, no outline and
+   no overline**: verified by `uiautomator` on the running app, where no `Mark Attendance`
+   node and no clickable node survives.
+3. **A compact confirmation replaces the control** — a success check, "Attendance marked",
+   "Location verified · 1 m from office", and the recorded time on the trailing edge, in
+   the screen's own card role rather than a second saturated green block. One
+   `clearAndSetSemantics` node, one sentence: *"Attendance marked at 3:37 PM. Location
+   verified, 1 m from the office."* TalkBack meets a statement, not an inert control.
+4. **`MarkedAttendance` (time + distance) replaces the bare timestamp.** The distance is
+   captured at the instant the rule was applied, so "location verified" names the reading
+   that earned the mark rather than a live value that drifts afterwards.
+5. **Copy.** The status card after the mark reads "Attendance marked / Your location was
+   verified at 3:37 PM." The eligible-distance line is now "You're within the attendance
+   area." — the green IN RANGE chip already carries the eligibility, and the sentence no
+   longer explains it a second time.
+6. **Measured on `emulator-5554`:** the attendance region falls from **467 px to 300 px —
+   ~36 % shorter**, inside the 30–40 % target set for the sprint.
+
+**Nothing else moved.** The 50 m rule, `AttendanceRule`, the Haversine calculation,
+`LocationFreshness`, `FusedLocationDataSource`, the permission logic, DataStore
+persistence, office persistence, the architecture, the DI strategy, the Maps decision, the
+signing identity, the Gradle/toolchain versions, and Flutter are all untouched — verified
+by inspecting `git diff`, which spans nine files, all in the presentation layer, its
+tests, and `strings.xml`.
+
+**Verified.** `clean` → `testDebugUnitTest` (**95 tests**, 0 failures) → `assembleDebug` →
+`lintDebug` (**0 errors**, same 10 warnings) → `git diff --check` clean. Driven on
+`emulator-5554` in light and dark: ready is unchanged and actionable; marked shows one
+headline, one receipt, the live distance context, and Office hours, with no clipping.
+Leaving the radius retires the confirmation and restores the locked CTA; returning
+restores the confirmation with its **originally verified** time and distance while the
+live readout tracks the current position — the captured/live distinction behaving as
+designed.
 
 **G3.6 — Android stability and final UX polish. Complete 2026-08-28.**
 
@@ -311,7 +363,10 @@ file-backed round trip is retained separately.
 11. **G3.6 — Android stability and final UX polish (2026-08-28),** committed as
     `fix(android): stabilize location state and polish attendance UX`. Recorded as
     [ADR-014](DECISIONS.md#adr-014); ADR-013's two open rulings accepted.
-12. **Android release signing (2026-08-28)** — ADR-010 resolved, blocker B-01 closed. A
+12. **G3.7 — Android success-state refinement (2026-08-28),** committed as
+    `fix(android): refine attendance success experience`. Recorded against
+    [ADR-013](DECISIONS.md#adr-013) item 7 and [AI_USAGE.md Entry 008](AI_USAGE.md).
+13. **Android release signing (2026-08-28)** — ADR-010 resolved, blocker B-01 closed. A
     dedicated release keystore and `key.properties` (both local-only, git-ignored)
     sign `assembleRelease`; the signature is `apksigner`-verified and the build is
     installed and smoke-tested. Final artifact at
@@ -340,7 +395,7 @@ Remaining before G3/G3.5 can formally close:
       ([ADR-014](DECISIONS.md#adr-014)); 70 s stationary soak clean.
 - [x] State-driven UX pass (G3.5) delivered against the approved direction.
 - [x] Emulator walkthrough of every state executed, in light and dark.
-- [x] 90 unit tests passing; `assembleDebug` and `lintDebug` clean.
+- [x] 95 unit tests passing; `assembleDebug` and `lintDebug` clean.
 - [x] `git diff` inspected; five local commits created; nothing pushed.
 - [x] ADR-013 recorded; matrix, AI_USAGE.md and this file updated.
 

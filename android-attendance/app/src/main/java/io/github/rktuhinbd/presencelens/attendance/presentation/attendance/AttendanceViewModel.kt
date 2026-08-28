@@ -160,7 +160,13 @@ class AttendanceViewModel(
         transientState.update {
             it.copy(
                 message = AttendanceMessage.AttendanceMarked(status.proximity.distanceMeters),
-                attendanceMarkedAtEpochMillis = clock()
+                // The distance is recorded here, at the instant the rule was applied, so the
+                // confirmation can state what was verified rather than where the user has
+                // drifted to since.
+                markedAttendance = MarkedAttendance(
+                    atEpochMillis = clock(),
+                    distanceMeters = status.proximity.distanceMeters
+                )
             )
         }
     }
@@ -246,7 +252,7 @@ class AttendanceViewModel(
             status = status,
             isCapturingOfficeLocation = transient.isCapturingOfficeLocation,
             message = transient.message,
-            attendanceMarkedAtEpochMillis = transient.attendanceMarkedAtEpochMillis
+            markedAttendance = transient.markedAttendance
         )
     }
 
@@ -254,7 +260,7 @@ class AttendanceViewModel(
     private data class TransientState(
         val isCapturingOfficeLocation: Boolean = false,
         val message: AttendanceMessage? = null,
-        val attendanceMarkedAtEpochMillis: Long? = null
+        val markedAttendance: MarkedAttendance? = null
     )
 
     private companion object {

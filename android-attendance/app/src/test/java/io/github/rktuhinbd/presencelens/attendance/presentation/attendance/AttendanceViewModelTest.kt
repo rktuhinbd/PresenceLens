@@ -467,7 +467,7 @@ class AttendanceViewModelTest {
         fixture.viewModel.onMarkAttendanceClicked()
 
         assertNull(fixture.state().message)
-        assertNull(fixture.state().attendanceMarkedAtEpochMillis)
+        assertNull(fixture.state().markedAttendance)
     }
 
     @Test
@@ -481,7 +481,7 @@ class AttendanceViewModelTest {
         fixture.viewModel.onMarkAttendanceClicked()
 
         assertNull(fixture.state().message)
-        assertNull(fixture.state().attendanceMarkedAtEpochMillis)
+        assertNull(fixture.state().markedAttendance)
     }
 
     @Test
@@ -496,8 +496,35 @@ class AttendanceViewModelTest {
         val message = fixture.state().message
         assertTrue(message is AttendanceMessage.AttendanceMarked)
         assertEquals(12.0, (message as AttendanceMessage.AttendanceMarked).distanceMeters, 0.5)
-        assertEquals(FIXED_NOW, fixture.state().attendanceMarkedAtEpochMillis)
+
+        // The mark records both facts the confirmation states, taken at the instant the rule
+        // was applied rather than read back from the screen afterwards.
+        val marked = requireNotNull(fixture.state().markedAttendance)
+        assertEquals(FIXED_NOW, marked.atEpochMillis)
+        assertEquals(12.0, marked.distanceMeters, 0.5)
+        assertTrue(fixture.state().isAttendanceConfirmed)
     }
+
+    @Test
+    fun `walking out of range retires the confirmation without erasing the mark`() =
+        runTest(dispatcher) {
+            val fixture = Fixture(office = savedOffice)
+            fixture.observe(backgroundScope)
+            fixture.grantPreciseLocation()
+            fixture.emitFixAt(metersFromOffice = 12.0)
+            fixture.viewModel.onMarkAttendanceClicked()
+
+            fixture.emitFixAt(metersFromOffice = 240.0)
+
+            // Already-approved behaviour, restated against the new value: the screen stops
+            // presenting itself as complete the moment the eligibility it confirmed is gone,
+            // and the mark itself is not rewritten or invented away by a location change.
+            assertFalse(fixture.state().isAttendanceConfirmed)
+            assertEquals(FIXED_NOW, requireNotNull(fixture.state().markedAttendance).atEpochMillis)
+
+            fixture.emitFixAt(metersFromOffice = 12.0)
+            assertTrue(fixture.state().isAttendanceConfirmed)
+        }
 
     @Test
     fun `a shown message is cleared so it cannot repeat`() = runTest(dispatcher) {

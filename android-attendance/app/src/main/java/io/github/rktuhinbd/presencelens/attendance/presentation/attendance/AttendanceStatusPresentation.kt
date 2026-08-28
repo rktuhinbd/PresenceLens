@@ -68,6 +68,25 @@ data class AttendanceStatusPresentation(
 )
 
 /**
+ * What the attendance action area is, at this moment.
+ *
+ * A closed set rather than a pair of booleans, because "completed" is not a shade of
+ * "disabled": a finished action must stop being rendered as a control at all, or a screen
+ * reader meets something shaped like a button that can never be pressed.
+ */
+enum class MarkAttendanceAction {
+
+    /** A live, pressable Mark Attendance button. */
+    AVAILABLE,
+
+    /** The button is rendered but unavailable, with a [MarkAttendanceBlocker] stated beside it. */
+    BLOCKED,
+
+    /** Attendance is already marked. No control is offered - only a confirmation. */
+    COMPLETED
+}
+
+/**
  * Why Mark Attendance is disabled. A disabled control with no stated reason is a dead end, so
  * every blocked path names itself next to the button.
  */
@@ -155,15 +174,18 @@ object AttendanceStatusPresenter {
         )
 
         is AttendanceStatus.Tracking -> when {
-            // The confirmation stands only while the check-in it confirms is still true. Walk
-            // out of range and the screen goes back to guiding the user, rather than leaving a
-            // success message on a screen where attendance is no longer possible.
+            // The confirmation stands only while the eligibility it confirms is still true.
+            // Walk out of range and the screen goes back to guiding the user, rather than
+            // leaving a success message on a screen where attendance is no longer possible.
             !status.proximity.isEligible -> AttendanceStatusPresentation(
                 kind = AttendanceStatusKind.OUT_OF_RANGE,
                 tone = StatusTone.BLOCKED
             )
 
-            state.attendanceMarkedAtEpochMillis != null -> AttendanceStatusPresentation(
+            // Once the action is done, the headline stops inviting it. Leaving "Ready to mark
+            // attendance" here while a confirmation sits further down is the screen saying two
+            // different things about the same moment.
+            state.isAttendanceConfirmed -> AttendanceStatusPresentation(
                 kind = AttendanceStatusKind.ATTENDANCE_MARKED,
                 tone = StatusTone.SUCCESS
             )
@@ -173,6 +195,19 @@ object AttendanceStatusPresenter {
                 tone = StatusTone.SUCCESS
             )
         }
+    }
+
+    /**
+     * Whether the screen offers the action, refuses it, or has nothing left to offer.
+     *
+     * Derived from the same state value as [present] and as `canMarkAttendance`, which is what
+     * keeps the status card, the action area, and the availability of the action from ever
+     * disagreeing about whether attendance has been marked.
+     */
+    fun markAttendanceAction(state: AttendanceUiState): MarkAttendanceAction = when {
+        state.isAttendanceConfirmed -> MarkAttendanceAction.COMPLETED
+        state.canMarkAttendance -> MarkAttendanceAction.AVAILABLE
+        else -> MarkAttendanceAction.BLOCKED
     }
 
     /**

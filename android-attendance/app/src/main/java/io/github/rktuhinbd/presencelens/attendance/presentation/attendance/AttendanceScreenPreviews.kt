@@ -25,6 +25,11 @@ import io.github.rktuhinbd.presencelens.attendance.ui.theme.PresenceLensAttendan
  */
 private val OFFICE = GeoCoordinates(latitude = 23.780636, longitude = 90.279372)
 
+/** Comfortably inside the radius, so ready and marked differ only by the tap between them. */
+private const val READY_DISTANCE_METERS = 32.0
+
+private const val MARKED_AT_EPOCH_MILLIS = 1_756_000_000_000L
+
 private fun deviceLocation(
     coordinates: GeoCoordinates = OFFICE,
     accuracyMeters: Double? = 6.0
@@ -60,7 +65,11 @@ private fun trackingState(
         status = AttendanceStatus.Tracking(
             AttendanceRule.evaluate(current = current, office = OFFICE)
         ),
-        attendanceMarkedAtEpochMillis = markedAtEpochMillis
+        // A mark carries the distance verified at the moment it was taken, which at the instant
+        // a preview depicts is the distance on the gauge above it.
+        markedAttendance = markedAtEpochMillis?.let {
+            MarkedAttendance(atEpochMillis = it, distanceMeters = distanceMeters)
+        }
     )
 }
 
@@ -86,29 +95,33 @@ private fun AttendanceScreenOutOfRangePreview() {
     PreviewScreen(trackingState(distanceMeters = 120.0))
 }
 
-@Preview(name = "In range", showBackground = true, heightDp = 1_100)
+/**
+ * The four states of the screen's primary task, in both themes, side by side.
+ *
+ * Ready and marked use the same distance deliberately: the pair is the before/after of one
+ * tap, so anything that differs between them is a change this refinement made rather than a
+ * change of situation.
+ */
+@Preview(name = "Ready to mark", showBackground = true, heightDp = 1_100)
 @Composable
-private fun AttendanceScreenInRangePreview() {
-    PreviewScreen(trackingState(distanceMeters = 32.0))
+private fun AttendanceScreenReadyToMarkPreview() {
+    PreviewScreen(trackingState(distanceMeters = READY_DISTANCE_METERS))
 }
 
-@Preview(name = "In range (dark)", showBackground = true, heightDp = 1_100, uiMode = 0x21)
+@Preview(name = "Ready to mark (dark)", showBackground = true, heightDp = 1_100, uiMode = 0x21)
 @Composable
-private fun AttendanceScreenInRangeDarkPreview() {
-    PreviewScreen(trackingState(distanceMeters = 32.0))
-}
-
-@Preview(name = "Degraded fix", showBackground = true, heightDp = 1_100)
-@Composable
-private fun AttendanceScreenDegradedFixPreview() {
-    PreviewScreen(trackingState(distanceMeters = 18.0, accuracyMeters = 180.0))
+private fun AttendanceScreenReadyToMarkDarkPreview() {
+    PreviewScreen(trackingState(distanceMeters = READY_DISTANCE_METERS))
 }
 
 @Preview(name = "Attendance marked", showBackground = true, heightDp = 1_100)
 @Composable
 private fun AttendanceScreenMarkedPreview() {
     PreviewScreen(
-        trackingState(distanceMeters = 32.0, markedAtEpochMillis = 1_756_000_000_000L)
+        trackingState(
+            distanceMeters = READY_DISTANCE_METERS,
+            markedAtEpochMillis = MARKED_AT_EPOCH_MILLIS
+        )
     )
 }
 
@@ -116,8 +129,26 @@ private fun AttendanceScreenMarkedPreview() {
 @Composable
 private fun AttendanceScreenMarkedDarkPreview() {
     PreviewScreen(
-        trackingState(distanceMeters = 32.0, markedAtEpochMillis = 1_756_000_000_000L)
+        trackingState(
+            distanceMeters = READY_DISTANCE_METERS,
+            markedAtEpochMillis = MARKED_AT_EPOCH_MILLIS
+        )
     )
+}
+
+/** A mark taken at the boundary, where the confirmation's numbers are longest. */
+@Preview(name = "Attendance marked at the radius edge", showBackground = true, heightDp = 1_100)
+@Composable
+private fun AttendanceScreenMarkedAtEdgePreview() {
+    PreviewScreen(
+        trackingState(distanceMeters = 49.0, markedAtEpochMillis = MARKED_AT_EPOCH_MILLIS)
+    )
+}
+
+@Preview(name = "Degraded fix", showBackground = true, heightDp = 1_100)
+@Composable
+private fun AttendanceScreenDegradedFixPreview() {
+    PreviewScreen(trackingState(distanceMeters = 18.0, accuracyMeters = 180.0))
 }
 
 @Preview(name = "First use - setup", showBackground = true, heightDp = 1_100)

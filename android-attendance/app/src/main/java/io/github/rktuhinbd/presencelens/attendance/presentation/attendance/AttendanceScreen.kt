@@ -204,7 +204,9 @@ fun AttendanceScreen(
                 radiusMeters = radiusMeters.toInt(),
                 modifier = Modifier.padding(bottom = SECTION_GAP_DP.dp),
                 distanceText = state.proximity?.let { DistanceFormatter.format(it.distanceMeters) },
-                markedAtText = state.attendanceMarkedAtEpochMillis?.let(TimestampFormatter::time),
+                markedAtText = state.markedAttendance?.let {
+                    TimestampFormatter.time(it.atEpochMillis)
+                },
                 onRequestPermission = onRequestPermission,
                 onOpenApplicationSettings = onOpenApplicationSettings,
                 onOpenLocationSettings = onOpenLocationSettings
@@ -230,13 +232,18 @@ fun AttendanceScreen(
             }
 
             AttendanceActionPanel(
-                enabled = state.canMarkAttendance,
+                action = AttendanceStatusPresenter.markAttendanceAction(state),
                 onMarkAttendance = onMarkAttendance,
                 blockedReasonText = blockedReasonText(
                     AttendanceStatusPresenter.markAttendanceBlocker(state),
                     radiusMeters.toInt()
                 ),
-                isMarked = state.attendanceMarkedAtEpochMillis != null
+                markedAtText = state.markedAttendance?.let {
+                    TimestampFormatter.time(it.atEpochMillis)
+                },
+                verifiedDistanceText = state.markedAttendance?.let {
+                    DistanceFormatter.format(it.distanceMeters)
+                }
             )
         }
     }
