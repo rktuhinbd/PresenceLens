@@ -11,4 +11,11 @@ object TimestampFormatter {
 
     fun format(epochMillis: Long): String =
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(epochMillis))
+
+    /**
+     * Time only, for a confirmation the user is reading seconds after the action. The date
+     * would be noise there - they already know what day it is.
+     */
+    fun time(epochMillis: Long): String =
+        DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(epochMillis))
 }

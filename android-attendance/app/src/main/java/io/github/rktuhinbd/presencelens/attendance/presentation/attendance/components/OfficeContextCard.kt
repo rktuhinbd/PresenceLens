@@ -1,26 +1,28 @@
 package io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,15 +43,26 @@ import io.github.rktuhinbd.presencelens.attendance.ui.theme.OverlineTextStyle
 /**
  * The Setup Phase card from the reference (AND-14, AND-15, AND-16, AND-05, AND-06): the
  * "STEP 1: OFFICE CONTEXT" overline with its state dot, the location surface and coordinate
- * pill, the helper copy, and the "Set Office Location" button.
+ * pill, the helper copy, and the office-location control.
  *
- * Both this and the attendance action live on the same screen, never behind navigation
+ * The card has two faces, because the user has two entirely different jobs here.
+ *
+ * **Before an office is saved** this is the screen's centre of gravity: a heading, a sentence
+ * explaining why the coordinates are needed, and one prominent filled action reading exactly
+ * "Set Office Location" (AND-05). Nothing else on the screen competes with it.
+ *
+ * **After an office is saved** the setup job is finished, so the control steps back to a quiet
+ * secondary "Change office location" that routes through a confirmation - overwriting a saved
+ * office silently would be the one destructive thing this screen can do.
+ *
+ * Both faces live on the same screen as the attendance action, never behind navigation
  * (AND-04). Every value shown is read from [state]; nothing is computed here.
  */
 @Composable
 fun OfficeContextCard(
     state: AttendanceUiState,
     onSetOfficeLocation: () -> Unit,
+    onChangeOfficeLocation: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -107,75 +120,152 @@ fun OfficeContextCard(
                     R.string.location_surface_legend,
                     radiusMeters.toInt()
                 ),
+                officeLegendLabel = stringResource(R.string.location_surface_legend_office),
+                currentLegendLabel = stringResource(R.string.location_surface_legend_you),
                 surfaceContentDescription = surfaceContentDescription(state, radiusMeters),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.size(20.dp))
 
-            Text(
-                text = stringResource(R.string.office_context_helper),
-                style = MaterialTheme.typography.bodyMedium,
-                color = colorScheme.onSurfaceVariant
-            )
-
-            AnimatedVisibility(
-                visible = office != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Text(
-                    text = stringResource(
-                        R.string.office_context_captured_at,
-                        TimestampFormatter.format(office?.capturedAtEpochMillis ?: 0L)
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.size(18.dp))
-
-            OutlinedButton(
-                onClick = onSetOfficeLocation,
-                enabled = state.canSetOfficeLocation,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 56.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                if (state.isCapturingOfficeLocation) {
-                    // The label below stays fixed at "Set Office Location" (AND-05), so the
-                    // in-progress state has to be announced here or it is visual-only.
-                    val capturing = stringResource(R.string.set_office_location_capturing)
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .size(18.dp)
-                            .semantics { contentDescription = capturing },
-                        strokeWidth = 2.dp
+            // Setup and configured are the same card changing face, not two cards - a cross
+            // fade keeps that legible when the office is captured.
+            AnimatedContent(
+                targetState = office != null,
+                transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(160)) },
+                label = "officeContextFace"
+            ) { isConfigured ->
+                if (isConfigured) {
+                    ConfiguredOffice(
+                        capturedAtEpochMillis = office?.capturedAtEpochMillis,
+                        enabled = state.canSetOfficeLocation,
+                        onChangeOfficeLocation = onChangeOfficeLocation
                     )
                 } else {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_crosshair),
-                        // The button label immediately after says what this does.
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                    OfficeSetup(
+                        radiusMeters = radiusMeters.toInt(),
+                        enabled = state.canSetOfficeLocation,
+                        isCapturing = state.isCapturingOfficeLocation,
+                        onSetOfficeLocation = onSetOfficeLocation
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
-                // The label is fixed (AND-05). Progress is signalled by the leading indicator
-                // and the disabled state, not by rewriting the mandated text.
-                Text(
-                    text = stringResource(R.string.set_office_location),
-                    style = MaterialTheme.typography.labelLarge
-                )
             }
         }
     }
 }
 
-/** "OFFICE" once captured, otherwise the live position that a capture would record. */
+/** First use: the screen's primary job, stated plainly and given the only filled button. */
+@Composable
+private fun OfficeSetup(
+    radiusMeters: Int,
+    enabled: Boolean,
+    isCapturing: Boolean,
+    onSetOfficeLocation: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.office_context_setup_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = stringResource(R.string.office_context_setup_body, radiusMeters),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.size(8.dp))
+
+        Button(
+            onClick = onSetOfficeLocation,
+            enabled = enabled,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = PRIMARY_BUTTON_HEIGHT_DP.dp),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            if (isCapturing) {
+                // The label stays fixed at "Set Office Location" (AND-05), so the in-progress
+                // state has to be announced here or it is visual-only.
+                val capturing = stringResource(R.string.set_office_location_capturing)
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .semantics { contentDescription = capturing },
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Icon(
+                    painter = painterResource(R.drawable.ic_crosshair),
+                    // The button label immediately after says what this does.
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            // AND-05 mandates this exact label for the Setup Phase. Progress is signalled by
+            // the leading indicator and the disabled state, not by rewriting the text.
+            Text(
+                text = stringResource(R.string.set_office_location),
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+/** Setup is done: the helper copy, when it was captured, and a quiet way to redo it. */
+@Composable
+private fun ConfiguredOffice(
+    capturedAtEpochMillis: Long?,
+    enabled: Boolean,
+    onChangeOfficeLocation: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.office_context_helper),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = stringResource(
+                R.string.office_context_captured_at,
+                TimestampFormatter.format(capturedAtEpochMillis ?: 0L)
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        TextButton(
+            onClick = onChangeOfficeLocation,
+            enabled = enabled,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .defaultMinSize(minHeight = MIN_TOUCH_TARGET_DP.dp)
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_swap),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(R.string.change_office_location),
+                modifier = Modifier.padding(start = 8.dp),
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+/** "Office" once captured, otherwise the live position that a capture would record. */
 @Composable
 private fun coordinateLabel(state: AttendanceUiState): String = when {
     state.office != null -> stringResource(R.string.location_surface_legend_office)
@@ -214,3 +304,8 @@ private fun surfaceContentDescription(state: AttendanceUiState, radiusMeters: Do
         else -> stringResource(R.string.content_description_location_surface_no_fix)
     }
 }
+
+private const val PRIMARY_BUTTON_HEIGHT_DP = 56
+
+/** Android's minimum accessible touch target. */
+private const val MIN_TOUCH_TARGET_DP = 48

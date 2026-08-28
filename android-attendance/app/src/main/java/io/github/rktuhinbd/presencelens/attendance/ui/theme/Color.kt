@@ -60,7 +60,13 @@ internal val TertiaryContainerDark = Color(0xFF004F51)
 internal val OnTertiaryContainerDark = Color(0xFFB2ECEC)
 internal val ErrorDark = Color(0xFFFFB4AB)
 internal val OnErrorDark = Color(0xFF690005)
-internal val ErrorContainerDark = Color(0xFF93000A)
+/**
+ * Deeper and less saturated than the Material baseline dark `errorContainer` (`0xFF93000A`).
+ * "Out of range" is a routine condition on this screen, not a fault, and at baseline saturation
+ * a full-width card in that role reads as an alarm every time the user is simply not at the
+ * office yet. This keeps the role unmistakably red while letting it sit on a dark surface.
+ */
+internal val ErrorContainerDark = Color(0xFF5B1216)
 internal val OnErrorContainerDark = Color(0xFFFFDAD6)
 internal val BackgroundDark = Color(0xFF121318)
 internal val OnBackgroundDark = Color(0xFFE3E1E9)

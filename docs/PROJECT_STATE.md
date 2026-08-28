@@ -5,10 +5,11 @@ Resumption document. Read this first, then the active gate in
 [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md).
 
 Last updated: 2026-08-28
-Overall status: **G3 CODE-COMPLETE, AWAITING HUMAN ACCEPTANCE — Android Task 1 is
-implemented end to end and passes all automated verification. Device/emulator
-verification has not been performed, so the device-dependent rows remain `PARTIAL`.**
-Current gate: **G3 — Android UI, Polish, Testing**
+Overall status: **G3.5 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
+implemented end to end, passes all automated verification, and has been driven through
+every state on an emulator. The rows whose stated verification method is a Compose UI
+test remain `PARTIAL`; a manual walkthrough is not that method.**
+Current gate: **G3.5 — Android UX Polish Sprint (complete)**
 
 ## Progress
 
@@ -16,8 +17,8 @@ Current gate: **G3 — Android UI, Polish, Testing**
 | --- | --- |
 | Requirements extracted from the PDF | Complete — 64 requirements, 15 ambiguities |
 | Architecture defined | Complete (both apps) |
-| ADRs | 12 recorded — 10 `ACCEPTED`, 2 `PROPOSED` (ADR-009 technical revisit, ADR-010 deferred to G8) |
-| **Android feature implementation** | **Code-complete.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and `AttendanceScreen` with every AND-13…AND-21 element. 56 unit tests pass. Awaiting emulator acceptance. |
+| ADRs | 13 recorded — 11 `ACCEPTED`, 2 `PROPOSED` (ADR-009 technical revisit, ADR-010 deferred to G8) |
+| **Android feature implementation** | **Complete and polished.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). 70 unit tests pass; emulator walkthrough executed. |
 | **Flutter application** | **0% — project not created** |
 | README / submission artefacts | Not started |
 
@@ -27,24 +28,25 @@ Current gate: **G3 — Android UI, Polish, Testing**
 | --- | --- |
 | Android Gradle sync | PASS (Android Studio and PowerShell) |
 | Android `clean` | PASS (PowerShell CLI, verified at G1) |
-| Android `assembleDebug` | PASS — re-verified after G3 UI work, 2026-08-28 |
-| Android `testDebugUnitTest` | PASS — **56 tests**, 0 failures, 2026-08-28 |
-| Android `lintDebug` | PASS — **0 errors**, 10 warnings (6 dependency-version advisories, 4 `PluralsCandidate`) |
+| Android `assembleDebug` | PASS — re-verified after the G3.5 UX pass, 2026-08-28 |
+| Android `testDebugUnitTest` | PASS — **70 tests**, 0 failures, 2026-08-28 |
+| Android `lintDebug` | PASS — **0 errors**, 11 warnings (6 dependency-version advisories, 5 `PluralsCandidate`) |
 | `git diff --check` | CLEAN |
 | `domain` free of Android imports | PASS — verified by grep over `domain/` |
 | 50 m radius is a single constant | PASS — one literal, in `AttendanceRule` |
 | No `GeofencingClient` / Maps SDK / background location | PASS — no such dependency or permission exists |
-| Availability caption does not gate eligibility (ADR-011) | PASS — one reference, a `Text` call |
+| Office-hours caption does not gate eligibility (ADR-011, ADR-013) | PASS — `availability_caption` removed; `office_hours_label` / `office_hours_value` have one reference each, both `Text` calls |
 | Android emulator launch | PASS (verified at G0.1) |
-| **Emulator acceptance run of Task 1** | **NOT RUN — this is the outstanding item.** See below. |
+| **Emulator acceptance run of Task 1** | **PASS — executed twice.** By the author before G3.5, and again by the G3.5 walkthrough on `emulator-5554` after the UX pass. See below. |
 | Android `assembleRelease` | NOT RUN — would produce an **unsigned** APK (RF-09) |
 | Flutter project | **NOT CREATED** |
 
-### Unit test breakdown (56)
+### Unit test breakdown (70)
 
 | Suite | Tests | Covers |
 | --- | --- | --- |
 | `AttendanceViewModelTest` | 19 | Permission, approximate-only, services-off, acquiring, unavailable, revoked mid-stream, office-not-set, office restored, per-emission distance, the 50 m boundary in both directions, degraded-fix behaviour, office capture + persistence, capture failure, storage failure, mark-attendance in and out of range, message lifecycle, and subscription teardown |
+| `AttendanceStatusPresenterTest` | 14 | All twelve status-card conditions, the action each offers, all six blocked-button reasons, and that the success confirmation does not outlive the eligibility it confirms |
 | `AttendanceRuleTest` | 5 | AND-08 at 0 / 49.9 / 50.0 / 50.1 / 120 m |
 | `DistanceCalculatorTest` | 5 | Haversine identity, known distance, symmetry; bearing at the four cardinals and its normalisation |
 | `DistanceFormatterTest` | 6 | Metres, the kilometre switch, rounding, and non-finite input |
@@ -54,11 +56,12 @@ Current gate: **G3 — Android UI, Polish, Testing**
 | `InMemoryOfficeLocationRepositoryTest` | 5 | Absent, save, overwrite, clear, unreadable-store recovery |
 | `DataStoreOfficeLocationRepositoryTest` | 2 | Real file-backed round trip |
 
-## Manual emulator verification — **required before Task 1 can be accepted**
+## Manual emulator verification — **executed**
 
-Nothing below has been executed. Every row in the matrix that depends on it is
-`PARTIAL`. Run this on an emulator with Google Play services (the Fused Location
-Provider needs them).
+The seven steps below were run by the author before G3.5 and re-run against the
+polished build during G3.5 on `emulator-5554` (a Google Play services image — the
+Fused Location Provider needs them). Both passes were clean. The steps are kept here
+because they are the reproduction recipe for a reviewer, not because they are pending.
 
 **Setup.** Install and launch:
 
@@ -102,12 +105,49 @@ Then, in order:
 - Grant **Approximate** instead of Precise → expect the "Precise location required"
   banner, and Mark Attendance unavailable.
 
-Record the outcome here and flip the affected matrix rows to `DONE` only for the checks
-actually performed.
+**G3.5 walkthrough outcome (2026-08-28) — all clean.** Additionally exercised beyond the
+seven steps: the first-use setup face with the live position drawn at the centre of the
+dashed preview ring; the "Replace the saved office?" confirmation naming the coordinates
+it would overwrite; the "How attendance works" sheet; the stated reason beside the
+disabled button in the no-office, no-fix and out-of-range cases; the success state
+("ATTENDANCE MARKED" / "Marked at 12:55 PM") and its disappearance on leaving the radius;
+and dark-mode rendering of every card. Screenshots were captured for each.
+
+Matrix rows whose verification method is a **Compose UI test** stay `PARTIAL` regardless —
+a manual walkthrough is not that method, and inflating them would be exactly the kind of
+unearned `DONE` the charter forbids.
 
 ## Active objective
 
-**G3 — Android UI, Polish, Testing. Code-complete 2026-08-28.** Delivered this session:
+**G3.5 — Android UX Polish Sprint. Complete 2026-08-28.** The screen is now state-driven
+([ADR-013](DECISIONS.md#adr-013)), against a human-supplied UX direction. Delivered:
+
+1. **`AttendanceStatusPresenter`** — a pure function mapping `AttendanceUiState` to one of
+   twelve status-card conditions and to one of six "why is Mark Attendance unavailable"
+   reasons. Zero Android imports, so both are unit-testable on the JVM and no Composable
+   has to make the decision.
+2. **A dynamic status card** — one shape across all twelve states, cross-fading between
+   them, always saying what the app is doing and, when blocked, why.
+3. **A first-use setup face** on the office card — heading, explanation, and the single
+   prominent filled action. The distance panel is not drawn while there is no office to
+   measure against.
+4. **A stated reason beside a disabled Mark Attendance**, in every blocked state.
+5. **"Change office location"** as a quiet secondary action once setup is complete,
+   behind a confirmation that names the coordinates it would overwrite. "Set Office
+   Location" keeps its exact mandated label throughout the Setup Phase (AND-05).
+6. **The availability caption relabelled "Office hours"** — same position, same value,
+   no implied rule (ADR-011, ADR-013).
+7. **A "How attendance works" bottom sheet** from the app bar: on-device storage,
+   foreground-only reads, the 50 m radius, no background tracking.
+8. **A compact success state** — status card, a "Marked at HH:MM" line, and one haptic,
+   replacing the snackbar for that event and shown only while still in range.
+9. **A refined location surface** — a graded boundary, an honest legend that lists only
+   markers actually drawn, and the live position at the centre of the dashed preview ring
+   before an office exists.
+10. **14 new unit tests (70 total)**, five new project-owned icons, 17 `@Preview` states,
+    and a full emulator walkthrough in light and dark.
+
+**G3 — Android UI, Polish, Testing. Code-complete 2026-08-28.** Delivered earlier:
 
 1. **`domain/location`** — `LocationDataSource` and `LocationServiceMonitor` interfaces,
    `DeviceLocation` (carrying reported accuracy), `LocationFix` (failures as values, not
@@ -175,23 +215,33 @@ file-backed round trip is retained separately.
 8. **G3 — Android location layer, ViewModel, and AttendanceScreen (2026-08-28),** committed
    as `feat(android): add lifecycle-aware location tracking` and
    `feat(android): deliver polished attendance experience`.
+9. **Emulator acceptance of Task 1 performed by the author (2026-08-28)** — permission flow,
+   set office, persistence after restart, disabled beyond 50 m, enabled inside 50 m.
+10. **G3.5 — Android UX polish sprint (2026-08-28),** committed as
+    `feat(android): refine attendance UX and visual design`. Recorded as
+    [ADR-013](DECISIONS.md#adr-013).
 
 ## Next gate
 
-**Human acceptance of Android Task 1**, then **G4 — Flutter Bootstrap.**
+**Human sign-off on Android Task 1**, then **G4 — Flutter Bootstrap.**
 
-Flutter work has not begun and must not begin until Task 1 is accepted.
+Flutter work has not begun and must not begin until Task 1 is signed off.
 
-Remaining before G3 can formally close:
+Remaining before G3/G3.5 can formally close:
 
-- [ ] Emulator acceptance run (the seven steps above) performed and recorded.
+- [ ] Human confirmation of the two interpretive calls in [ADR-013](DECISIONS.md#adr-013):
+      the AND-05 Setup-Phase reading, and the "Office hours" relabel of the AND-21 caption.
 - [ ] Side-by-side comparison against the p2 reference captured for README §5 (AND-10).
-- [ ] Compose UI tests for AND-03/04/05/08/18/20 — deliberately deferred, since they need a
-      device or emulator and this session's verification is JVM-only.
+- [ ] Compose UI tests for AND-03/04/05/08/18/20 — deliberately deferred. The AND-05 test
+      must assert the mandated label **in the no-office state** (ADR-013).
+- [ ] Haptic on the mark-attendance path confirmed on a physical device; an emulator
+      cannot show it.
 - [x] Location layer, ViewModel, permission UX, and `AttendanceScreen` implemented.
-- [x] 56 unit tests passing; `assembleDebug` and `lintDebug` clean.
-- [x] `git diff` inspected; three local commits created; nothing pushed.
-- [x] Matrix and this file updated.
+- [x] State-driven UX pass (G3.5) delivered against the approved direction.
+- [x] Emulator walkthrough of every state executed, in light and dark.
+- [x] 70 unit tests passing; `assembleDebug` and `lintDebug` clean.
+- [x] `git diff` inspected; four local commits created; nothing pushed.
+- [x] ADR-013 recorded; matrix, AI_USAGE.md and this file updated.
 
 ## Blockers
 
@@ -201,14 +251,15 @@ Remaining before G3 can formally close:
 | ~~B-02~~ | ~~`ER-03` unanswered (geofence minimum-radius guidance).~~ | — | **RESOLVED at G0.1 review** — `RF-18`; ADR-001 is now `ACCEPTED`. |
 | B-03 | Flutter plugin viability unverified (`ER-05`, `ER-06`, `ER-07`). | G4 | Resolve before adding Flutter plugins, not after. |
 | B-04 | A physical Android device is required for camera work (`DA-04`) and background-retry verification (`DA-06`). | G5, G6, G7 | Confirm availability before G5 — a scheduling risk, not a technical one. |
-| B-05 | **Emulator acceptance of Task 1 not yet run.** | G3 closure, AND-02/06/07/08/09/10/13…21 reaching `DONE` | Requires a human at an emulator. Steps are written above; no code work is outstanding. |
+| ~~B-05~~ | ~~Emulator acceptance of Task 1 not yet run.~~ | — | **RESOLVED 2026-08-28.** Run by the author, then re-run against the polished build during G3.5. Rows whose stated method is a Compose UI test stay `PARTIAL` by design. |
 
 ## Known limitations (Android Task 1)
 
 - **No Compose UI tests yet.** The `androidTest` dependencies are declared and the tests are
   specified in the matrix, but they need a device. Every rule they would cover is already
-  covered on the JVM through `AttendanceUiState`; what remains unproven by automation is the
-  rendering, not the logic.
+  covered on the JVM through `AttendanceUiState` and `AttendanceStatusPresenter`; what
+  remains unproven by *automation* is the rendering, not the logic — and the rendering has
+  now been checked by hand on an emulator in every state.
 - **The location surface is not a map**, deliberately (ADR-003). It shows the boundary and
   the user's true bearing and distance, not streets. This is disclosed rather than implied,
   and must be stated in README §5.
@@ -225,7 +276,9 @@ Remaining before G3 can formally close:
 - No Flutter work until Android Task 1 is accepted.
 - No `GeofencingClient` (ADR-001), no Google Maps SDK or API key (ADR-003), no background
   location, no alpha/preview design libraries (ADR-012).
-- The availability caption is presentation only (ADR-011).
+- The office-hours caption is presentation only (ADR-011, ADR-013).
+- "Set Office Location" is the exact mandated label whenever no office is saved (AND-05,
+  ADR-013).
 - Dependencies added only via `libs.versions.toml`.
 - No Hilt or other DI framework (ADR-009 stands).
 - **Local commits are permitted; pushing is not.**

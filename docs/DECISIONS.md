@@ -621,3 +621,100 @@ rather than per-screen improvisation.
 - **This ADR governs presentation only.** It has no authority over behaviour. It can
   never justify altering AND-08, and it does not license the availability window to
   become an eligibility rule ([ADR-011](#adr-011)).
+
+---
+
+<a id="adr-013"></a>
+
+## ADR-013 — Attendance screen becomes state-driven (G3.5 UX pass)
+
+**Status:** ACCEPTED — approved by the human as the G3.5 UX direction, 2026-08-28.
+
+**Requirements:** AND-03, AND-04, AND-05, AND-10, AND-13…AND-21, GEN-04, EXP-03, EXP-04
+
+**Relates to:** [ADR-011](#adr-011) (unchanged in force), [ADR-012](#adr-012) (this is
+an application of it, not a replacement)
+
+### Context
+
+G3 delivered every element the p2 reference prescribes, and the emulator acceptance
+run passed. What it did not deliver is a screen that changes *emphasis* with the
+user's situation. Every state rendered the same four blocks at the same weight, so a
+first-time user with no office saved saw a distance gauge measuring against nothing
+and a Mark Attendance button competing with the only action available to them.
+
+Three specific gaps followed from that:
+
+- **No stated reason on a disabled control.** The button greyed out and said nothing
+  about why. A disabled control with no explanation is a dead end.
+- **A silent destructive path.** Pressing "Set Office Location" a second time
+  overwrote a saved coordinate with no confirmation.
+- **Undisclosed behaviour.** Where the office coordinates are stored, when location is
+  read, and that nothing runs in the background were all true of the implementation
+  and stated nowhere in the product.
+
+### Decision
+
+Keep **one** `AttendanceScreen` — no new destinations, no wizard, no tabs — and make
+it state-driven.
+
+1. **A dynamic status card** at the top of the screen, in one shape across twelve
+   states, always saying what the app is doing and, when the action is unavailable,
+   why. Which state is shown is decided by `AttendanceStatusPresenter`, a pure
+   function, not inside a Composable.
+2. **A first-use setup face.** With no office saved, the office card carries a
+   heading, an explanation, and the single prominent filled action; the distance panel
+   is not drawn, because it would be measuring against nothing.
+3. **A stated reason beside a disabled Mark Attendance**, one short line, derived from
+   the same state value the button's `enabled` reads.
+4. **"Set Office Location" keeps its exact mandated label for the Setup Phase**
+   (AND-05) — the state in which no office is saved. Once an office exists the setup
+   phase is over, and the control steps back to a secondary "Change office location"
+   behind an overwrite confirmation that names the coordinates being replaced.
+5. **The availability caption is relabelled "Office hours"**, keeping the reference's
+   position and value. "AVAILABLE 09:00 AM - 10:30 AM" reads as a rule; ADR-011
+   already established it is not one, and the old wording was the last place the app
+   still implied otherwise.
+6. **A "How attendance works" bottom sheet** from the app bar: on-device storage,
+   foreground-only reads, the 50 m radius, no background tracking, and the office-hours
+   disclosure. A surface over the screen, not a destination.
+7. **A compact success state** — the status card, a "Marked at HH:MM" line on the
+   panel, and one haptic — replacing the snackbar for that event. The confirmation is
+   shown only while the eligibility it confirms still holds.
+
+### Reasoning
+
+- Directive 2 of the approved brief requires every blocked state to explain why the
+  main action is unavailable. That is a property of the *screen*, not of a single
+  control, so it needed a first-class surface rather than more copy in the panel.
+- Resolving state to presentation in a pure function keeps
+  `android-attendance/AGENTS.md`'s "no decisions in Composables" rule intact and makes
+  twelve states testable on the JVM (`AttendanceStatusPresenterTest`).
+- **On AND-05.** The assessment names the label under the heading "Setup Phase". A
+  screen that has completed setup is no longer in that phase, and offering
+  "Set Office Location" for something that would *replace* a saved office is the less
+  accurate label, not the more compliant one. The exact string is preserved wherever
+  the Setup Phase is what the user is in.
+- **On AND-21.** ADR-011 kept the caption because the screenshot is prescriptive, and
+  forbade it from gating anything. Relabelling preserves the element, its position, and
+  its value while removing the implied promise — which is the ADR's intent expressed in
+  the copy rather than only in the code.
+- The confirmation dialog exists because overwriting the office is the one irreversible
+  thing this screen can do, and the user may have walked to the office to record it.
+
+### Consequences
+
+- A Compose UI test for AND-05 must assert the exact label **in the no-office state**;
+  asserting it unconditionally would now fail by design. Recorded in the matrix.
+- AND-17's gauge is not rendered before an office exists. The reference screenshot
+  depicts a state that has one, so no prescribed element is lost.
+- `R.string.availability_caption` is replaced by `office_hours_label` /
+  `office_hours_value`. The ADR-011 audit is unchanged in kind: both have exactly one
+  reference each, `Text` calls, and no path consults either when deciding enablement.
+- The dark `errorContainer` is deepened from the Material baseline. "Out of range" is a
+  routine condition, and at baseline saturation a full-width card in that role read as
+  an alarm every time the user was simply not at the office yet.
+- **Rejected alternatives:** a separate onboarding destination (contradicts AND-04 and
+  the approved brief); hiding Mark Attendance entirely during setup (AND-04 wants both
+  affordances in one composition — it is de-emphasised, not removed); enforcing office
+  hours now that they are labelled as such (would contradict AND-08 and ADR-011).

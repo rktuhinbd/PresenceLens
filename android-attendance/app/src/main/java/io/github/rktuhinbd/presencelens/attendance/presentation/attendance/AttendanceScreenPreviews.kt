@@ -1,12 +1,19 @@
 package io.github.rktuhinbd.presencelens.attendance.presentation.attendance
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import io.github.rktuhinbd.presencelens.attendance.domain.attendance.AttendanceRule
 import io.github.rktuhinbd.presencelens.attendance.domain.location.DeviceLocation
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFailureCause
 import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
 import io.github.rktuhinbd.presencelens.attendance.domain.model.OfficeLocation
+import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.ChangeOfficeLocationDialog
+import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.HowAttendanceWorksContent
 import io.github.rktuhinbd.presencelens.attendance.ui.theme.PresenceLensAttendanceTheme
 
 /**
@@ -41,14 +48,19 @@ private fun coordinatesAt(metersNorth: Double): GeoCoordinates {
     )
 }
 
-private fun trackingState(distanceMeters: Double, accuracyMeters: Double? = 6.0): AttendanceUiState {
+private fun trackingState(
+    distanceMeters: Double,
+    accuracyMeters: Double? = 6.0,
+    markedAtEpochMillis: Long? = null
+): AttendanceUiState {
     val current = coordinatesAt(distanceMeters)
     return AttendanceUiState(
         office = savedOffice(),
         currentLocation = deviceLocation(current, accuracyMeters),
         status = AttendanceStatus.Tracking(
             AttendanceRule.evaluate(current = current, office = OFFICE)
-        )
+        ),
+        attendanceMarkedAtEpochMillis = markedAtEpochMillis
     )
 }
 
@@ -92,7 +104,23 @@ private fun AttendanceScreenDegradedFixPreview() {
     PreviewScreen(trackingState(distanceMeters = 18.0, accuracyMeters = 180.0))
 }
 
-@Preview(name = "Office not set", showBackground = true, heightDp = 1_100)
+@Preview(name = "Attendance marked", showBackground = true, heightDp = 1_100)
+@Composable
+private fun AttendanceScreenMarkedPreview() {
+    PreviewScreen(
+        trackingState(distanceMeters = 32.0, markedAtEpochMillis = 1_756_000_000_000L)
+    )
+}
+
+@Preview(name = "Attendance marked (dark)", showBackground = true, heightDp = 1_100, uiMode = 0x21)
+@Composable
+private fun AttendanceScreenMarkedDarkPreview() {
+    PreviewScreen(
+        trackingState(distanceMeters = 32.0, markedAtEpochMillis = 1_756_000_000_000L)
+    )
+}
+
+@Preview(name = "First use - setup", showBackground = true, heightDp = 1_100)
 @Composable
 private fun AttendanceScreenOfficeNotSetPreview() {
     PreviewScreen(
@@ -167,4 +195,41 @@ private fun AttendanceScreenUnavailablePreview() {
             status = AttendanceStatus.LocationUnavailable(LocationFailureCause.NO_FIX_AVAILABLE)
         )
     )
+}
+
+@Preview(name = "First use - setup (dark)", showBackground = true, heightDp = 1_100, uiMode = 0x21)
+@Composable
+private fun AttendanceScreenOfficeNotSetDarkPreview() {
+    PreviewScreen(
+        AttendanceUiState(
+            currentLocation = deviceLocation(),
+            status = AttendanceStatus.OfficeNotSet
+        )
+    )
+}
+
+@Preview(name = "How attendance works", showBackground = true, heightDp = 620)
+@Composable
+private fun HowAttendanceWorksPreview() {
+    PresenceLensAttendanceTheme {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            HowAttendanceWorksContent(
+                radiusMeters = AttendanceRule.ELIGIBLE_RADIUS_METERS.toInt(),
+                onDismiss = {},
+                modifier = Modifier.padding(vertical = 24.dp)
+            )
+        }
+    }
+}
+
+@Preview(name = "Change office confirmation", showBackground = true, heightDp = 420)
+@Composable
+private fun ChangeOfficeLocationDialogPreview() {
+    PresenceLensAttendanceTheme {
+        ChangeOfficeLocationDialog(
+            currentOfficeCoordinates = "Lat: 23.780636, Lon: 90.279372",
+            onConfirm = {},
+            onDismiss = {}
+        )
+    }
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Project-owned icon. Stroked geometry drawn for this app so the UI needs no icon
+     dependency and no third-party asset licence (ADR-003, ADR-012). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M7.5,2.5L16.5,2.5A2,2 0 0 1 18.5,4.5L18.5,19.5A2,2 0 0 1 16.5,21.5L7.5,21.5A2,2 0 0 1 5.5,19.5L5.5,4.5A2,2 0 0 1 7.5,2.5ZM9.6,11.4L14.4,11.4L14.4,15.4L9.6,15.4ZM10.6,11.4L10.6,9.6A1.4,1.4 0 0 1 13.4,9.6L13.4,11.4"
+        android:strokeWidth="1.8"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

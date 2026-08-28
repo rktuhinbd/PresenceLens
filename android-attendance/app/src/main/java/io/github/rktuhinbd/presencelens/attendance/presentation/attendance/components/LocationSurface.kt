@@ -1,5 +1,6 @@
 package io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -7,6 +8,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -56,7 +59,9 @@ import kotlin.math.sin
  * a plan view of the thing the feature actually cares about, which a map tile cannot show:
  * the 50 m boundary itself, and the user's true bearing and distance across it.
  *
- * It offers no pan or zoom affordance, because it implements neither.
+ * It offers no pan or zoom affordance, because it implements neither. The legend states what
+ * the two markers are, so the panel reads as the diagram it is rather than as a map that
+ * failed to load.
  */
 @Composable
 fun LocationSurface(
@@ -67,6 +72,8 @@ fun LocationSurface(
     coordinateLabel: String,
     coordinateValue: String,
     legendText: String,
+    officeLegendLabel: String,
+    currentLegendLabel: String,
     surfaceContentDescription: String,
     modifier: Modifier = Modifier
 ) {
@@ -79,6 +86,7 @@ fun LocationSurface(
         isEligible -> statusColors.success
         else -> colorScheme.error
     }
+    val officeColor = colorScheme.tertiary
 
     // Cartesian rather than polar interpolation: animating the bearing directly would swing
     // the marker the long way round every time it crosses due north.
@@ -142,20 +150,30 @@ fun LocationSurface(
                     markerY = markerY,
                     boundaryColor = boundaryColor,
                     guideColor = colorScheme.outlineVariant,
-                    officeColor = colorScheme.tertiary,
-                    officeRingColor = colorScheme.surfaceContainerLowest,
+                    officeColor = officeColor,
+                    markerRingColor = colorScheme.surfaceContainerLowest,
                     connectorColor = colorScheme.onSurfaceVariant,
                     pulseProgress = pulseProgress
                 )
             }
 
-            Text(
+            SurfaceLegend(
+                officeLabel = officeLegendLabel,
+                currentLabel = currentLegendLabel,
+                officeColor = officeColor,
+                currentColor = boundaryColor,
+                showOffice = officeCoordinates != null,
+                showCurrent = currentCoordinates != null,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+            )
+
+            RadiusPill(
                 text = legendText,
-                style = OverlineTextStyle,
-                color = colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(14.dp)
+                    .padding(12.dp)
             )
 
             CoordinatePill(
@@ -169,6 +187,81 @@ fun LocationSurface(
     }
 }
 
+/**
+ * Names the markers. Without it the panel asks the reader to guess which dot is which - and
+ * colour alone would be the only answer, which is not an accessible one.
+ *
+ * An entry appears only when its marker is actually drawn. Listing a marker the panel is not
+ * showing would send the reader looking for something that is not there.
+ */
+@Composable
+private fun SurfaceLegend(
+    officeLabel: String,
+    currentLabel: String,
+    officeColor: Color,
+    currentColor: Color,
+    showOffice: Boolean,
+    showCurrent: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        AnimatedVisibility(visible = showOffice, enter = fadeIn(), exit = fadeOut()) {
+            LegendEntry(label = officeLabel, color = officeColor)
+        }
+        AnimatedVisibility(visible = showCurrent, enter = fadeIn(), exit = fadeOut()) {
+            LegendEntry(label = currentLabel, color = currentColor)
+        }
+    }
+}
+
+@Composable
+private fun LegendEntry(
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(color, CircleShape)
+                .clearAndSetSemantics { }
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** The radius the whole feature turns on, stated on the panel that draws it. */
+@Composable
+private fun RadiusPill(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.86f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Text(
+            text = text,
+            style = OverlineTextStyle,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        )
+    }
+}
+
 /** The readout overlay from the reference panel (AND-15). */
 @Composable
 private fun CoordinatePill(
@@ -178,13 +271,13 @@ private fun CoordinatePill(
 ) {
     Surface(
         modifier = modifier,
-        shape = CircleShape,
+        shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.92f),
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 2.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -212,8 +305,11 @@ private fun CoordinatePill(
 }
 
 /**
- * Draws the plan view: guide rings, the attendance boundary, the office at the centre, and
- * the live position at its true bearing.
+ * Draws the plan view: a soft ground wash, guide rings, the attendance boundary, the office at
+ * the centre, and the live position at its true bearing.
+ *
+ * The drawing order is depth: everything that provides context is laid down first and kept
+ * faint, so the two markers - the only elements carrying information - sit clearly on top.
  */
 private fun DrawScope.drawLocationPlan(
     hasOffice: Boolean,
@@ -223,19 +319,32 @@ private fun DrawScope.drawLocationPlan(
     boundaryColor: Color,
     guideColor: Color,
     officeColor: Color,
-    officeRingColor: Color,
+    markerRingColor: Color,
     connectorColor: Color,
     pulseProgress: Float
 ) {
     val center = Offset(size.width / 2f, size.height / 2f)
-    val extent = min(size.width, size.height) / 2f * 0.88f
+    val extent = min(size.width, size.height) / 2f * 0.86f
     val boundaryRadius = extent * BOUNDARY_RADIUS_FRACTION
+    val outerGuideRadius = boundaryRadius * GUIDE_RING_MULTIPLES.last()
 
-    // Faint concentric guides, so the boundary ring reads as one step in a scale rather than
-    // as an arbitrary circle.
-    GUIDE_RING_MULTIPLES.forEach { multiple ->
+    // A faint wash centred on the office, so the panel has a light source and the boundary
+    // sits on something rather than on flat colour.
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(guideColor.copy(alpha = 0.22f), Color.Transparent),
+            center = center,
+            radius = outerGuideRadius * 1.25f
+        ),
+        radius = outerGuideRadius * 1.25f,
+        center = center
+    )
+
+    // Concentric guides, fading outward, so the boundary ring reads as one step in a scale
+    // rather than as an arbitrary circle.
+    GUIDE_RING_MULTIPLES.forEachIndexed { index, multiple ->
         drawCircle(
-            color = guideColor.copy(alpha = 0.34f),
+            color = guideColor.copy(alpha = 0.34f - index * 0.08f),
             radius = boundaryRadius * multiple,
             center = center,
             style = Stroke(width = 1.dp.toPx())
@@ -244,23 +353,26 @@ private fun DrawScope.drawLocationPlan(
 
     // Bearing reference lines. Kept very light: they orient the diagram without competing
     // with the two markers that carry the actual information.
-    val axisColor = guideColor.copy(alpha = 0.28f)
-    val axisExtent = boundaryRadius * GUIDE_RING_MULTIPLES.last()
+    val axisColor = guideColor.copy(alpha = 0.26f)
+    val axisEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 5.dp.toPx()))
     drawLine(
         color = axisColor,
-        start = Offset(center.x, center.y - axisExtent),
-        end = Offset(center.x, center.y + axisExtent),
-        strokeWidth = 1.dp.toPx()
+        start = Offset(center.x, center.y - outerGuideRadius),
+        end = Offset(center.x, center.y + outerGuideRadius),
+        strokeWidth = 1.dp.toPx(),
+        pathEffect = axisEffect
     )
     drawLine(
         color = axisColor,
-        start = Offset(center.x - axisExtent, center.y),
-        end = Offset(center.x + axisExtent, center.y),
-        strokeWidth = 1.dp.toPx()
+        start = Offset(center.x - outerGuideRadius, center.y),
+        end = Offset(center.x + outerGuideRadius, center.y),
+        strokeWidth = 1.dp.toPx(),
+        pathEffect = axisEffect
     )
 
     if (!hasOffice) {
-        // Nothing is anchored yet, so the boundary would be a claim the app cannot make.
+        // Nothing is anchored yet, so a solid boundary would be a claim the app cannot make.
+        // The dashed ring is a preview of the radius a capture would create.
         drawCircle(
             color = guideColor.copy(alpha = 0.55f),
             radius = boundaryRadius,
@@ -270,18 +382,41 @@ private fun DrawScope.drawLocationPlan(
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 8.dp.toPx()))
             )
         )
+        if (hasCurrentPosition) {
+            // Before an office exists, the user's own position *is* the centre - it is the
+            // point "Set Office Location" would record. Drawing it there makes the preview
+            // ring mean something instead of leaving the panel blank.
+            drawLiveMarker(
+                center = center,
+                color = boundaryColor,
+                ringColor = markerRingColor,
+                pulseProgress = pulseProgress
+            )
+        }
         return
     }
 
-    // The attendance boundary itself - the one thing a map tile could never show.
-    drawCircle(color = boundaryColor.copy(alpha = 0.10f), radius = boundaryRadius, center = center)
+    // The attendance boundary itself - the one thing a map tile could never show. A graded
+    // fill plus a bright edge gives it the weight of a real threshold.
     drawCircle(
-        color = boundaryColor.copy(alpha = 0.85f),
+        brush = Brush.radialGradient(
+            colors = listOf(
+                boundaryColor.copy(alpha = 0.04f),
+                boundaryColor.copy(alpha = 0.18f)
+            ),
+            center = center,
+            radius = boundaryRadius
+        ),
+        radius = boundaryRadius,
+        center = center
+    )
+    drawCircle(
+        color = boundaryColor.copy(alpha = 0.9f),
         radius = boundaryRadius,
         center = center,
         style = Stroke(
-            width = 2.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx()))
+            width = 2.5.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(11.dp.toPx(), 7.dp.toPx()))
         )
     )
 
@@ -291,6 +426,7 @@ private fun DrawScope.drawLocationPlan(
             y = center.y + markerY * boundaryRadius
         )
 
+        // The office-to-you line, so the distance readout has something on the panel to mean.
         drawLine(
             color = connectorColor.copy(alpha = 0.45f),
             start = center,
@@ -299,24 +435,44 @@ private fun DrawScope.drawLocationPlan(
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 5.dp.toPx()))
         )
 
-        drawCircle(
-            color = boundaryColor.copy(alpha = 0.10f + 0.12f * pulseProgress),
-            radius = (12.dp.toPx()) * (1f + 0.35f * pulseProgress),
-            center = marker
+        drawLiveMarker(
+            center = marker,
+            color = boundaryColor,
+            ringColor = markerRingColor,
+            pulseProgress = pulseProgress
         )
-        drawCircle(color = officeRingColor, radius = 8.dp.toPx(), center = marker)
-        drawCircle(color = boundaryColor, radius = 5.5.dp.toPx(), center = marker)
     }
 
     // Office last, so it is never overdrawn when the user is standing on it.
-    drawCircle(color = officeColor.copy(alpha = 0.16f), radius = 14.dp.toPx(), center = center)
-    drawCircle(color = officeRingColor, radius = 9.dp.toPx(), center = center)
-    drawCircle(color = officeColor, radius = 6.dp.toPx(), center = center)
+    drawCircle(color = officeColor.copy(alpha = 0.14f), radius = 16.dp.toPx(), center = center)
+    drawCircle(color = markerRingColor, radius = 10.dp.toPx(), center = center)
+    drawCircle(color = officeColor, radius = 6.5.dp.toPx(), center = center)
+    drawCircle(
+        color = markerRingColor,
+        radius = 2.4.dp.toPx(),
+        center = center
+    )
 }
 
-private const val SURFACE_HEIGHT_DP = 208
+/** The "you are here" marker: a breathing halo, a cut-out ring, and a solid core. */
+private fun DrawScope.drawLiveMarker(
+    center: Offset,
+    color: Color,
+    ringColor: Color,
+    pulseProgress: Float
+) {
+    drawCircle(
+        color = color.copy(alpha = 0.10f + 0.14f * pulseProgress),
+        radius = 13.dp.toPx() * (1f + 0.32f * pulseProgress),
+        center = center
+    )
+    drawCircle(color = ringColor, radius = 8.5.dp.toPx(), center = center)
+    drawCircle(color = color, radius = 5.5.dp.toPx(), center = center)
+}
+
+private const val SURFACE_HEIGHT_DP = 232
 
 /** The boundary ring sits well inside the panel so an out-of-range marker still fits. */
-private const val BOUNDARY_RADIUS_FRACTION = 0.44f
+private const val BOUNDARY_RADIUS_FRACTION = 0.40f
 
 private val GUIDE_RING_MULTIPLES = listOf(0.5f, 1.6f, 2.25f)

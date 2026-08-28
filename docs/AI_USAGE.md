@@ -363,3 +363,86 @@ steps in PROJECT_STATE.md, (b) confirm the accuracy-warns-never-blocks reading o
 AMB-14 is the intended one, and (c) confirm the restructured DataStore tests are an
 acceptable response to the Windows rename limitation rather than something to solve by
 changing the persistence layer.
+
+---
+
+## Entry 006 — G3.5 Android UX polish sprint
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-28 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Opus 5 |
+| **Gate** | G3.5 — Android UX Polish Sprint |
+| **Purpose** | Raise the attendance screen from "every prescribed element present" to a state-driven experience, against a human-supplied UX direction of ten numbered directives. |
+
+**Prompt summary.** The human supplied the direction in full and it was not invented
+here: keep one `AttendanceScreen`; add a first-use setup state; add a dynamic status
+card covering eight named conditions; state the reason beside a disabled Mark
+Attendance; relabel the misleading availability caption to "Office hours" without
+letting it affect eligibility; reduce the prominence of "Set Office Location" once an
+office exists and guard the overwrite with a confirmation; add a small "how attendance
+works" surface; refine the no-Maps location panel; add a compact success state with
+haptics; hold to native Material 3 with 48 dp targets and accessible contrast.
+Explicit prohibitions: do not change the 50 m rule, do not add screens, Maps SDK,
+backend behaviour, or Flutter, and do not push.
+
+**Method.** Presentation logic was extracted rather than written inline. Twelve status
+conditions and six "why is this disabled" reasons are resolved by
+`AttendanceStatusPresenter`, a pure function with no Android imports, so the mapping is
+unit-testable on the JVM and `android-attendance/AGENTS.md`'s "no decisions in
+Composables" rule survives a much larger surface. The screen was then driven through
+every state on `emulator-5554` and each state read back as a screenshot.
+
+**Decisions taken, and why.**
+
+1. **AND-05 was re-read rather than overridden.** The assessment names the exact label
+   under the heading "Setup Phase". A screen with a saved office is no longer in that
+   phase, so "Set Office Location" is preserved verbatim in the no-office state and the
+   control becomes "Change office location" afterwards. Recorded as
+   [ADR-013](DECISIONS.md#adr-013), and the matrix now says a Compose UI test for
+   AND-05 must target the no-office state.
+2. **The availability caption was relabelled, not removed or enforced.** ADR-011
+   already ruled it presentation-only; "AVAILABLE 09:00 AM - 10:30 AM" was the last
+   place the app still implied a rule that does not exist. Position and value are
+   unchanged.
+3. **The distance panel is not drawn before an office is saved.** A gauge with no
+   reference point is a dial the user must learn to ignore. The reference screenshot
+   depicts a state that has an office, so no prescribed element is lost.
+4. **The success confirmation does not outlive its eligibility.** Walking out of range
+   returns the screen to guidance rather than leaving "Attendance marked" on a screen
+   where attendance is no longer possible. This is pinned by a test.
+5. **The snackbar for a successful mark was dropped.** Status card, panel line, and
+   haptic already confirm it; a fourth confirmation of one event is noise.
+6. **The dark `errorContainer` was deepened** from the Material baseline. "Out of
+   range" is a routine condition, and at baseline saturation a full-width card in that
+   role read as an alarm every time the user was merely not at the office yet.
+
+**Two defects were found by looking at the running app, not by reading the code.**
+The location panel's new legend named an "Office" and a "You" marker in the first-use
+state where neither is drawn — it was advertising markers that did not exist. It now
+lists only markers actually rendered, and the setup state draws the live position at
+the centre of the dashed preview ring, since that position *is* what a capture would
+record. Separately, section spacing was rebuilt to come from each section's own
+padding: `Arrangement.spacedBy` leaves a gap behind when a section collapses.
+
+**Result.**
+
+- 14 unit tests added (**70 total, all passing**), covering all twelve status
+  conditions, all six blocked reasons, and the confirmation's dependence on
+  eligibility.
+- `assembleDebug` passes; `lintDebug` reports **0 errors** (11 warnings: six
+  dependency-version advisories against the toolchain pinned at G1, and five
+  `PluralsCandidate` notices on strings whose only numeric argument is the fixed 50 m
+  radius).
+- **Emulator walkthrough executed** on `emulator-5554`: permission prompt, first-use
+  setup, office capture, in-range enablement, mark attendance, out-of-range
+  disablement at 255 m, persistence across force-stop and reinstall, the overwrite
+  confirmation, the disclosure sheet, and light + dark rendering.
+- ADR-013 recorded; matrix rows AND-05, AND-10, AND-13…AND-21, GEN-04 and GEN-08
+  updated with the new evidence.
+
+**Human verification.** PENDING — the author should (a) confirm the AND-05 reading in
+ADR-013 is the intended one, since it is the single interpretive change in this pass,
+(b) confirm the office-hours relabel is acceptable against the prescriptive screenshot,
+and (c) sanity-check the haptic on a physical device, which an emulator cannot show.

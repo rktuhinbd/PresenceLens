@@ -3,7 +3,7 @@
 Scoped to `android-attendance/`. Read the root [AGENTS.md](../AGENTS.md) first —
 this file only adds Android-specific rules. Priority order for facts about this
 app: [DECISIONS.md](../docs/DECISIONS.md) (ADR-001, 002, 003, 004, 006, 009, 011,
-012) → [ARCHITECTURE.md](../docs/ARCHITECTURE.md) → [REQUIREMENTS_MATRIX.md](../docs/REQUIREMENTS_MATRIX.md)
+012, 013) → [ARCHITECTURE.md](../docs/ARCHITECTURE.md) → [REQUIREMENTS_MATRIX.md](../docs/REQUIREMENTS_MATRIX.md)
 (`AND-*` rows) → this file.
 
 ## Architecture
@@ -63,9 +63,18 @@ app: [DECISIONS.md](../docs/DECISIONS.md) (ADR-001, 002, 003, 004, 006, 009, 011
   ([ADR-003](../docs/DECISIONS.md#adr-003)). The location/map region is an
   original Compose-drawn surface. It must not present pan/zoom affordances it
   doesn't implement.
-- The "AVAILABLE 09:00 AM – 10:30 AM" caption is presentation only
+- The office-hours caption — the reference screenshot's "AVAILABLE 09:00 AM –
+  10:30 AM", relabelled "Office hours" by
+  [ADR-013](../docs/DECISIONS.md#adr-013) — is presentation only
   ([ADR-011](../docs/DECISIONS.md#adr-011)). **No code path may consult it when
   deciding Mark Attendance enablement.** The 50 m radius is the only gate.
+- The screen is state-driven ([ADR-013](../docs/DECISIONS.md#adr-013)): a setup face
+  before an office exists, a tracking face after. `AttendanceStatusPresenter` resolves
+  state to what the status card says and to why Mark Attendance is unavailable — that
+  mapping is a pure function and stays one, so it can be tested on the JVM.
+- **"Set Office Location" is the exact, mandated label whenever no office is saved**
+  (AND-05, the Setup Phase). It becomes "Change office location" only once setup is
+  complete, and that path must stay behind the overwrite confirmation.
 - Accessibility is a first-class exit criterion, not a follow-up: content
   descriptions on icon-only controls, minimum touch target size (48dp),
   adequate contrast for status colour.

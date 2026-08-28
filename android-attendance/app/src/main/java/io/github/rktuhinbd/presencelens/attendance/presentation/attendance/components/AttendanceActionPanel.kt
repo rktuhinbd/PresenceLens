@@ -1,7 +1,16 @@
 package io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -27,6 +38,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.rktuhinbd.presencelens.attendance.R
@@ -35,43 +47,59 @@ import io.github.rktuhinbd.presencelens.attendance.ui.theme.OverlineTextStyle
 
 /**
  * The attendance region from the reference (AND-20, AND-21): a dashed container carrying a
- * lock icon and the Mark Attendance button, plus the availability caption beneath it.
+ * lock icon and the Mark Attendance button, plus the office-hours line beneath it.
  *
  * Locked and unlocked are the same container rather than two, so crossing the boundary reads
  * as one thing changing state - the dashes resolve into a solid outline and the lock becomes
  * a check. [enabled] arrives already decided from `AttendanceUiState.canMarkAttendance`; this
  * Composable evaluates no rule of its own.
  *
- * The availability caption is drawn here and consulted by nothing (ADR-011). It is a label,
- * not a condition.
+ * [blockedReasonText] is the panel's other job. A disabled button with no explanation is a
+ * dead end, so whenever the action is unavailable the reason is stated directly beneath it -
+ * already resolved by `AttendanceStatusPresenter`, never worked out here.
+ *
+ * The office-hours line is drawn here and consulted by nothing (ADR-011). It is a label, not
+ * a condition: no value on this panel other than [enabled] can affect whether the button
+ * works.
  */
 @Composable
 fun AttendanceActionPanel(
     enabled: Boolean,
     onMarkAttendance: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    blockedReasonText: String? = null,
+    markedAtText: String? = null
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val statusColors = AttendanceTheme.statusColors
+    val isMarked = markedAtText != null && enabled
 
-    val borderColor by animateColorAsState(
+    val accentColor by animateColorAsState(
         targetValue = if (enabled) statusColors.success else colorScheme.outlineVariant,
-        animationSpec = tween(durationMillis = 400),
+        animationSpec = tween(durationMillis = STATE_TRANSITION_MILLIS),
         label = "attendancePanelBorder"
     )
-    val iconTint by animateColorAsState(
+    val headerColor by animateColorAsState(
         targetValue = if (enabled) statusColors.success else colorScheme.onSurfaceVariant,
-        animationSpec = tween(durationMillis = 400),
-        label = "attendancePanelIcon"
+        animationSpec = tween(durationMillis = STATE_TRANSITION_MILLIS),
+        label = "attendancePanelHeader"
+    )
+
+    // A single settle on the icon when the region unlocks. Spring rather than tween because
+    // the gesture being described is a latch releasing, not a fade.
+    val iconScale by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.92f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "attendancePanelIconScale"
     )
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .dashedOutline(color = borderColor, solid = enabled)
+            .dashedOutline(color = accentColor, solid = enabled)
             .padding(horizontal = 20.dp, vertical = 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -88,15 +116,21 @@ fun AttendanceActionPanel(
                 } else {
                     stringResource(R.string.content_description_attendance_locked)
                 },
-                tint = iconTint,
-                modifier = Modifier.size(20.dp)
+                tint = headerColor,
+                modifier = Modifier
+                    .size(20.dp)
+                    .scale(iconScale)
             )
             Text(
                 text = stringResource(
-                    if (enabled) R.string.range_status_in else R.string.mark_attendance_locked
+                    when {
+                        isMarked -> R.string.mark_attendance_done
+                        enabled -> R.string.mark_attendance_ready
+                        else -> R.string.mark_attendance_locked
+                    }
                 ),
                 style = OverlineTextStyle,
-                color = iconTint
+                color = headerColor
             )
         }
 
@@ -105,7 +139,7 @@ fun AttendanceActionPanel(
             enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = MIN_TOUCH_TARGET_DP.dp),
+                .heightIn(min = PRIMARY_BUTTON_HEIGHT_DP.dp),
             shape = MaterialTheme.shapes.medium,
             colors = ButtonDefaults.buttonColors(
                 containerColor = statusColors.success,
@@ -120,11 +154,95 @@ fun AttendanceActionPanel(
             )
         }
 
+        // Why the button cannot be pressed, in one line, where the user is already looking.
+        AnimatedVisibility(
+            visible = blockedReasonText != null,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            InlineNote(
+                iconResId = R.drawable.ic_info,
+                text = blockedReasonText.orEmpty(),
+                color = colorScheme.onSurfaceVariant
+            )
+        }
+
+        // The confirmation, kept compact and kept in place - the action happened here, so the
+        // record of it belongs here rather than in a banner somewhere else.
+        AnimatedVisibility(
+            visible = isMarked,
+            enter = fadeIn(tween(220)) + scaleIn(initialScale = 0.94f) + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            InlineNote(
+                iconResId = R.drawable.ic_check_circle,
+                text = markedAtText.orEmpty(),
+                color = statusColors.success
+            )
+        }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 2.dp),
+            color = colorScheme.outlineVariant.copy(alpha = 0.7f)
+        )
+
+        // AND-21 / ADR-011. The reference screenshot's "AVAILABLE 09:00 AM - 10:30 AM" reads
+        // as a rule; it is not one, and no sentence in the assessment makes it one. Labelling
+        // the same value "Office hours" keeps the element and drops the false promise.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_clock),
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(15.dp)
+                    .clearAndSetSemantics { }
+            )
+            Text(
+                text = stringResource(R.string.office_hours_label),
+                style = MaterialTheme.typography.labelMedium,
+                color = colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(R.string.office_hours_value),
+                style = MaterialTheme.typography.labelMedium,
+                color = colorScheme.onSurface,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/** A one-line note under the button: a small icon, then the sentence. */
+@Composable
+private fun InlineNote(
+    iconResId: Int,
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = painterResource(iconResId),
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier
+                .size(16.dp)
+                .clearAndSetSemantics { }
+        )
         Text(
-            text = stringResource(R.string.availability_caption),
-            style = OverlineTextStyle,
-            color = colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = color,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(start = 8.dp)
         )
     }
 }
@@ -153,5 +271,7 @@ private fun Modifier.dashedOutline(color: Color, solid: Boolean): Modifier = dra
     )
 }
 
-/** Android's minimum accessible touch target. */
-private const val MIN_TOUCH_TARGET_DP = 56
+private const val STATE_TRANSITION_MILLIS = 400
+
+/** Comfortably above Android's 48 dp minimum touch target for the screen's primary action. */
+private const val PRIMARY_BUTTON_HEIGHT_DP = 56

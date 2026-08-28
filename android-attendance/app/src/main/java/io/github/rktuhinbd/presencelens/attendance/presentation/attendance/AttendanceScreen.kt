@@ -27,10 +27,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -40,10 +45,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.rktuhinbd.presencelens.attendance.AttendanceComponent
 import io.github.rktuhinbd.presencelens.attendance.R
 import io.github.rktuhinbd.presencelens.attendance.domain.attendance.AttendanceRule
-import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFailureCause
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationQuality
 import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.AttendanceActionPanel
+import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.AttendanceStatusCard
+import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.ChangeOfficeLocationDialog
 import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.DistanceGauge
+import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.HowAttendanceWorksSheet
 import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.OfficeContextCard
 import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.RangeStatusChip
 import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components.StatusBanner
@@ -98,6 +105,12 @@ fun AttendanceRoute(
  * status and action. It renders [state] and emits events - it computes no distance, decides
  * no eligibility, and reads no clock.
  *
+ * The screen is state-driven rather than uniform. Before an office exists it presents itself
+ * as setup: the status card explains what is missing, the office card carries a heading and
+ * the one prominent action, and the distance panel - which would be measuring against nothing
+ * - is not drawn. Once an office exists the emphasis inverts, and the screen becomes the
+ * tracking surface the p2 reference depicts.
+ *
  * Layout follows the p2 reference (AND-10, AND-13 to AND-21); the execution quality above
  * that layout is governed by ADR-012.
  */
@@ -116,13 +129,26 @@ fun AttendanceScreen(
     onNavigateBack: () -> Unit = {}
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val haptics = LocalHapticFeedback.current
     val messageText = messageText(state.message)
+    val radiusMeters = AttendanceRule.ELIGIBLE_RADIUS_METERS
+
+    // Whether a sheet or a dialog is open is ephemeral view state, not application state: it
+    // survives rotation through rememberSaveable and dies with the screen, so it has no
+    // business in the ViewModel's single source of truth (ADR-006).
+    var showHowItWorks by rememberSaveable { mutableStateOf(false) }
+    var showChangeOfficeConfirmation by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state.message) {
-        if (state.message != null && messageText != null) {
+        val message = state.message ?: return@LaunchedEffect
+        if (message is AttendanceMessage.AttendanceMarked) {
+            // The success is already shown in place, so the confirmation here is physical
+            // rather than another surface competing for the same moment.
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        } else if (messageText != null) {
             snackbarHostState.showSnackbar(message = messageText)
-            onMessageShown()
         }
+        onMessageShown()
     }
 
     Scaffold(
@@ -144,6 +170,16 @@ fun AttendanceScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { showHowItWorks = true }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_help),
+                            contentDescription = stringResource(
+                                R.string.content_description_how_it_works
+                            )
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.onBackground
@@ -158,29 +194,76 @@ fun AttendanceScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(top = 4.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(top = 4.dp, bottom = 32.dp)
         ) {
-            AttendanceStatusBanner(
-                state = state,
-                canRequestPermissionInApp = canRequestPermissionInApp,
+            // Section spacing is carried by each section's own bottom padding rather than by
+            // Arrangement.spacedBy: two of the sections come and go, and spacedBy would leave
+            // their gap behind after they collapse.
+            AttendanceStatusCard(
+                presentation = AttendanceStatusPresenter.present(state, canRequestPermissionInApp),
+                radiusMeters = radiusMeters.toInt(),
+                modifier = Modifier.padding(bottom = SECTION_GAP_DP.dp),
+                distanceText = state.proximity?.let { DistanceFormatter.format(it.distanceMeters) },
+                markedAtText = state.attendanceMarkedAtEpochMillis?.let(TimestampFormatter::time),
                 onRequestPermission = onRequestPermission,
                 onOpenApplicationSettings = onOpenApplicationSettings,
                 onOpenLocationSettings = onOpenLocationSettings
             )
 
+            DegradedAccuracyNotice(state = state)
+
             OfficeContextCard(
                 state = state,
-                onSetOfficeLocation = onSetOfficeLocation
+                onSetOfficeLocation = onSetOfficeLocation,
+                onChangeOfficeLocation = { showChangeOfficeConfirmation = true },
+                modifier = Modifier.padding(bottom = SECTION_GAP_DP.dp)
             )
 
-            ProximityCard(state = state)
+            // A gauge with no office to measure from would be an empty dial the user has to
+            // learn to ignore. It arrives with the thing it measures.
+            AnimatedVisibility(
+                visible = state.office != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                ProximityCard(state = state, modifier = Modifier.padding(bottom = SECTION_GAP_DP.dp))
+            }
 
             AttendanceActionPanel(
                 enabled = state.canMarkAttendance,
-                onMarkAttendance = onMarkAttendance
+                onMarkAttendance = onMarkAttendance,
+                blockedReasonText = blockedReasonText(
+                    AttendanceStatusPresenter.markAttendanceBlocker(state),
+                    radiusMeters.toInt()
+                ),
+                markedAtText = state.attendanceMarkedAtEpochMillis?.let {
+                    stringResource(R.string.mark_attendance_marked_at, TimestampFormatter.time(it))
+                }
             )
         }
+    }
+
+    if (showHowItWorks) {
+        HowAttendanceWorksSheet(
+            radiusMeters = radiusMeters.toInt(),
+            onDismiss = { showHowItWorks = false }
+        )
+    }
+
+    if (showChangeOfficeConfirmation && state.office != null) {
+        val coordinates = state.office.coordinates
+        ChangeOfficeLocationDialog(
+            currentOfficeCoordinates = stringResource(
+                R.string.location_surface_coordinates,
+                CoordinateFormatter.latitude(coordinates),
+                CoordinateFormatter.longitude(coordinates)
+            ),
+            onConfirm = {
+                showChangeOfficeConfirmation = false
+                onSetOfficeLocation()
+            },
+            onDismiss = { showChangeOfficeConfirmation = false }
+        )
     }
 }
 
@@ -275,121 +358,12 @@ private fun ProximityCard(
 }
 
 /**
- * One banner per condition (GEN-04). Every branch of [AttendanceStatus] is handled, and the
- * only one that renders nothing is a healthy [AttendanceStatus.Tracking] with a trustworthy
- * fix - which is exactly the case where the screen already says everything on its own.
- */
-@Composable
-private fun AttendanceStatusBanner(
-    state: AttendanceUiState,
-    canRequestPermissionInApp: Boolean,
-    onRequestPermission: () -> Unit,
-    onOpenApplicationSettings: () -> Unit,
-    onOpenLocationSettings: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colorScheme = MaterialTheme.colorScheme
-    val statusColors = AttendanceTheme.statusColors
-    val radiusMeters = AttendanceRule.ELIGIBLE_RADIUS_METERS.toInt()
-
-    when (val status = state.status) {
-        AttendanceStatus.PermissionRequired -> StatusBanner(
-            modifier = modifier.fillMaxWidth(),
-            title = stringResource(R.string.status_permission_title),
-            body = stringResource(
-                if (canRequestPermissionInApp) {
-                    R.string.status_permission_body
-                } else {
-                    R.string.status_permission_body_settings
-                }
-            ),
-            containerColor = statusColors.warningContainer,
-            contentColor = statusColors.onWarningContainer,
-            iconResId = R.drawable.ic_lock,
-            actionLabel = stringResource(
-                if (canRequestPermissionInApp) {
-                    R.string.status_permission_action
-                } else {
-                    R.string.status_permission_action_settings
-                }
-            ),
-            actionIconResId = if (canRequestPermissionInApp) null else R.drawable.ic_open_in_new,
-            onAction = if (canRequestPermissionInApp) onRequestPermission else onOpenApplicationSettings
-        )
-
-        AttendanceStatus.PreciseLocationRequired -> StatusBanner(
-            modifier = modifier.fillMaxWidth(),
-            title = stringResource(R.string.status_precise_title),
-            body = stringResource(R.string.status_precise_body, radiusMeters),
-            containerColor = statusColors.warningContainer,
-            contentColor = statusColors.onWarningContainer,
-            iconResId = R.drawable.ic_crosshair,
-            actionLabel = stringResource(
-                if (canRequestPermissionInApp) {
-                    R.string.status_precise_action
-                } else {
-                    R.string.status_permission_action_settings
-                }
-            ),
-            actionIconResId = if (canRequestPermissionInApp) null else R.drawable.ic_open_in_new,
-            onAction = if (canRequestPermissionInApp) onRequestPermission else onOpenApplicationSettings
-        )
-
-        AttendanceStatus.LocationServicesDisabled -> StatusBanner(
-            modifier = modifier.fillMaxWidth(),
-            title = stringResource(R.string.status_services_title),
-            body = stringResource(R.string.status_services_body),
-            containerColor = statusColors.warningContainer,
-            contentColor = statusColors.onWarningContainer,
-            iconResId = R.drawable.ic_crosshair_off,
-            actionLabel = stringResource(R.string.status_services_action),
-            actionIconResId = R.drawable.ic_open_in_new,
-            onAction = onOpenLocationSettings
-        )
-
-        AttendanceStatus.AcquiringFix -> StatusBanner(
-            modifier = modifier.fillMaxWidth(),
-            title = stringResource(R.string.status_acquiring_title),
-            body = stringResource(R.string.status_acquiring_body),
-            containerColor = colorScheme.secondaryContainer,
-            contentColor = colorScheme.onSecondaryContainer,
-            showProgress = true
-        )
-
-        is AttendanceStatus.LocationUnavailable -> StatusBanner(
-            modifier = modifier.fillMaxWidth(),
-            title = stringResource(R.string.status_unavailable_title),
-            body = stringResource(
-                when (status.cause) {
-                    LocationFailureCause.NO_FIX_AVAILABLE -> R.string.status_unavailable_body_no_fix
-                    LocationFailureCause.PROVIDER_ERROR -> R.string.status_unavailable_body_provider
-                }
-            ),
-            containerColor = colorScheme.errorContainer,
-            contentColor = colorScheme.onErrorContainer,
-            iconResId = R.drawable.ic_alert
-        )
-
-        AttendanceStatus.OfficeNotSet -> StatusBanner(
-            modifier = modifier.fillMaxWidth(),
-            title = stringResource(R.string.status_office_not_set_title),
-            body = stringResource(R.string.status_office_not_set_body),
-            containerColor = colorScheme.primaryContainer,
-            contentColor = colorScheme.onPrimaryContainer,
-            iconResId = R.drawable.ic_pin
-        )
-
-        is AttendanceStatus.Tracking -> DegradedAccuracyNotice(
-            state = state,
-            modifier = modifier.fillMaxWidth()
-        )
-    }
-}
-
-/**
  * A caution, never a refusal (AMB-14). A wide error radius means the distance on screen could
  * be wrong by roughly that much, which the user deserves to know - but AND-08 names distance
  * as the only condition for marking attendance, so this never disables anything.
+ *
+ * It sits below the status card rather than replacing it: accuracy is a qualifier on whatever
+ * the screen is already saying, not a state of its own.
  */
 @Composable
 private fun DegradedAccuracyNotice(
@@ -405,7 +379,9 @@ private fun DegradedAccuracyNotice(
         exit = fadeOut() + shrinkVertically()
     ) {
         StatusBanner(
-            modifier = modifier,
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(bottom = SECTION_GAP_DP.dp),
             title = stringResource(R.string.status_degraded_accuracy_title),
             body = stringResource(
                 R.string.status_degraded_accuracy,
@@ -417,6 +393,22 @@ private fun DegradedAccuracyNotice(
         )
     }
 }
+
+/** The one-line reason shown beside a disabled Mark Attendance button (AND-20). */
+@Composable
+private fun blockedReasonText(blocker: MarkAttendanceBlocker?, radiusMeters: Int): String? =
+    when (blocker) {
+        null -> null
+        MarkAttendanceBlocker.OFFICE_NOT_SET ->
+            stringResource(R.string.blocked_reason_office_not_set)
+
+        MarkAttendanceBlocker.PERMISSION -> stringResource(R.string.blocked_reason_permission)
+        MarkAttendanceBlocker.PRECISE_LOCATION -> stringResource(R.string.blocked_reason_precise)
+        MarkAttendanceBlocker.SERVICES_OFF -> stringResource(R.string.blocked_reason_services_off)
+        MarkAttendanceBlocker.NO_FIX -> stringResource(R.string.blocked_reason_no_fix)
+        MarkAttendanceBlocker.OUT_OF_RANGE ->
+            stringResource(R.string.blocked_reason_out_of_range, radiusMeters)
+    }
 
 @Composable
 private fun gaugeContentDescription(distanceMeters: Double?, radiusMeters: Double): String =
@@ -430,10 +422,17 @@ private fun gaugeContentDescription(distanceMeters: Double?, radiusMeters: Doubl
         )
     }
 
-/** Resolves the one-shot message to display text while still in composition. */
+/**
+ * Resolves the one-shot message to display text while still in composition.
+ *
+ * [AttendanceMessage.AttendanceMarked] deliberately has no text: the success is shown in
+ * place, on the panel the user just pressed, so a snackbar would be a third confirmation of
+ * the same event.
+ */
 @Composable
 private fun messageText(message: AttendanceMessage?): String? = when (message) {
-    null -> null
+    null, is AttendanceMessage.AttendanceMarked -> null
+
     is AttendanceMessage.OfficeLocationSaved -> stringResource(
         R.string.snackbar_office_saved,
         CoordinateFormatter.latitude(message.coordinates),
@@ -448,9 +447,7 @@ private fun messageText(message: AttendanceMessage?): String? = when (message) {
 
     AttendanceMessage.LocationPermissionMissing ->
         stringResource(R.string.snackbar_permission_missing)
-
-    is AttendanceMessage.AttendanceMarked -> stringResource(
-        R.string.snackbar_attendance_marked,
-        DistanceFormatter.format(message.distanceMeters)
-    )
 }
+
+/** The vertical rhythm between the screen's four sections. */
+private const val SECTION_GAP_DP = 16
