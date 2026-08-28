@@ -68,7 +68,7 @@
     <string name="mark_attendance_locked">ATTENDANCE LOCKED</string>
     <string name="mark_attendance_ready">READY TO MARK</string>
     <string name="office_hours_label">Office hours</string>
-    <string name="office_hours_value">09:00 AM – 10:30 AM</string>
+    <string name="office_hours_value">09:00 AM – 5:00 PM</string>
     <string name="content_description_attendance_locked">Attendance is locked until you are inside the attendance radius</string>
 
     <!-- Compact confirmation shown in place of the action once attendance is marked -->

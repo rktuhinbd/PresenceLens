@@ -33,7 +33,7 @@ data class AttendanceUiState(
      * AND-08, and the single source of the Mark Attendance button's enabled state.
      *
      * Distance against the 50 m radius is the only condition. The availability caption
-     * ("AVAILABLE 09:00 AM - 10:30 AM") is presentation-only and is deliberately absent from
+     * ("AVAILABLE 09:00 AM - 5:00 PM") is presentation-only and is deliberately absent from
      * this computation and from every path that reaches it (ADR-011). Fix quality is not
      * consulted either - it is surfaced as a caution, never converted into a refusal.
      */
@@ -41,7 +41,7 @@ data class AttendanceUiState(
         get() = (status as? AttendanceStatus.Tracking)?.proximity?.isEligible == true
 
     /**
-     * Whether the screen's primary job is finished and it should present itself as complete.
+     * Whether the screen's primary job is finished, and it should present itself as complete.
      *
      * One value, read by the status card, by the action area, and by the presenter, so a
      * completed action cannot end up confirmed in one place and still offered in another.
