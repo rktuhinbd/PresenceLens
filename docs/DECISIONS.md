@@ -16,9 +16,9 @@ verify from an authoritative source, or on a judgement the human must make. Mark
 something `ACCEPTED` without that verification would be fabricating certainty.
 
 **G0.1 human review completed 2026-08-28.** ADR-001, ADR-003, and ADR-011 were
-accepted; ADR-012 was added as an accepted design principle. **ADR-010 remains
-`PROPOSED` and is deliberately deferred to the release gate (G8)** — the signing
-strategy is not chosen yet. ADR-009 stays `PROPOSED` on technical grounds and needs
+accepted; ADR-012 was added as an accepted design principle. **ADR-010 was resolved
+2026-08-28**, ahead of G8, by explicit human authorisation to prepare the final signed
+release — see its record below. ADR-009 stays `PROPOSED` on technical grounds and needs
 no approval.
 
 ---
@@ -433,27 +433,33 @@ app. Add a framework only if the graph justifies it.
 
 ## ADR-010 — Release APK signing strategy
 
-**Status:** PROPOSED — **deliberately deferred to the release gate (G8)** by human
-decision at G0.1 review, 2026-08-28. The signing strategy is not to be chosen yet.
-Blocks SUB-03 at G8, not before.
+**Status:** ACCEPTED — resolved 2026-08-28 by explicit human authorisation to prepare
+the final signed release ahead of the general G8 gate. Blocker B-01 is resolved.
 
 **Requirements:** SUB-03, GEN-08
 
 ### Context
 
-SUB-03 requires a link to a **built release APK**. The current Android baseline
-defines no `signingConfig`, so `assembleRelease` would produce an unsigned artifact
-that will not install on a device. AGENTS.md forbids committing signing keys, and
-`.gitignore` already excludes `*.jks`, `*.keystore`, and `key.properties`.
+SUB-03 requires a link to a **built release APK**. The Android baseline defined no
+`signingConfig`, so `assembleRelease` produced an unsigned artifact that would not
+install on a device. AGENTS.md forbids committing signing keys, and `.gitignore`
+already excluded `*.jks`, `*.keystore`, and `key.properties` before this ADR resolved.
 
-This is a real gap in the current baseline, not a hypothetical one.
+This was a real gap in the baseline, not a hypothetical one.
 
-### Decision (proposed)
+### Decision
 
-Generate a local, project-specific release keystore that is **never committed**;
-reference it through `key.properties`, which is also never committed; and have the
-build fall back gracefully when those files are absent so a clean clone still builds
-`assembleDebug` and `assembleRelease` without them.
+Generate a local, project-specific release keystore that is **never committed**
+(`android-attendance/keystore/presencelens-attendance-release.jks`, RSA 2048,
+10 000-day validity, alias `presencelens-attendance`); reference it through
+`android-attendance/key.properties`, which is also never committed; and have the build
+fall back gracefully when those files are absent so a clean clone still builds
+`assembleDebug` and `assembleRelease` (unsigned) without them. A tracked
+`key.properties.example` with placeholder values documents the shape for any reviewer
+who wants to produce their own signed build.
+
+This is the preferred option named when the decision was first proposed — a generated
+release keystore, not a debug-signed release.
 
 ### Reasoning
 
@@ -464,16 +470,26 @@ build fall back gracefully when those files are absent so a clean clone still bu
   defensible senior practice, and a reviewer may notice.
 - The clean-clone fallback matters because DOC-07 and SUB-01 require the repository to
   build for someone who has neither the keystore nor the password.
+- Store and key passwords are independently generated 32-character random strings, so
+  JKS (not PKCS12, which requires the two to match) is the correct keystore format
+  here — verified when a PKCS12 conversion attempt failed for exactly that reason.
 
 ### Consequences
 
-- Requires touching `app/build.gradle.kts` — **not permitted at gate G0.1.** Deferred
-  to gate G8.
-- The README must state that release builds by a third party will be unsigned or
-  debug-signed, and that the published APK link carries the properly signed artifact.
-- **Deferred decision:** generated release keystore (preferred) versus debug-signed
-  release. To be chosen at G8. Recorded now so the gap is not discovered at
-  submission time (blocker B-01).
+- `app/build.gradle.kts` reads `key.properties` conditionally at configuration time;
+  no secret value is hard-coded in the build file.
+- The README must state that release builds by a third party (no `key.properties`)
+  will be unsigned, and that the published APK link carries the properly signed
+  artifact built and verified in this session.
+- The signed APK was verified with `apksigner verify --print-certs` (APK Signature
+  Scheme v2, 2048-bit RSA) and smoke-tested by install and launch on
+  `emulator-5554` before being copied to `android-attendance/release-artifacts/
+  PresenceLens-Attendance-v1.0.0.apk` alongside its SHA-256 checksum. Full detail in
+  [AI_USAGE.md Entry 007](AI_USAGE.md).
+- **The keystore and `key.properties` exist only on this machine.** They must be
+  backed up securely by the human before this machine's state can be considered
+  disposable — losing them means every future release build carries a different
+  signature and cannot upgrade-install over this one.
 
 ---
 

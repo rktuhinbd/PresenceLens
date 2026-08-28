@@ -1,0 +1,8 @@
+## Copy this file to key.properties (same directory) and fill in real values.
+## key.properties is git-ignored and must never be committed.
+##
+## storeFile is resolved relative to this file's directory (android-attendance/).
+storeFile=keystore/presencelens-attendance-release.jks
+storePassword=REPLACE_WITH_STORE_PASSWORD
+keyAlias=presencelens-attendance
+keyPassword=REPLACE_WITH_KEY_PASSWORD

@@ -539,3 +539,77 @@ both halves are pinned.
 
 **Human verification.** PENDING — the author should re-run the eight manual checks on their own
 device, and confirm the haptic on physical hardware, which an emulator cannot show.
+
+---
+
+## Entry 007 — Android release signing (ADR-010 resolved)
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-28 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Sonnet 5 |
+| **Gate** | Release preparation — human explicitly authorised proceeding ahead of the general G8 gate, resolving ADR-010's deferred choice now rather than later |
+| **Purpose** | Produce a signed, installable release APK for external distribution (Google Drive), resolving blocker B-01. |
+
+**Prompt summary.** Generate a dedicated local release keystore (not the debug key),
+wire optional Gradle release signing that never hard-codes secrets and still lets a
+clean clone build both debug and unsigned release, verify the signature with
+`apksigner`, install and smoke-test the signed build, copy the final artifact with a
+SHA-256 checksum, and record the decision — all without printing passwords, committing
+secrets/binaries, or pushing.
+
+**What the AI did.**
+
+1. **Keystore.** Generated `presencelens-attendance-release.jks` with `keytool`
+   (RSA 2048, 10 000-day validity — until 2054), alias `presencelens-attendance`, and an
+   assessment-appropriate identity (`CN=PresenceLens Assessment, O=Independent
+   Assessment, L=Dhaka, C=BD` — no claim to represent Intelligent Machines or bKash).
+   Store and key passwords were generated locally (32-character random alphanumeric,
+   via `/dev/urandom`), written straight into `key.properties`, and the temporary files
+   holding them were deleted immediately after. Neither password was printed at any
+   point in this session.
+2. **Gradle wiring.** `app/build.gradle.kts` reads `key.properties` (via `rootProject
+   .file`) only if it exists; when present it defines a `release` `signingConfig` from
+   the properties; when absent, `assembleRelease` still succeeds but produces an
+   unsigned APK. No secret value appears in the Gradle file itself.
+3. **Git safety audited before and after**, not assumed: `git check-ignore -v` on
+   `key.properties`, the `.jks`, and the copied release APK all resolved to the correct
+   `.gitignore` patterns (lines 52/54/44) before any file was written and again after.
+   `git status --short` was inspected for anything unexpected.
+4. **Build verification, in the required order.** `clean` → `testDebugUnitTest` (90
+   tests, pass) → `lintDebug` (0 errors) → `assembleRelease` (success,
+   `validateSigningRelease` and `writeReleaseSigningConfigVersions` both ran, confirming
+   the signing config was actually applied). No R8/ProGuard settings were touched —
+   `optimization { enable = false }` was left exactly as it was.
+5. **Signature verification.** `apksigner verify --verbose --print-certs` against
+   build-tools 36.1.0 confirmed the APK verifies, is signed with APK Signature Scheme
+   v2, and carries the expected certificate DN and a 2048-bit RSA key.
+6. **Install and smoke test** on the already-running `emulator-5554`: uninstalled the
+   existing debug-signed install first (a same-package, different-signature APK cannot
+   overwrite-install), installed the release APK, launched it, granted location
+   permission, and confirmed via screenshot and `logcat` (`AndroidRuntime`/`FATAL`
+   filter) that the app launches cleanly, the permission flow fires, and the
+   AND-05 Setup Phase ("Set Office Location") face is reachable — no crash.
+7. **Artifact finalised** at `android-attendance/release-artifacts/
+   PresenceLens-Attendance-v1.0.0.apk` with a sibling `.sha256.txt` computed from the
+   copied file (not assumed equal to the build output).
+
+**Where the AI diverged from the literal instruction, and why.** The instruction
+suggested trying a PKCS12 conversion note from `keytool`'s own output; a first attempt
+at `-importkeystore` to PKCS12 failed non-interactively (PKCS12 requires identical
+store/key passwords, which conflicts with generating two independent secrets) and
+prompted for interactive input that this session cannot supply. Rather than weaken the
+credential model to fit PKCS12, the keystore was regenerated cleanly as JKS — a fully
+supported format for `apksigner` and Play-style signing — and the failed conversion
+artifact was discarded before use.
+
+**ADR-010 resolution.** The deferred decision — generated release keystore versus
+debug-signed release — is resolved in favour of the generated keystore, exactly the
+preferred option ADR-010 already named. Recorded in DECISIONS.md.
+
+**Human verification.** Build, lint, test, `assembleRelease`, `apksigner verify`, and
+the install/launch smoke test were all executed and their output inspected in this
+session — not asserted from memory. **Still pending from the human:** confirming the
+`key.properties` and `.jks` backups were made, and the final side-by-side install check
+on the device intended for actual submission upload.

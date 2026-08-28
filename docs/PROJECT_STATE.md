@@ -42,7 +42,7 @@ Current gate: **G3.6 — Android stability and final UX polish (complete)**
 | **Stationary-oscillation soak** | **PASS — 30 samples over ~70 s on a stationary emulator, all reading "Ready to mark attendance".** The defect this replaces produced a flip roughly every 2 s. |
 | Location-services off → on recovery | **PASS** — off gives the explicit services state; on gives "Updating your location… / Waiting for a fresh GPS fix." then automatic recovery, with **no** red failure state at any point |
 | Office persistence across force-stop | **PASS** — executed 2026-08-28, AND-07 now `DONE` |
-| Android `assembleRelease` | NOT RUN — would produce an **unsigned** APK (RF-09) |
+| Android `assembleRelease` | **PASS, SIGNED — 2026-08-28.** ADR-010 resolved; `apksigner verify` passed (APK Signature Scheme v2, 2048-bit RSA); installed and smoke-tested on `emulator-5554` |
 | Flutter project | **NOT CREATED** |
 
 ### Unit test breakdown (90)
@@ -311,6 +311,13 @@ file-backed round trip is retained separately.
 11. **G3.6 — Android stability and final UX polish (2026-08-28),** committed as
     `fix(android): stabilize location state and polish attendance UX`. Recorded as
     [ADR-014](DECISIONS.md#adr-014); ADR-013's two open rulings accepted.
+12. **Android release signing (2026-08-28)** — ADR-010 resolved, blocker B-01 closed. A
+    dedicated release keystore and `key.properties` (both local-only, git-ignored)
+    sign `assembleRelease`; the signature is `apksigner`-verified and the build is
+    installed and smoke-tested. Final artifact at
+    `android-attendance/release-artifacts/PresenceLens-Attendance-v1.0.0.apk` (local,
+    not committed). See [ADR-010](DECISIONS.md#adr-010) and
+    [AI_USAGE.md Entry 007](AI_USAGE.md).
 
 ## Next gate
 
@@ -341,7 +348,7 @@ Remaining before G3/G3.5 can formally close:
 
 | ID | Blocker | Blocks | Notes |
 | --- | --- | --- | --- |
-| B-01 | Release build defines no `signingConfig`; `assembleRelease` would be unsigned and non-installable. | SUB-03, at G8 only | RF-09. Signing strategy (ADR-010) **deliberately deferred to G8** by human decision. Not a blocker before then, but it is the last-mile risk to the APK deliverable. |
+| ~~B-01~~ | ~~Release build defines no `signingConfig`; `assembleRelease` would be unsigned and non-installable.~~ | — | **RESOLVED 2026-08-28.** ADR-010 accepted; a dedicated release keystore is wired through `key.properties` (never committed), `assembleRelease` produces a verified-signed APK, and it is installed/smoke-tested on the emulator. See [ADR-010](DECISIONS.md#adr-010) and [AI_USAGE.md Entry 007](AI_USAGE.md). |
 | ~~B-02~~ | ~~`ER-03` unanswered (geofence minimum-radius guidance).~~ | — | **RESOLVED at G0.1 review** — `RF-18`; ADR-001 is now `ACCEPTED`. |
 | B-03 | Flutter plugin viability unverified (`ER-05`, `ER-06`, `ER-07`). | G4 | Resolve before adding Flutter plugins, not after. |
 | B-04 | A physical Android device is required for camera work (`DA-04`) and background-retry verification (`DA-06`). | G5, G6, G7 | Confirm availability before G5 — a scheduling risk, not a technical one. |

@@ -140,9 +140,9 @@ The assessment specifies five sections. All five, in order, none a placeholder.
 
 | # | Check | Req |
 | --- | --- | --- |
-| 9.1 | [ ] Android `assembleRelease` succeeds. | SUB-03 |
+| 9.1 | [x] Android `assembleRelease` succeeds. **2026-08-28**, signed via ADR-010, `apksigner`-verified. | SUB-03 |
 | 9.2 | [ ] `flutter build apk --release` succeeds. | SUB-03 |
-| 9.3 | [ ] **Both release APKs are signed and installable** (not unsigned — see B-01). | SUB-03 |
+| 9.3 | [ ] **Both release APKs are signed and installable** (not unsigned — see B-01). Android half done (B-01 resolved); Flutter APK does not exist yet. | SUB-03 |
 | 9.4 | [ ] Both APKs uploaded to a file-sharing service. | SUB-03 |
 | 9.5 | [ ] **Share links accessible to anyone with the link** (verified signed out). | SUB-03 |
 | 9.6 | [ ] Links included in the README. | SUB-03 |
