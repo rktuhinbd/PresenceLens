@@ -4,12 +4,15 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
 import io.github.rktuhinbd.presencelens.attendance.domain.model.OfficeLocation
 import io.github.rktuhinbd.presencelens.attendance.domain.model.OfficeLocationRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 
 /**
  * DataStore Preferences implementation of [OfficeLocationRepository] (ADR-002).
@@ -20,7 +23,12 @@ class DataStoreOfficeLocationRepository(
     private val dataStore: DataStore<Preferences>
 ) : OfficeLocationRepository {
 
-    override val officeLocation: Flow<OfficeLocation?> = dataStore.data.map { preferences ->
+    override val officeLocation: Flow<OfficeLocation?> = dataStore.data.catch { error ->
+        // DataStore surfaces read failures (corrupt or unreadable file) as IOException on the
+        // flow. Recovering to empty preferences degrades to "no office saved" instead of
+        // taking the screen down with it (GEN-04). Anything else is a real bug and rethrows.
+        if (error is IOException) emit(emptyPreferences()) else throw error
+    }.map { preferences ->
         val latitude = preferences[LATITUDE_KEY]
         val longitude = preferences[LONGITUDE_KEY]
         val capturedAt = preferences[CAPTURED_AT_KEY]

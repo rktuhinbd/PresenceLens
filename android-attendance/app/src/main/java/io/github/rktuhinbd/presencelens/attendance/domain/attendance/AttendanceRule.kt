@@ -5,6 +5,10 @@ import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
 /**
  * The mandated 50 m attendance eligibility rule (AND-08), isolated as a pure function.
  * No `GeofencingClient`, no Android imports (ADR-001).
+ *
+ * Distance is the **only** condition. Nothing else — not the availability caption
+ * (ADR-011), not fix accuracy (see [io.github.rktuhinbd.presencelens.attendance.domain.location.LocationQuality]) —
+ * may be folded in here.
  */
 object AttendanceRule {
 
@@ -21,7 +25,11 @@ object AttendanceRule {
         val distanceMeters = DistanceCalculator.distanceMeters(current, office)
         return ProximityResult(
             distanceMeters = distanceMeters,
-            isEligible = distanceMeters <= ELIGIBLE_RADIUS_METERS + BOUNDARY_EPSILON_METERS
+            isEligible = distanceMeters <= ELIGIBLE_RADIUS_METERS + BOUNDARY_EPSILON_METERS,
+            bearingFromOfficeDegrees = DistanceCalculator.initialBearingDegrees(
+                from = office,
+                to = current
+            )
         )
     }
 }

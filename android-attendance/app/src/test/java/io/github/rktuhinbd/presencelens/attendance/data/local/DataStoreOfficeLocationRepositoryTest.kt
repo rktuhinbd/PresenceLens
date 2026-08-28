@@ -16,8 +16,13 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 
 /**
- * Constructs the DataStore directly from a temp file rather than a `Context`, so this
- * runs as a plain JVM unit test with no Robolectric and no production Android state.
+ * Real file-backed coverage: the coordinates genuinely go to disk and come back, using a
+ * DataStore built over a temp file rather than a `Context`, so this stays a plain JVM unit
+ * test with no Robolectric and no production Android state.
+ *
+ * These cases each perform at most one write. Multi-write behaviour (overwrite, clear) lives
+ * in [InMemoryOfficeLocationRepositoryTest] because DataStore's commit-by-rename cannot
+ * overwrite an existing file on a Windows host - see [InMemoryPreferenceDataStore].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DataStoreOfficeLocationRepositoryTest {
@@ -39,49 +44,16 @@ class DataStoreOfficeLocationRepositoryTest {
     }
 
     @Test
-    fun `saved office location is read back`() = runTest(UnconfinedTestDispatcher()) {
-        val repository = repository(this)
-        val location = OfficeLocation(
-            coordinates = GeoCoordinates(latitude = 23.8103, longitude = 90.4125),
-            capturedAtEpochMillis = 1_000L
-        )
-
-        repository.save(location)
-
-        assertEquals(location, repository.officeLocation.first())
-    }
-
-    @Test
-    fun `saving again overwrites the previous office location`() = runTest(UnconfinedTestDispatcher()) {
-        val repository = repository(this)
-        repository.save(
-            OfficeLocation(
+    fun `a saved office location survives a round trip through the file`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repository = repository(this)
+            val location = OfficeLocation(
                 coordinates = GeoCoordinates(latitude = 23.8103, longitude = 90.4125),
                 capturedAtEpochMillis = 1_000L
             )
-        )
 
-        val updated = OfficeLocation(
-            coordinates = GeoCoordinates(latitude = 24.0, longitude = 91.0),
-            capturedAtEpochMillis = 2_000L
-        )
-        repository.save(updated)
+            repository.save(location)
 
-        assertEquals(updated, repository.officeLocation.first())
-    }
-
-    @Test
-    fun `clear removes the saved office location`() = runTest(UnconfinedTestDispatcher()) {
-        val repository = repository(this)
-        repository.save(
-            OfficeLocation(
-                coordinates = GeoCoordinates(latitude = 23.8103, longitude = 90.4125),
-                capturedAtEpochMillis = 1_000L
-            )
-        )
-
-        repository.clear()
-
-        assertNull(repository.officeLocation.first())
-    }
+            assertEquals(location, repository.officeLocation.first())
+        }
 }
