@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.PresenceLensAttendance" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Pre-Compose window theme only. Everything visible after the first frame is styled by
+        PresenceLensAttendanceTheme; this exists so the launch window does not flash a
+        different colour before Compose takes over.
+    -->
+    <style name="Theme.PresenceLensAttendance" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>
