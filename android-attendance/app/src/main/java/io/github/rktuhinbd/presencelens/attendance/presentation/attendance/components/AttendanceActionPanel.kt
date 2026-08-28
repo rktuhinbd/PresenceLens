@@ -9,15 +9,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -58,6 +59,11 @@ import io.github.rktuhinbd.presencelens.attendance.ui.theme.OverlineTextStyle
  * dead end, so whenever the action is unavailable the reason is stated directly beneath it -
  * already resolved by `AttendanceStatusPresenter`, never worked out here.
  *
+ * Once attendance has been marked the button does not stay a live "Mark Attendance" the user
+ * could press again. It becomes a completed control - a check and "Attendance marked" - which
+ * is a local confirmation of what just happened on this device and implies no record anywhere
+ * else ([isMarked]).
+ *
  * The office-hours line is drawn here and consulted by nothing (ADR-011). It is a label, not
  * a condition: no value on this panel other than [enabled] can affect whether the button
  * works.
@@ -68,11 +74,11 @@ fun AttendanceActionPanel(
     onMarkAttendance: () -> Unit,
     modifier: Modifier = Modifier,
     blockedReasonText: String? = null,
-    markedAtText: String? = null
+    isMarked: Boolean = false
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val statusColors = AttendanceTheme.statusColors
-    val isMarked = markedAtText != null && enabled
+    val isCompleted = isMarked && enabled
 
     val accentColor by animateColorAsState(
         targetValue = if (enabled) statusColors.success else colorScheme.outlineVariant,
@@ -97,9 +103,9 @@ fun AttendanceActionPanel(
         modifier = modifier
             .fillMaxWidth()
             .dashedOutline(color = accentColor, solid = enabled)
-            .padding(horizontal = 20.dp, vertical = 22.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -124,7 +130,7 @@ fun AttendanceActionPanel(
             Text(
                 text = stringResource(
                     when {
-                        isMarked -> R.string.mark_attendance_done
+                        isCompleted -> R.string.mark_attendance_done
                         enabled -> R.string.mark_attendance_ready
                         else -> R.string.mark_attendance_locked
                     }
@@ -134,9 +140,12 @@ fun AttendanceActionPanel(
             )
         }
 
+        // Completed is a third button state, not a fourth colour: it is disabled like the
+        // locked state, but keeps the success role so the screen still reads as having
+        // succeeded rather than as having stopped working.
         Button(
             onClick = onMarkAttendance,
-            enabled = enabled,
+            enabled = enabled && !isCompleted,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = PRIMARY_BUTTON_HEIGHT_DP.dp),
@@ -144,12 +153,35 @@ fun AttendanceActionPanel(
             colors = ButtonDefaults.buttonColors(
                 containerColor = statusColors.success,
                 contentColor = statusColors.onSuccess,
-                disabledContainerColor = colorScheme.surfaceContainerHighest,
-                disabledContentColor = colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
+                disabledContainerColor = if (isCompleted) {
+                    statusColors.successContainer
+                } else {
+                    colorScheme.surfaceContainerHighest
+                },
+                disabledContentColor = if (isCompleted) {
+                    statusColors.onSuccessContainer
+                } else {
+                    colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
+                }
             )
         ) {
+            if (isCompleted) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_check_circle),
+                    // The label immediately after says what happened.
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Text(
-                text = stringResource(R.string.mark_attendance),
+                text = stringResource(
+                    if (isCompleted) {
+                        R.string.mark_attendance_done_action
+                    } else {
+                        R.string.mark_attendance
+                    }
+                ),
                 style = MaterialTheme.typography.labelLarge
             )
         }
@@ -164,20 +196,6 @@ fun AttendanceActionPanel(
                 iconResId = R.drawable.ic_info,
                 text = blockedReasonText.orEmpty(),
                 color = colorScheme.onSurfaceVariant
-            )
-        }
-
-        // The confirmation, kept compact and kept in place - the action happened here, so the
-        // record of it belongs here rather than in a banner somewhere else.
-        AnimatedVisibility(
-            visible = isMarked,
-            enter = fadeIn(tween(220)) + scaleIn(initialScale = 0.94f) + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            InlineNote(
-                iconResId = R.drawable.ic_check_circle,
-                text = markedAtText.orEmpty(),
-                color = statusColors.success
             )
         }
 

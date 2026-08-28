@@ -11,8 +11,8 @@
     <string name="office_context_set">Saved</string>
     <string name="office_context_not_set">Not set</string>
     <string name="office_context_setup_title">Set up your office location</string>
-    <string name="office_context_setup_body">Stand at the office and capture its coordinates once. Attendance is then unlocked whenever you are within %1$d m of that point.</string>
-    <string name="office_context_helper">The office location must be correctly identified before attendance can be marked.</string>
+    <string name="office_context_setup_body">Stand at the office and capture its coordinates once.</string>
+    <string name="office_context_helper">Saved office location</string>
     <string name="office_context_captured_at">Captured %1$s</string>
     <string name="content_description_office_set">Office location is set</string>
     <string name="content_description_office_not_set">Office location is not set</string>
@@ -30,6 +30,7 @@
     <!-- Set office location (AND-05, AND-06) -->
     <string name="set_office_location">Set Office Location</string>
     <string name="set_office_location_capturing">Capturing coordinates</string>
+    <string name="set_office_location_capturing_note">Getting a precise fix. This can take a few seconds.</string>
     <string name="change_office_location">Change office location</string>
 
     <!-- Overwrite confirmation -->
@@ -40,7 +41,7 @@
 
     <!-- How attendance works (progressive disclosure) -->
     <string name="how_it_works_title">How attendance works</string>
-    <string name="how_it_works_subtitle">Four things worth knowing before you check in.</string>
+    <string name="how_it_works_subtitle">Four things worth knowing before you mark attendance.</string>
     <string name="how_it_works_storage_title">Your office location stays on this device</string>
     <string name="how_it_works_storage_body">The coordinates you capture are written to this phone\'s local storage. Nothing is uploaded, and there is no account.</string>
     <string name="how_it_works_tracking_title">Location is read only on this screen</string>
@@ -49,36 +50,37 @@
     <string name="how_it_works_radius_body">Mark Attendance unlocks only inside the %1$d metre radius around the saved office, and locks again as soon as you step outside it.</string>
     <string name="how_it_works_background_title">No background tracking</string>
     <string name="how_it_works_background_body">PresenceLens never asks for background location and reads nothing while it is closed.</string>
-    <string name="how_it_works_footnote">Office hours are shown for information only. Distance is the sole condition for checking in.</string>
+    <string name="how_it_works_footnote">Office hours are shown for information only. Distance is the only condition for marking attendance.</string>
     <string name="how_it_works_dismiss">Got it</string>
 
     <!-- Distance and range (AND-09, AND-17, AND-18, AND-19) -->
     <string name="distance_away_caption">AWAY</string>
-    <string name="distance_live_readout">You are %1$s away from the office</string>
+    <string name="distance_live_readout">You’re %1$s from the office.</string>
     <string name="range_status_in">IN RANGE</string>
     <string name="range_status_out">OUT OF RANGE</string>
-    <string name="range_guidance_out">Move within %1$d meters of the designated office location to enable check-in.</string>
-    <string name="range_guidance_in">You are inside the attendance radius. Check-in is unlocked.</string>
+    <string name="range_guidance_out">Move within %1$d m to mark attendance.</string>
+    <string name="range_guidance_in">You’re inside the radius — Mark Attendance is unlocked.</string>
     <string name="content_description_distance_gauge_pending">Distance to the office is not available yet</string>
     <string name="content_description_distance_gauge">You are %1$s from the office. The attendance radius is %2$d metres.</string>
 
     <!-- Attendance action (AND-20, AND-21) -->
     <string name="mark_attendance">Mark Attendance</string>
-    <string name="mark_attendance_locked">CHECK-IN LOCKED</string>
-    <string name="mark_attendance_ready">READY TO CHECK IN</string>
+    <string name="mark_attendance_locked">ATTENDANCE LOCKED</string>
+    <string name="mark_attendance_ready">READY TO MARK</string>
     <string name="mark_attendance_done">ATTENDANCE MARKED</string>
-    <string name="mark_attendance_marked_at">Marked at %1$s</string>
+    <string name="mark_attendance_done_action">Attendance marked</string>
     <string name="office_hours_label">Office hours</string>
     <string name="office_hours_value">09:00 AM – 10:30 AM</string>
     <string name="content_description_attendance_locked">Attendance is locked until you are inside the attendance radius</string>
 
     <!-- Why Mark Attendance is unavailable, shown beside the disabled button (AND-20) -->
-    <string name="blocked_reason_office_not_set">Save the office location first</string>
-    <string name="blocked_reason_permission">Grant location access to continue</string>
-    <string name="blocked_reason_precise">Precise location is required</string>
-    <string name="blocked_reason_services_off">Turn on device location to continue</string>
-    <string name="blocked_reason_no_fix">Waiting for your location</string>
-    <string name="blocked_reason_out_of_range">Move within %1$d m of the office to unlock this</string>
+    <string name="blocked_reason_office_not_set">Set your office location to continue.</string>
+    <string name="blocked_reason_permission">Grant location access to continue.</string>
+    <string name="blocked_reason_precise">Precise location is required.</string>
+    <string name="blocked_reason_services_off">Turn on device location to continue.</string>
+    <string name="blocked_reason_no_fix">Waiting for your location.</string>
+    <string name="blocked_reason_stale_fix">Waiting for a fresh GPS fix.</string>
+    <string name="blocked_reason_out_of_range">Move within %1$d m to mark attendance.</string>
 
     <!-- Status: permission required (GEN-04) -->
     <string name="status_permission_title">Location access needed</string>
@@ -100,21 +102,23 @@
     <!-- Status: acquiring / unavailable (GEN-04) -->
     <string name="status_acquiring_title">Finding your location…</string>
     <string name="status_acquiring_body">Waiting for an accurate fix. This is usually quicker near a window or outdoors.</string>
+    <string name="status_refreshing_title">Updating your location…</string>
+    <string name="status_refreshing_body">Waiting for a fresh GPS fix.</string>
     <string name="status_unavailable_title">Location unavailable</string>
     <string name="status_unavailable_body_no_fix">No position could be obtained. Move somewhere with a clearer view of the sky and it will retry automatically.</string>
     <string name="status_unavailable_body_provider">The location provider reported an error. It will retry automatically.</string>
 
     <!-- Status: office not configured -->
-    <string name="status_office_not_set_title">No office location set</string>
-    <string name="status_office_not_set_body">Capture the office coordinates once. They are saved on this device and restored the next time you open the app.</string>
+    <string name="status_office_not_set_title">Office setup required</string>
+    <string name="status_office_not_set_body">Save your office location once to enable attendance.</string>
 
     <!-- Status: tracking against the saved office (AND-08, AND-09) -->
     <string name="status_out_of_range_title">Move closer to the office</string>
-    <string name="status_out_of_range_body">You are %1$s from the office, outside the %2$d m radius, so Mark Attendance stays locked.</string>
+    <string name="status_out_of_range_body">You’re %1$s away. Move within %2$d m to mark attendance.</string>
     <string name="status_ready_title">Ready to mark attendance</string>
-    <string name="status_ready_body">You are %1$s from the office, inside the %2$d m radius.</string>
+    <string name="status_ready_body">You’re %1$s from the office, inside the %2$d m radius.</string>
     <string name="status_marked_title">Attendance marked</string>
-    <string name="status_marked_body">Recorded on this device at %1$s. There is no attendance server in this assessment, so nothing was sent.</string>
+    <string name="status_marked_body">Recorded on this device at %1$s. No attendance server is involved.</string>
 
     <!-- Fix quality caution (AMB-14) -->
     <string name="status_degraded_accuracy_title">Location accuracy is low</string>

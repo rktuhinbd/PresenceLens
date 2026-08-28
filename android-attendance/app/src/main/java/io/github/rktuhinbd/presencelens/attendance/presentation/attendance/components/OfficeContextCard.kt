@@ -1,9 +1,12 @@
 package io.github.rktuhinbd.presencelens.attendance.presentation.attendance.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -75,7 +78,7 @@ fun OfficeContextCard(
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerLow)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.office_context_overline),
@@ -107,7 +110,7 @@ fun OfficeContextCard(
                 )
             }
 
-            Spacer(modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.size(12.dp))
 
             LocationSurface(
                 officeCoordinates = office?.coordinates,
@@ -126,7 +129,7 @@ fun OfficeContextCard(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.size(14.dp))
 
             // Setup and configured are the same card changing face, not two cards - a cross
             // fade keeps that legible when the office is captured.
@@ -139,11 +142,11 @@ fun OfficeContextCard(
                     ConfiguredOffice(
                         capturedAtEpochMillis = office?.capturedAtEpochMillis,
                         enabled = state.canSetOfficeLocation,
+                        isCapturing = state.isCapturingOfficeLocation,
                         onChangeOfficeLocation = onChangeOfficeLocation
                     )
                 } else {
                     OfficeSetup(
-                        radiusMeters = radiusMeters.toInt(),
                         enabled = state.canSetOfficeLocation,
                         isCapturing = state.isCapturingOfficeLocation,
                         onSetOfficeLocation = onSetOfficeLocation
@@ -157,7 +160,6 @@ fun OfficeContextCard(
 /** First use: the screen's primary job, stated plainly and given the only filled button. */
 @Composable
 private fun OfficeSetup(
-    radiusMeters: Int,
     enabled: Boolean,
     isCapturing: Boolean,
     onSetOfficeLocation: () -> Unit,
@@ -165,7 +167,7 @@ private fun OfficeSetup(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
             text = stringResource(R.string.office_context_setup_title),
@@ -173,12 +175,12 @@ private fun OfficeSetup(
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            text = stringResource(R.string.office_context_setup_body, radiusMeters),
+            text = stringResource(R.string.office_context_setup_body),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.size(8.dp))
+        Spacer(modifier = Modifier.size(4.dp))
 
         Button(
             onClick = onSetOfficeLocation,
@@ -215,6 +217,8 @@ private fun OfficeSetup(
                 style = MaterialTheme.typography.labelLarge
             )
         }
+
+        CapturingNote(visible = isCapturing)
     }
 }
 
@@ -223,17 +227,18 @@ private fun OfficeSetup(
 private fun ConfiguredOffice(
     capturedAtEpochMillis: Long?,
     enabled: Boolean,
+    isCapturing: Boolean,
     onChangeOfficeLocation: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
             text = stringResource(R.string.office_context_helper),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = stringResource(
@@ -247,9 +252,7 @@ private fun ConfiguredOffice(
         TextButton(
             onClick = onChangeOfficeLocation,
             enabled = enabled,
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .defaultMinSize(minHeight = MIN_TOUCH_TARGET_DP.dp)
+            modifier = Modifier.defaultMinSize(minHeight = MIN_TOUCH_TARGET_DP.dp)
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_swap),
@@ -262,6 +265,32 @@ private fun ConfiguredOffice(
                 style = MaterialTheme.typography.labelLarge
             )
         }
+
+        CapturingNote(visible = isCapturing)
+    }
+}
+
+/**
+ * What the app is doing while a one-shot capture runs.
+ *
+ * A high-accuracy fix can take several seconds, and a spinner alone does not say whether that
+ * is expected. Without this line the obvious next move is to press the button again - which is
+ * exactly what a capture in progress must not invite.
+ */
+@Composable
+private fun CapturingNote(visible: Boolean, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+        modifier = modifier
+    ) {
+        Text(
+            text = stringResource(R.string.set_office_location_capturing_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp)
+        )
     }
 }
 

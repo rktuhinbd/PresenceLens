@@ -68,6 +68,22 @@ class AttendanceStatusPresenterTest {
     }
 
     @Test
+    fun `a stale fix reads as progress, never as a failure`() {
+        val presentation = present(AttendanceStatus.RefreshingFix)
+
+        // The whole point of the state: the provider is between fixes, so the card must not
+        // borrow the wording or the tone of a real failure.
+        assertEquals(AttendanceStatusKind.REFRESHING_FIX, presentation.kind)
+        assertEquals(StatusTone.PROGRESS, presentation.tone)
+        assertNull(presentation.action)
+    }
+
+    @Test
+    fun `a stale fix names its own reason beside the disabled button`() {
+        assertEquals(MarkAttendanceBlocker.STALE_FIX, blocker(AttendanceStatus.RefreshingFix))
+    }
+
+    @Test
     fun `each provider failure keeps its own explanation`() {
         val noFix = present(
             AttendanceStatus.LocationUnavailable(LocationFailureCause.NO_FIX_AVAILABLE)
@@ -209,7 +225,7 @@ class AttendanceStatusPresenterTest {
             currentLocation = DeviceLocation(
                 coordinates = current,
                 accuracyMeters = 5.0,
-                timestampEpochMillis = 0L
+                elapsedRealtimeMillis = 0L
             ),
             status = AttendanceStatus.Tracking(
                 AttendanceRule.evaluate(current = current, office = office)

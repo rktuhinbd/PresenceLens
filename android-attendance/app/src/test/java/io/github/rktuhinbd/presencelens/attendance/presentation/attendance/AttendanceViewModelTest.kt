@@ -5,6 +5,7 @@ import io.github.rktuhinbd.presencelens.attendance.domain.attendance.DistanceCal
 import io.github.rktuhinbd.presencelens.attendance.domain.location.DeviceLocation
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFailureCause
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFix
+import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFreshness
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationPermissionStatus
 import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
 import io.github.rktuhinbd.presencelens.attendance.domain.model.OfficeLocation
@@ -12,8 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
@@ -23,6 +24,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -34,11 +36,18 @@ import java.io.IOException
  *
  * No Play Services, no emulator, no Robolectric: the point of putting the rule in `domain`
  * and the platform behind interfaces is that the whole decision path can be exercised here.
+ *
+ * Time is a first-class input to these tests, because freshness is a first-class input to the
+ * ViewModel. [elapsedMillis] stands in for the device's monotonic clock, and [advanceClock]
+ * moves it and the coroutine scheduler together so the freshness tick actually fires.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AttendanceViewModelTest {
 
     private val dispatcher = UnconfinedTestDispatcher()
+
+    /** The fake monotonic clock the ViewModel measures fix age against. */
+    private var elapsedMillis = 0L
 
     private val office = GeoCoordinates(latitude = 23.8103, longitude = 90.4125)
     private val savedOffice = OfficeLocation(coordinates = office, capturedAtEpochMillis = 1_000L)
@@ -87,8 +96,9 @@ class AttendanceViewModelTest {
 
         assertEquals(AttendanceStatus.LocationServicesDisabled, fixture.state().status)
         assertFalse(fixture.state().canMarkAttendance)
-        // No stale distance may survive the toggle going off.
+        // No stale distance and no stale marker may survive the toggle going off.
         assertNull(fixture.state().proximity)
+        assertNull(fixture.state().currentLocation)
     }
 
     @Test
@@ -179,6 +189,156 @@ class AttendanceViewModelTest {
         assertEquals(180.0, fixture.state().currentLocation!!.accuracyMeters!!, 0.001)
     }
 
+    // --- The oscillation regression ------------------------------------------------------
+    //
+    // Play Services documents LocationAvailability as an estimate, and on a stationary device
+    // it flips to false routinely. The four tests below are the ones that would have caught the
+    // Ready -> Location unavailable -> Ready flicker before it reached a screen recording.
+
+    @Test
+    fun `a provider availability report never disturbs a recent fix`() = runTest(dispatcher) {
+        val fixture = Fixture(office = savedOffice)
+        fixture.observe(backgroundScope)
+        fixture.grantPreciseLocation()
+        fixture.emitFixAt(metersFromOffice = 10.0)
+
+        // Exactly the event that used to blank the screen.
+        fixture.locationDataSource.emit(LocationFix.ProviderReportedUnavailable)
+
+        assertTrue(fixture.state().status is AttendanceStatus.Tracking)
+        assertTrue(fixture.state().canMarkAttendance)
+        assertNotNull(fixture.state().currentLocation)
+    }
+
+    @Test
+    fun `an availability report produces no failure state at any point in the stream`() =
+        runTest(dispatcher) {
+            val fixture = Fixture(office = savedOffice)
+            fixture.observe(backgroundScope)
+            fixture.grantPreciseLocation()
+            fixture.emitFixAt(metersFromOffice = 10.0)
+
+            // A stationary device: fixes keep arriving, availability keeps flapping.
+            repeat(4) {
+                fixture.locationDataSource.emit(LocationFix.ProviderReportedUnavailable)
+                advanceClock(1_000)
+                fixture.emitFixAt(metersFromOffice = 10.0)
+            }
+
+            // Not merely "ends up fine" - it must never have flashed, which is what the user saw.
+            assertTrue(
+                fixture.states.none { it.status is AttendanceStatus.LocationUnavailable }
+            )
+            assertTrue(fixture.states.none { it.status is AttendanceStatus.RefreshingFix })
+            assertTrue(fixture.state().canMarkAttendance)
+        }
+
+    @Test
+    fun `an availability report before any fix is patience, then eventually a failure`() =
+        runTest(dispatcher) {
+            val fixture = Fixture(office = savedOffice)
+            fixture.observe(backgroundScope)
+            fixture.grantPreciseLocation()
+
+            fixture.locationDataSource.emit(LocationFix.ProviderReportedUnavailable)
+
+            // Still acquiring: the provider guessing badly is not the same as having failed.
+            assertEquals(AttendanceStatus.AcquiringFix, fixture.state().status)
+
+            advanceClock(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS + 1_000)
+
+            // Never held a position, and the acquisition window has passed with the provider
+            // saying it cannot obtain one. That is a real inability, and the only route here.
+            assertEquals(
+                AttendanceStatus.LocationUnavailable(LocationFailureCause.NO_FIX_AVAILABLE),
+                fixture.state().status
+            )
+        }
+
+    @Test
+    fun `a stale fix stays neutral even while the provider reports no location`() =
+        runTest(dispatcher) {
+            val fixture = Fixture(office = savedOffice)
+            fixture.observe(backgroundScope)
+            fixture.grantPreciseLocation()
+            fixture.emitFixAt(metersFromOffice = 10.0)
+
+            advanceClock(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS + 1_000)
+            fixture.locationDataSource.emit(LocationFix.ProviderReportedUnavailable)
+
+            assertEquals(AttendanceStatus.RefreshingFix, fixture.state().status)
+        }
+
+    // --- Freshness -----------------------------------------------------------------------
+
+    @Test
+    fun `a fix at the freshness limit still decides the rule`() = runTest(dispatcher) {
+        val fixture = Fixture(office = savedOffice)
+        fixture.observe(backgroundScope)
+        fixture.grantPreciseLocation()
+        fixture.emitFixAt(metersFromOffice = 10.0)
+
+        advanceClock(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS)
+
+        assertTrue(fixture.state().status is AttendanceStatus.Tracking)
+        assertTrue(fixture.state().canMarkAttendance)
+    }
+
+    @Test
+    fun `past the freshness limit attendance is disabled and the app says it is updating`() =
+        runTest(dispatcher) {
+            val fixture = Fixture(office = savedOffice)
+            fixture.observe(backgroundScope)
+            fixture.grantPreciseLocation()
+            fixture.emitFixAt(metersFromOffice = 10.0)
+            assertTrue(fixture.state().canMarkAttendance)
+
+            advanceClock(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS + 1)
+
+            assertEquals(AttendanceStatus.RefreshingFix, fixture.state().status)
+            assertFalse(fixture.state().canMarkAttendance)
+            // No distance may be quoted from a position that is no longer trusted...
+            assertNull(fixture.state().proximity)
+            // ...but the last known position stays on the surface, so nothing blinks.
+            assertNotNull(fixture.state().currentLocation)
+            // And the one job the user may still need to do stays available.
+            assertTrue(fixture.state().canSetOfficeLocation)
+        }
+
+    @Test
+    fun `a fresh fix after a stale one resumes normal eligibility`() = runTest(dispatcher) {
+        val fixture = Fixture(office = savedOffice)
+        fixture.observe(backgroundScope)
+        fixture.grantPreciseLocation()
+        fixture.emitFixAt(metersFromOffice = 10.0)
+        advanceClock(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS + 1)
+        assertEquals(AttendanceStatus.RefreshingFix, fixture.state().status)
+
+        fixture.emitFixAt(metersFromOffice = 30.0)
+
+        assertTrue(fixture.state().status is AttendanceStatus.Tracking)
+        assertTrue(fixture.state().canMarkAttendance)
+        assertEquals(30.0, fixture.state().proximity!!.distanceMeters, 0.5)
+    }
+
+    @Test
+    fun `a stale fix recovers into the out-of-range state when that is the truth`() =
+        runTest(dispatcher) {
+            val fixture = Fixture(office = savedOffice)
+            fixture.observe(backgroundScope)
+            fixture.grantPreciseLocation()
+            fixture.emitFixAt(metersFromOffice = 10.0)
+            advanceClock(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS + 1)
+
+            fixture.emitFixAt(metersFromOffice = 255.0)
+
+            assertTrue(fixture.state().status is AttendanceStatus.Tracking)
+            assertFalse(fixture.state().canMarkAttendance)
+            assertEquals(255.0, fixture.state().proximity!!.distanceMeters, 0.5)
+        }
+
+    // --- Everything else -------------------------------------------------------------------
+
     @Test
     fun `setting the office persists the freshly captured coordinate`() = runTest(dispatcher) {
         val fixture = Fixture()
@@ -191,7 +351,7 @@ class AttendanceViewModelTest {
             DeviceLocation(
                 coordinates = captured,
                 accuracyMeters = 8.0,
-                timestampEpochMillis = 5L
+                elapsedRealtimeMillis = elapsedMillis
             )
         )
 
@@ -218,7 +378,7 @@ class AttendanceViewModelTest {
             fixture.grantPreciseLocation()
             fixture.emitFixAt(metersFromOffice = 10.0)
             fixture.locationDataSource.currentLocationFix =
-                LocationFix.Unavailable(LocationFailureCause.NO_FIX_AVAILABLE)
+                LocationFix.Failed(LocationFailureCause.NO_FIX_AVAILABLE)
 
             fixture.viewModel.onSetOfficeLocationClicked()
 
@@ -236,7 +396,7 @@ class AttendanceViewModelTest {
             fixture.emitFixAt(metersFromOffice = 0.0)
             fixture.repository.saveFailure = IOException("disk full")
             fixture.locationDataSource.currentLocationFix = LocationFix.Available(
-                DeviceLocation(office, accuracyMeters = 5.0, timestampEpochMillis = 1L)
+                DeviceLocation(office, accuracyMeters = 5.0, elapsedRealtimeMillis = elapsedMillis)
             )
 
             fixture.viewModel.onSetOfficeLocationClicked()
@@ -246,7 +406,7 @@ class AttendanceViewModelTest {
         }
 
     @Test
-    fun `an unavailable location clears the distance and disables the attendance action`() =
+    fun `a real provider failure clears the distance and disables the attendance action`() =
         runTest(dispatcher) {
             val fixture = Fixture(office = savedOffice)
             fixture.observe(backgroundScope)
@@ -255,7 +415,7 @@ class AttendanceViewModelTest {
             assertTrue(fixture.state().canMarkAttendance)
 
             fixture.locationDataSource.emit(
-                LocationFix.Unavailable(LocationFailureCause.PROVIDER_ERROR)
+                LocationFix.Failed(LocationFailureCause.PROVIDER_ERROR)
             )
 
             assertEquals(
@@ -279,6 +439,22 @@ class AttendanceViewModelTest {
 
             assertEquals(AttendanceStatus.PermissionRequired, fixture.state().status)
             assertFalse(fixture.state().canMarkAttendance)
+            assertNull(fixture.state().currentLocation)
+        }
+
+    @Test
+    fun `revoking the grant reported by the screen also clears the position`() =
+        runTest(dispatcher) {
+            val fixture = Fixture(office = savedOffice)
+            fixture.observe(backgroundScope)
+            fixture.grantPreciseLocation()
+            fixture.emitFixAt(metersFromOffice = 5.0)
+
+            fixture.viewModel.onPermissionStatusChanged(LocationPermissionStatus.DENIED)
+
+            assertEquals(AttendanceStatus.PermissionRequired, fixture.state().status)
+            assertNull(fixture.state().currentLocation)
+            assertNull(fixture.state().proximity)
         }
 
     @Test
@@ -287,6 +463,20 @@ class AttendanceViewModelTest {
         fixture.observe(backgroundScope)
         fixture.grantPreciseLocation()
         fixture.emitFixAt(metersFromOffice = 75.0)
+
+        fixture.viewModel.onMarkAttendanceClicked()
+
+        assertNull(fixture.state().message)
+        assertNull(fixture.state().attendanceMarkedAtEpochMillis)
+    }
+
+    @Test
+    fun `marking attendance on a stale fix does nothing`() = runTest(dispatcher) {
+        val fixture = Fixture(office = savedOffice)
+        fixture.observe(backgroundScope)
+        fixture.grantPreciseLocation()
+        fixture.emitFixAt(metersFromOffice = 12.0)
+        advanceClock(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS + 1)
 
         fixture.viewModel.onMarkAttendanceClicked()
 
@@ -339,6 +529,38 @@ class AttendanceViewModelTest {
         assertEquals(0, fixture.locationDataSource.activeSubscriptions)
     }
 
+    @Test
+    fun `re-reporting the same grant does not restart the location subscription`() =
+        runTest(dispatcher) {
+            val fixture = Fixture(office = savedOffice)
+            fixture.observe(backgroundScope)
+            fixture.grantPreciseLocation()
+            fixture.emitFixAt(metersFromOffice = 10.0)
+
+            // What a resume, a permission-result callback, and a recomposition all do: report
+            // the grant again. None of them is a change, and none may tear down the callback
+            // and register a new one.
+            repeat(5) { fixture.grantPreciseLocation() }
+
+            assertEquals(1, fixture.locationDataSource.subscriptionsStarted)
+            assertEquals(1, fixture.locationDataSource.activeSubscriptions)
+        }
+
+    @Test
+    fun `the freshness tick alone never produces a new state value`() = runTest(dispatcher) {
+        val fixture = Fixture(office = savedOffice)
+        fixture.observe(backgroundScope)
+        fixture.grantPreciseLocation()
+        fixture.emitFixAt(metersFromOffice = 10.0)
+        val statesBefore = fixture.states.size
+
+        // Five ticks inside the freshness window. Nothing about the situation changed, so the
+        // screen must not be handed a single new value to recompose against.
+        advanceClock(5_000)
+
+        assertEquals(statesBefore, fixture.states.size)
+    }
+
     private inner class Fixture(office: OfficeLocation? = null) {
         val locationDataSource = FakeLocationDataSource()
         val repository = FakeOfficeLocationRepository(office)
@@ -347,15 +569,20 @@ class AttendanceViewModelTest {
             locationDataSource = locationDataSource,
             officeLocationRepository = repository,
             locationServiceMonitor = serviceMonitor,
-            clock = { FIXED_NOW }
+            clock = { FIXED_NOW },
+            elapsedRealtime = { elapsedMillis }
         )
+
+        /** Every value the screen would have been handed, in order. */
+        val states = mutableListOf<AttendanceUiState>()
 
         /**
          * `WhileSubscribed` only produces state while something collects, as it does on
          * screen. Collectors go on `runTest`'s `backgroundScope` so the test body is not
          * waiting on a flow that never completes.
          */
-        fun observe(scope: CoroutineScope): Job = scope.launch { viewModel.uiState.collect() }
+        fun observe(scope: CoroutineScope): Job =
+            scope.launch { viewModel.uiState.collect { states += it } }
 
         fun state(): AttendanceUiState = viewModel.uiState.value
 
@@ -369,11 +596,18 @@ class AttendanceViewModelTest {
                     DeviceLocation(
                         coordinates = coordinatesNorthOfOffice(metersFromOffice),
                         accuracyMeters = accuracyMeters,
-                        timestampEpochMillis = FIXED_NOW
+                        elapsedRealtimeMillis = elapsedMillis
                     )
                 )
             )
         }
+    }
+
+    /** Moves the device clock and the scheduler together, so the freshness tick fires. */
+    private fun TestScope.advanceClock(millis: Long) {
+        elapsedMillis += millis
+        advanceTimeBy(millis)
+        runCurrent()
     }
 
     /**

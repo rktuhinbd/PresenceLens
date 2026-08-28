@@ -24,7 +24,7 @@ class FakeLocationDataSource : LocationDataSource {
 
     /** What the next one-shot request returns, i.e. what "Set Office Location" will capture. */
     var currentLocationFix: LocationFix =
-        LocationFix.Unavailable(LocationFailureCause.NO_FIX_AVAILABLE)
+        LocationFix.Failed(LocationFailureCause.NO_FIX_AVAILABLE)
 
     var currentLocationRequests = 0
         private set
@@ -36,9 +36,20 @@ class FakeLocationDataSource : LocationDataSource {
     var activeSubscriptions = 0
         private set
 
+    /**
+     * How many times collection has ever begun. Distinct from [activeSubscriptions]: a stream
+     * torn down and rebuilt would leave that at one while this rises, which is exactly the
+     * shape of an accidental restart.
+     */
+    var subscriptionsStarted = 0
+        private set
+
     override fun locationUpdates(): Flow<LocationFix> = updates
         .filterNotNull()
-        .onStart { activeSubscriptions++ }
+        .onStart {
+            activeSubscriptions++
+            subscriptionsStarted++
+        }
         .onCompletion { activeSubscriptions-- }
 
     override suspend fun currentLocation(): LocationFix {

@@ -31,7 +31,7 @@ private fun deviceLocation(
 ) = DeviceLocation(
     coordinates = coordinates,
     accuracyMeters = accuracyMeters,
-    timestampEpochMillis = 1_756_000_000_000L
+    elapsedRealtimeMillis = 120_000L
 )
 
 private fun savedOffice() = OfficeLocation(
@@ -182,6 +182,18 @@ private fun AttendanceScreenAcquiringPreview() {
         AttendanceUiState(
             office = savedOffice(),
             status = AttendanceStatus.AcquiringFix
+        )
+    )
+}
+
+@Preview(name = "Refreshing a stale fix", showBackground = true, heightDp = 1_100)
+@Composable
+private fun AttendanceScreenRefreshingPreview() {
+    PreviewScreen(
+        AttendanceUiState(
+            office = savedOffice(),
+            currentLocation = deviceLocation(coordinatesAt(30.0)),
+            status = AttendanceStatus.RefreshingFix
         )
     )
 }

@@ -137,8 +137,8 @@ fun DistanceGauge(
     }
 }
 
-private const val GAUGE_SIZE_DP = 168
-private const val GAUGE_STROKE_DP = 12
+private const val GAUGE_SIZE_DP = 136
+private const val GAUGE_STROKE_DP = 10
 
 /** An em dash, so the gauge holds its shape before the first fix arrives. */
 private const val EMPTY_READOUT = "—"

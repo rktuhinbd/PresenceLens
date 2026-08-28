@@ -628,7 +628,14 @@ rather than per-screen improvisation.
 
 ## ADR-013 — Attendance screen becomes state-driven (G3.5 UX pass)
 
-**Status:** ACCEPTED — approved by the human as the G3.5 UX direction, 2026-08-28.
+**Status:** ACCEPTED — approved by the human as the G3.5 UX direction, 2026-08-28, and the
+two interpretive calls it left open **ruled on and accepted at G3.6, 2026-08-28**:
+
+1. **AND-05.** "Set Office Location" is the exact initial Setup Phase label. Once an office
+   exists, "Change office location" is approved.
+2. **AND-21.** "Office hours" is the approved presentation label for the reference
+   screenshot's 09:00 AM – 10:30 AM caption. The time is informational only and **must never
+   participate in attendance eligibility** ([ADR-011](#adr-011) unchanged in force).
 
 **Requirements:** AND-03, AND-04, AND-05, AND-10, AND-13…AND-21, GEN-04, EXP-03, EXP-04
 
@@ -718,3 +725,117 @@ it state-driven.
   the approved brief); hiding Mark Attendance entirely during setup (AND-04 wants both
   affordances in one composition — it is de-emphasised, not removed); enforcing office
   hours now that they are labelled as such (would contradict AND-08 and ADR-011).
+
+---
+
+<a id="adr-014"></a>
+
+## ADR-014 — Location is a retained value with a freshness bound, not a stream of verdicts
+
+**Status:** ACCEPTED — 2026-08-28 (G3.6), in response to an observed defect.
+
+**Requirements:** AND-08, AND-09, GEN-04, AMB-13, AMB-14
+
+**Relates to:** [ADR-001](#adr-001) (unchanged — still foreground Fused Location, still no
+geofencing), [ADR-006](#adr-006) (this is that architecture applied more carefully)
+
+### Context
+
+A screen recording of a **stationary** emulator showed the app oscillating roughly every two
+seconds:
+
+```
+Ready to mark attendance  →  Location unavailable  →  Ready to mark attendance  →  …
+```
+
+The saved office had not changed and the user had done nothing.
+
+**Root cause.** `FusedLocationDataSource.onLocationAvailability` mapped
+`LocationAvailability.isLocationAvailable == false` straight to
+`LocationFix.Unavailable(NO_FIX_AVAILABLE)`, and `AttendanceViewModel` treated any
+`Unavailable` as terminal: it discarded the fix in hand and rendered
+`AttendanceStatus.LocationUnavailable`. The next scheduled `onLocationResult` — two seconds
+later, by `UPDATE_INTERVAL_MILLIS` — restored the eligible state. The cycle then repeated.
+
+Google documents `LocationAvailability` as a **best-guess estimate** of whether a location can
+currently be obtained, not a statement that positioning has failed. On a stationary device the
+fused engine flips it to `false` routinely between confident reports. A second, smaller
+instance of the same mistake sat beside it: a `LocationResult` carrying no usable location was
+also mapped to a failure, when it carries no information at all.
+
+The defect was structural, not cosmetic. The state model asked "what did the provider last
+say?" when the question the screen has to answer is "does the app currently hold a position
+good enough to decide a 50 m boundary?"
+
+### Decision
+
+**1. Separate the provider's estimate from a real failure.** `LocationFix` gains
+`ProviderReportedUnavailable` — advisory, never a failure — and `Unavailable` is renamed
+`Failed` so the remaining case cannot be misread. An empty `LocationResult` now emits nothing.
+
+**2. Retain the last usable position.** The ViewModel folds raw fixes into what it *knows*
+(`LocationKnowledge`) and derives what it can *say* (`LocationReading`) from that knowledge
+plus the age of the last fix. An availability estimate cannot discard a fix already held.
+
+**3. Bound that retention with one named freshness threshold.**
+`LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS = 10 000 ms`, measured against the device's
+monotonic elapsed-realtime clock (`Location.getElapsedRealtimeNanos`), not the wall clock.
+
+**4. Give staleness its own neutral state.** Past the threshold, with permission granted and
+location services on, the screen shows `AttendanceStatus.RefreshingFix` — *"Updating your
+location… / Waiting for a fresh GPS fix."* — in the **progress** tone with a spinner. Mark
+Attendance is disabled (no `Tracking`, therefore no distance, therefore no eligibility), the
+last position stays drawn on the location surface so nothing blinks, and "Set Office Location"
+stays available because it issues its own one-shot request.
+
+**5. Reserve "Location unavailable" for a real inability.** It is now reached only by
+`LocationFix.Failed` — an exception, a Play Services fault, a one-shot capture whose window
+elapsed — or by the single escalation path: the app has **never** held a position *and* the
+acquisition window has passed *and* the provider says it cannot obtain one.
+
+**6. Align the one-shot office capture with the same number.** `CurrentLocationRequest`
+`maxUpdateAge` moves from 2 s to `FRESH_FIX_MAX_AGE_MILLIS`, and its duration from 10 s to
+20 s, with an explicit "Getting a precise fix. This can take a few seconds." note while it
+runs (AND-06).
+
+### Reasoning
+
+- **Why not debounce.** A debounce would delay a wrong answer rather than stop producing one,
+  and it would still be wrong in the case that matters — a genuinely dead provider would look
+  identical to a healthy one for the length of the window.
+- **Why 10 s.** It is five consecutive missed deliveries at the 2 s update cadence
+  (`UPDATE_INTERVAL_MILLIS`), comfortably more than the one-or-two-sample gaps a stationary
+  device produces, which is exactly the condition that must not disturb the UI. It is also
+  short enough to stay honest about the rule: at walking pace (~1.4 m/s) ten seconds is about
+  14 m of possible movement, well inside the 50 m boundary and inside the 25 m accuracy the
+  app already tolerates (`LocationQuality.DEGRADED_ACCURACY_THRESHOLD_METERS`). Pinned by
+  `LocationFreshnessTest`.
+- **Why elapsed realtime.** An NTP correction, a time-zone change, or a user editing the
+  system clock would make a fresh fix look hours old under a wall-clock comparison. Freshness
+  is a duration, so it is measured with the clock that only measures durations.
+- **Why staleness disables the action.** AND-08 is a statement about where the user *is*. A
+  position the app can no longer vouch for cannot support that claim, so the honest response
+  is to stop claiming it — quietly, in a progress tone, not with an alarm.
+
+### Consequences
+
+- `AttendanceStatusKind` gains `REFRESHING_FIX` and `MarkAttendanceBlocker` gains `STALE_FIX`,
+  both covered by `AttendanceStatusPresenterTest`.
+- `DeviceLocation.timestampEpochMillis` is replaced by `elapsedRealtimeMillis`. The wall-clock
+  stamp had no consumer; the monotonic one has exactly one, and it is the rule above.
+- `AttendanceViewModel` takes an injected `elapsedRealtime: () -> Long` (defaulting to
+  `SystemClock::elapsedRealtime`) and runs a 1 Hz freshness tick while the screen is observing.
+  The tick is inside the `WhileSubscribed` graph, so it stops with the screen, and identical
+  readings are dropped by `distinctUntilChanged` — a tick that changes nothing hands the UI
+  nothing, which is asserted by a test.
+- A held-but-stale position never escalates to "Location unavailable" no matter how old it
+  gets. This is deliberate: "Updating your location…" is true and actionable, and the brief is
+  explicit that a red failure state must not be the reaction to a provider simply going quiet.
+- **What is not covered by automated tests.** The `LocationAvailability` → advisory mapping in
+  `FusedLocationDataSource` is Play Services-facing, and the project has no Robolectric or
+  mocking framework (ADR-009's spirit). The three lines are documented at the call site, and
+  the emulator soak below is their evidence.
+- **Rejected alternatives:** debouncing the error state (delays a wrong answer, does not
+  remove it); ignoring `LocationAvailability` entirely (throws away the one signal that
+  distinguishes "indoors with no signal" from "acquiring"); keeping the distance readout live
+  from a stale fix (would leave AND-08 deciding from a position the app cannot vouch for).

@@ -5,11 +5,12 @@ Resumption document. Read this first, then the active gate in
 [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md).
 
 Last updated: 2026-08-28
-Overall status: **G3.5 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
+Overall status: **G3.6 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
 implemented end to end, passes all automated verification, and has been driven through
-every state on an emulator. The rows whose stated verification method is a Compose UI
-test remain `PARTIAL`; a manual walkthrough is not that method.**
-Current gate: **G3.5 — Android UX Polish Sprint (complete)**
+every state on an emulator. A location-state oscillation found by manual testing has been
+root-caused and fixed ([ADR-014](DECISIONS.md#adr-014)). The rows whose stated verification
+method is a Compose UI test remain `PARTIAL`; a manual walkthrough is not that method.**
+Current gate: **G3.6 — Android stability and final UX polish (complete)**
 
 ## Progress
 
@@ -17,8 +18,8 @@ Current gate: **G3.5 — Android UX Polish Sprint (complete)**
 | --- | --- |
 | Requirements extracted from the PDF | Complete — 64 requirements, 15 ambiguities |
 | Architecture defined | Complete (both apps) |
-| ADRs | 13 recorded — 11 `ACCEPTED`, 2 `PROPOSED` (ADR-009 technical revisit, ADR-010 deferred to G8) |
-| **Android feature implementation** | **Complete and polished.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). 70 unit tests pass; emulator walkthrough executed. |
+| ADRs | 14 recorded — 12 `ACCEPTED`, 2 `PROPOSED` (ADR-009 technical revisit, ADR-010 deferred to G8). ADR-013's two open interpretive calls were **ruled on and accepted** at G3.6. |
+| **Android feature implementation** | **Complete, stabilised and polished.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). Location is now a retained value with a named freshness bound rather than a stream of provider verdicts ([ADR-014](DECISIONS.md#adr-014)). 90 unit tests pass; emulator walkthrough executed. |
 | **Flutter application** | **0% — project not created** |
 | README / submission artefacts | Not started |
 
@@ -28,31 +29,35 @@ Current gate: **G3.5 — Android UX Polish Sprint (complete)**
 | --- | --- |
 | Android Gradle sync | PASS (Android Studio and PowerShell) |
 | Android `clean` | PASS (PowerShell CLI, verified at G1) |
-| Android `assembleDebug` | PASS — re-verified after the G3.5 UX pass, 2026-08-28 |
-| Android `testDebugUnitTest` | PASS — **70 tests**, 0 failures, 2026-08-28 |
-| Android `lintDebug` | PASS — **0 errors**, 11 warnings (6 dependency-version advisories, 5 `PluralsCandidate`) |
+| Android `assembleDebug` | PASS — re-verified after the G3.6 pass, 2026-08-28 |
+| Android `testDebugUnitTest` | PASS — **90 tests**, 0 failures, 2026-08-28 |
+| Android `lintDebug` | PASS — **0 errors**, 10 warnings (6 dependency-version advisories, 4 `PluralsCandidate`) |
 | `git diff --check` | CLEAN |
 | `domain` free of Android imports | PASS — verified by grep over `domain/` |
 | 50 m radius is a single constant | PASS — one literal, in `AttendanceRule` |
 | No `GeofencingClient` / Maps SDK / background location | PASS — no such dependency or permission exists |
 | Office-hours caption does not gate eligibility (ADR-011, ADR-013) | PASS — `availability_caption` removed; `office_hours_label` / `office_hours_value` have one reference each, both `Text` calls |
 | Android emulator launch | PASS (verified at G0.1) |
-| **Emulator acceptance run of Task 1** | **PASS — executed twice.** By the author before G3.5, and again by the G3.5 walkthrough on `emulator-5554` after the UX pass. See below. |
+| **Emulator acceptance run of Task 1** | **PASS — executed three times.** By the author before G3.5, by the G3.5 walkthrough, and again at G3.6 on `emulator-5554` after the stability fix. See below. |
+| **Stationary-oscillation soak** | **PASS — 30 samples over ~70 s on a stationary emulator, all reading "Ready to mark attendance".** The defect this replaces produced a flip roughly every 2 s. |
+| Location-services off → on recovery | **PASS** — off gives the explicit services state; on gives "Updating your location… / Waiting for a fresh GPS fix." then automatic recovery, with **no** red failure state at any point |
+| Office persistence across force-stop | **PASS** — executed 2026-08-28, AND-07 now `DONE` |
 | Android `assembleRelease` | NOT RUN — would produce an **unsigned** APK (RF-09) |
 | Flutter project | **NOT CREATED** |
 
-### Unit test breakdown (70)
+### Unit test breakdown (90)
 
 | Suite | Tests | Covers |
 | --- | --- | --- |
-| `AttendanceViewModelTest` | 19 | Permission, approximate-only, services-off, acquiring, unavailable, revoked mid-stream, office-not-set, office restored, per-emission distance, the 50 m boundary in both directions, degraded-fix behaviour, office capture + persistence, capture failure, storage failure, mark-attendance in and out of range, message lifecycle, and subscription teardown |
-| `AttendanceStatusPresenterTest` | 14 | All twelve status-card conditions, the action each offers, all six blocked-button reasons, and that the success confirmation does not outlive the eligibility it confirms |
+| `AttendanceViewModelTest` | 31 | Permission, approximate-only, services-off, acquiring, real provider failure, revoked mid-stream (both routes), office-not-set, office restored, per-emission distance, the 50 m boundary in both directions, degraded-fix behaviour, office capture + persistence, capture failure, storage failure, mark-attendance in range / out of range / on a stale fix, message lifecycle, subscription teardown, **and the eight G3.6 stability cases** — availability flapping, the no-flash assertion over the whole emitted sequence, escalation only after the acquisition window, staleness at and past the limit, recovery into eligible and into out-of-range, no subscription restart on a repeated grant, and the freshness tick producing no state churn |
+| `AttendanceStatusPresenterTest` | 16 | All thirteen status-card conditions, the action each offers, all seven blocked-button reasons, that a stale fix reads as progress rather than failure, and that the success confirmation does not outlive the eligibility it confirms |
 | `AttendanceRuleTest` | 5 | AND-08 at 0 / 49.9 / 50.0 / 50.1 / 120 m |
 | `DistanceCalculatorTest` | 5 | Haversine identity, known distance, symmetry; bearing at the four cardinals and its normalisation |
 | `DistanceFormatterTest` | 6 | Metres, the kilometre switch, rounding, and non-finite input |
 | `ProximityGeometryTest` | 5 | Gauge fraction and marker placement, including the off-panel clamp |
 | `GeoCoordinatesTest` | 5 | Latitude/longitude range validation |
 | `LocationQualityTest` | 4 | The degraded-accuracy threshold and unreported accuracy |
+| `LocationFreshnessTest` | 6 | The freshness boundary in both directions, age arithmetic, a fix stamped ahead of now, and that the threshold stays inside the accuracy the app already tolerates |
 | `InMemoryOfficeLocationRepositoryTest` | 5 | Absent, save, overwrite, clear, unreadable-store recovery |
 | `DataStoreOfficeLocationRepositoryTest` | 2 | Real file-backed round trip |
 
@@ -113,11 +118,94 @@ disabled button in the no-office, no-fix and out-of-range cases; the success sta
 ("ATTENDANCE MARKED" / "Marked at 12:55 PM") and its disappearance on leaving the radius;
 and dark-mode rendering of every card. Screenshots were captured for each.
 
+### G3.6 stability checks — **executed on `emulator-5554`, 2026-08-28**
+
+Driven with `adb emu geo fix`, `adb shell settings put secure location_mode`, and
+`uiautomator dump` reading the status card back as text. All eight passed.
+
+| # | Check | Expected | Result |
+| --- | --- | --- | --- |
+| 1 | Stationary for ≥ 30 s | No `Ready ↔ Location unavailable` oscillation | **PASS** — 30 samples over ~70 s, all "Ready to mark attendance" |
+| 2 | Office set, inside 50 m for 30 s | Eligible state stays stable | **PASS** — stable across the whole soak |
+| 3 | Move > 50 m | Stable out-of-range state | **PASS** — "Move closer to the office" / "You're 255 m away…" held across 8 samples |
+| 4 | Move back < 50 m | Stable eligible state | **PASS** — recovered on the next fix, no intermediate failure |
+| 5 | Android Location OFF | Explicit location-services state | **PASS** — "Turn on location services" with a working settings action |
+| 6 | Android Location ON | Acquiring/updating, then automatic recovery | **PASS** — "Updating your location… / Waiting for a fresh GPS fix." then automatic recovery on the next fix. **No red failure state at any point** — the pre-fix build showed "Location unavailable" here |
+| 7 | Force-stop and relaunch | Office persistence correct | **PASS** — coordinates and capture time restored with no user action (AND-07 now `DONE`) |
+| 8 | Light and dark layouts | Both correct | **PASS** — first-use captured in light, tracking/out-of-range/marked in dark |
+
+Also exercised: first-use setup from cleared app data (all four target copy strings verified
+verbatim, "Set Office Location" label intact), a single-tap office capture that succeeded
+without re-tapping, and the completed CTA (disabled check + "Attendance marked").
+
 Matrix rows whose verification method is a **Compose UI test** stay `PARTIAL` regardless —
 a manual walkthrough is not that method, and inflating them would be exactly the kind of
 unearned `DONE` the charter forbids.
 
 ## Active objective
+
+**G3.6 — Android stability and final UX polish. Complete 2026-08-28.**
+
+**The bug.** A manual screen recording showed the app oscillating on a *stationary*
+emulator, roughly every two seconds:
+`Ready to mark attendance → Location unavailable → Ready to mark attendance → …`
+
+**Root cause.** `FusedLocationDataSource.onLocationAvailability` mapped
+`LocationAvailability.isLocationAvailable == false` directly to a failure, and the ViewModel
+treated any failure as terminal — discarding the fix it was holding. Play Services documents
+that flag as a **best-guess estimate**, and a stationary device flips it to `false` routinely
+between confident reports. The next scheduled fix, two seconds later, restored the eligible
+state, and the cycle repeated. A `LocationResult` with no usable location was mapped the same
+way, for the same wrong reason.
+
+**The fix — a state model, not a debounce** ([ADR-014](DECISIONS.md#adr-014)):
+
+1. `LocationFix.ProviderReportedUnavailable` (advisory) is now distinct from
+   `LocationFix.Failed` (real). An empty `LocationResult` emits nothing at all.
+2. The ViewModel **retains** the last usable position (`LocationKnowledge`) and derives what
+   it may *say* (`LocationReading`) from that plus the fix's age. An availability estimate
+   cannot discard a position already held.
+3. **One freshness threshold**: `LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS = 10 s`, measured
+   on the monotonic elapsed-realtime clock, not the wall clock. Five missed 2 s deliveries;
+   ~14 m of walking drift, well inside both the 50 m rule and the 25 m accuracy tolerance.
+4. Past it, `AttendanceStatus.RefreshingFix` — *"Updating your location… / Waiting for a fresh
+   GPS fix."* in the **progress** tone. Mark Attendance is disabled, the last marker stays
+   drawn so nothing blinks, and Set Office Location stays available.
+5. "Location unavailable" is now reachable only from a real failure, or from never having held
+   a position once the acquisition window has passed.
+6. The one-shot office capture uses the same freshness number and a 20 s window, with a
+   "Getting a precise fix…" note while it runs.
+
+**Also audited while in there**, all clean: one location subscription only (a repeated
+permission report is not a change and does not restart it — now asserted by a test); the
+`callbackFlow` still removes its callback in `awaitClose`; the freshness tick lives inside the
+`WhileSubscribed` graph so it stops with the screen, and `distinctUntilChanged` means a tick
+that changes nothing hands the UI nothing.
+
+**Final UX pass** (approved direction, no redesign):
+
+- **Vertical density.** Measured on `emulator-5554` in the out-of-range state, the span from
+  the status-card title to the "OUT OF RANGE" chip fell from **2288 px to 1853 px — 19%**.
+  "ATTENDANCE LOCKED" and the Mark Attendance button are now above the fold on that device,
+  where before they were not. Location surface 232→190 dp, gauge 168→136 dp, card padding
+  20→16/18 dp, section gap 16→12 dp, and shorter copy doing the rest.
+- **First-use repetition removed** — "Office setup required" / "Save your office location once
+  to enable attendance." / "Set up your office location" / "Set your office location to
+  continue.", with the radius restated once instead of four times.
+- **Terminology unified on *attendance*** — "CHECK-IN LOCKED" → "ATTENDANCE LOCKED",
+  "READY TO CHECK IN" → "READY TO MARK"; no "check-in" wording remains anywhere in the app.
+- **Completed CTA** — after marking, the button becomes a disabled check + "Attendance marked"
+  in the success role, instead of an active "Mark Attendance" the user could press again.
+  Local demonstration feedback only; no history, no record, no API.
+- **Copy polish** — "Saved office location" / "Captured Aug 28, 2026 1:44 PM" replaces the
+  specification-like helper sentence, and the out-of-range guidance splits into
+  "You're 255 m from the office." + "Move within 50 m to mark attendance." Distance stays live.
+
+**Nothing approved was regressed:** the Material 3 design, first-use setup face, dynamic
+status card, Compose-drawn location visual, change-office confirmation, "How attendance works"
+sheet, Office hours treatment, dark theme, semantics, 48 dp targets, haptic, no Maps SDK, no
+background location, DataStore persistence, the pure 50 m rule, Haversine in `domain`, and
+lifecycle-aware collection are all intact and were re-checked on the emulator.
 
 **G3.5 — Android UX Polish Sprint. Complete 2026-08-28.** The screen is now state-driven
 ([ADR-013](DECISIONS.md#adr-013)), against a human-supplied UX direction. Delivered:
@@ -220,6 +308,9 @@ file-backed round trip is retained separately.
 10. **G3.5 — Android UX polish sprint (2026-08-28),** committed as
     `feat(android): refine attendance UX and visual design`. Recorded as
     [ADR-013](DECISIONS.md#adr-013).
+11. **G3.6 — Android stability and final UX polish (2026-08-28),** committed as
+    `fix(android): stabilize location state and polish attendance UX`. Recorded as
+    [ADR-014](DECISIONS.md#adr-014); ADR-013's two open rulings accepted.
 
 ## Next gate
 
@@ -229,18 +320,21 @@ Flutter work has not begun and must not begin until Task 1 is signed off.
 
 Remaining before G3/G3.5 can formally close:
 
-- [ ] Human confirmation of the two interpretive calls in [ADR-013](DECISIONS.md#adr-013):
+- [x] Human confirmation of the two interpretive calls in [ADR-013](DECISIONS.md#adr-013):
       the AND-05 Setup-Phase reading, and the "Office hours" relabel of the AND-21 caption.
+      **Both ruled on and ACCEPTED 2026-08-28.**
 - [ ] Side-by-side comparison against the p2 reference captured for README §5 (AND-10).
 - [ ] Compose UI tests for AND-03/04/05/08/18/20 — deliberately deferred. The AND-05 test
       must assert the mandated label **in the no-office state** (ADR-013).
 - [ ] Haptic on the mark-attendance path confirmed on a physical device; an emulator
       cannot show it.
 - [x] Location layer, ViewModel, permission UX, and `AttendanceScreen` implemented.
+- [x] Location-state oscillation root-caused, fixed, and pinned by regression tests
+      ([ADR-014](DECISIONS.md#adr-014)); 70 s stationary soak clean.
 - [x] State-driven UX pass (G3.5) delivered against the approved direction.
 - [x] Emulator walkthrough of every state executed, in light and dark.
-- [x] 70 unit tests passing; `assembleDebug` and `lintDebug` clean.
-- [x] `git diff` inspected; four local commits created; nothing pushed.
+- [x] 90 unit tests passing; `assembleDebug` and `lintDebug` clean.
+- [x] `git diff` inspected; five local commits created; nothing pushed.
 - [x] ADR-013 recorded; matrix, AI_USAGE.md and this file updated.
 
 ## Blockers
@@ -263,6 +357,14 @@ Remaining before G3/G3.5 can formally close:
 - **The location surface is not a map**, deliberately (ADR-003). It shows the boundary and
   the user's true bearing and distance, not streets. This is disclosed rather than implied,
   and must be stated in README §5.
+- **The `LocationAvailability` mapping in `FusedLocationDataSource` has no automated test.**
+  It is Play Services-facing and the project carries no Robolectric or mocking framework. The
+  ViewModel half of the same behaviour is covered by four JVM regression cases; the data-source
+  half is documented at the call site and evidenced by the emulator soak above.
+- **A held position that goes stale never escalates to "Location unavailable"**, however old it
+  becomes. Deliberate ([ADR-014](DECISIONS.md#adr-014)): "Updating your location…" stays true,
+  the action stays disabled, and a red failure state is not the honest reaction to a provider
+  going quiet.
 - **Dynamic colour is off by default** so status colour keeps its meaning and a reviewer
   sees the designed palette. The parameter remains available.
 - **Distance uses a hand-rolled Haversine, not `Location.distanceTo`.** ADR-001's
@@ -276,7 +378,9 @@ Remaining before G3/G3.5 can formally close:
 - No Flutter work until Android Task 1 is accepted.
 - No `GeofencingClient` (ADR-001), no Google Maps SDK or API key (ADR-003), no background
   location, no alpha/preview design libraries (ADR-012).
-- The office-hours caption is presentation only (ADR-011, ADR-013).
+- The office-hours caption is presentation only (ADR-011, ADR-013) — **ruled and accepted**.
+- `LocationAvailability` is advice, never a verdict; "Location unavailable" is reserved for a
+  real inability (ADR-014). The 50 m rule is still the only eligibility gate.
 - "Set Office Location" is the exact mandated label whenever no office is saved (AND-05,
   ADR-013).
 - Dependencies added only via `libs.versions.toml`.

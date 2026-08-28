@@ -3,6 +3,7 @@ package io.github.rktuhinbd.presencelens.attendance.presentation.attendance
 import io.github.rktuhinbd.presencelens.attendance.domain.attendance.ProximityResult
 import io.github.rktuhinbd.presencelens.attendance.domain.location.DeviceLocation
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFailureCause
+import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFreshness
 import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
 import io.github.rktuhinbd.presencelens.attendance.domain.model.OfficeLocation
 
@@ -40,12 +41,22 @@ data class AttendanceUiState(
         get() = (status as? AttendanceStatus.Tracking)?.proximity?.isEligible == true
 
     /**
-     * "Set Office Location" needs a usable precise position to capture. It stays disabled
+     * "Set Office Location" needs the app to be receiving positions at all. It stays disabled
      * while a capture is already running so a double tap cannot start two requests.
+     *
+     * A stale streamed fix does **not** disable it: capturing the office issues its own
+     * one-shot high-accuracy request, so the age of the streamed position is irrelevant to it,
+     * and greying the button out there would leave the user with nothing to press for the one
+     * job the screen exists to let them finish.
      */
     val canSetOfficeLocation: Boolean
-        get() = !isCapturingOfficeLocation &&
-            (status is AttendanceStatus.OfficeNotSet || status is AttendanceStatus.Tracking)
+        get() = !isCapturingOfficeLocation && when (status) {
+            is AttendanceStatus.OfficeNotSet,
+            is AttendanceStatus.RefreshingFix,
+            is AttendanceStatus.Tracking -> true
+
+            else -> false
+        }
 }
 
 /**
@@ -71,7 +82,23 @@ sealed interface AttendanceStatus {
     /** Permission and services are both fine; no usable fix has arrived yet. */
     data object AcquiringFix : AttendanceStatus
 
-    /** The provider reported a failure (GEN-04). */
+    /**
+     * A position is held, but it is older than [LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS] and
+     * so may no longer describe where the user is.
+     *
+     * This is not a failure and must not read as one. The provider is simply between fixes; the
+     * last one stays on the location surface so nothing blinks, but it produces no distance and
+     * cannot gate attendance, so Mark Attendance is unavailable until a fresh reading arrives.
+     */
+    data object RefreshingFix : AttendanceStatus
+
+    /**
+     * A real inability to obtain a position (GEN-04).
+     *
+     * Reserved for that. The provider's `LocationAvailability` estimate is documented as a best
+     * guess and reaches this state only when the app has never held a position and the
+     * acquisition window has passed - never as a reaction to a single availability event.
+     */
     data class LocationUnavailable(val cause: LocationFailureCause) : AttendanceStatus
 
     /** A fix exists, but no office location has been captured yet (the Setup Phase). */

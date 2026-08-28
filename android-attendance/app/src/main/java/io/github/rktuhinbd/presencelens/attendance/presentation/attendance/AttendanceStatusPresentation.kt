@@ -52,6 +52,7 @@ enum class AttendanceStatusKind {
     PRECISE_BLOCKED,
     SERVICES_DISABLED,
     ACQUIRING_FIX,
+    REFRESHING_FIX,
     LOCATION_UNAVAILABLE_NO_FIX,
     LOCATION_UNAVAILABLE_PROVIDER,
     OFFICE_NOT_SET,
@@ -76,6 +77,7 @@ enum class MarkAttendanceBlocker {
     PRECISE_LOCATION,
     SERVICES_OFF,
     NO_FIX,
+    STALE_FIX,
     OUT_OF_RANGE
 }
 
@@ -129,6 +131,13 @@ object AttendanceStatusPresenter {
             tone = StatusTone.PROGRESS
         )
 
+        // Progress, not alarm. The app has a position and is waiting for the next one; saying
+        // anything stronger would be the exact overreaction this state exists to prevent.
+        AttendanceStatus.RefreshingFix -> AttendanceStatusPresentation(
+            kind = AttendanceStatusKind.REFRESHING_FIX,
+            tone = StatusTone.PROGRESS
+        )
+
         is AttendanceStatus.LocationUnavailable -> AttendanceStatusPresentation(
             kind = when (status.cause) {
                 LocationFailureCause.NO_FIX_AVAILABLE ->
@@ -177,6 +186,7 @@ object AttendanceStatusPresenter {
             AttendanceStatus.PreciseLocationRequired -> MarkAttendanceBlocker.PRECISE_LOCATION
             AttendanceStatus.LocationServicesDisabled -> MarkAttendanceBlocker.SERVICES_OFF
             AttendanceStatus.AcquiringFix -> MarkAttendanceBlocker.NO_FIX
+            AttendanceStatus.RefreshingFix -> MarkAttendanceBlocker.STALE_FIX
             is AttendanceStatus.LocationUnavailable -> MarkAttendanceBlocker.NO_FIX
             AttendanceStatus.OfficeNotSet -> MarkAttendanceBlocker.OFFICE_NOT_SET
             is AttendanceStatus.Tracking -> MarkAttendanceBlocker.OUT_OF_RANGE

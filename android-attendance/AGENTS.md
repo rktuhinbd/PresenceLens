@@ -3,7 +3,7 @@
 Scoped to `android-attendance/`. Read the root [AGENTS.md](../AGENTS.md) first —
 this file only adds Android-specific rules. Priority order for facts about this
 app: [DECISIONS.md](../docs/DECISIONS.md) (ADR-001, 002, 003, 004, 006, 009, 011,
-012, 013) → [ARCHITECTURE.md](../docs/ARCHITECTURE.md) → [REQUIREMENTS_MATRIX.md](../docs/REQUIREMENTS_MATRIX.md)
+012, 013, 014) → [ARCHITECTURE.md](../docs/ARCHITECTURE.md) → [REQUIREMENTS_MATRIX.md](../docs/REQUIREMENTS_MATRIX.md)
 (`AND-*` rows) → this file.
 
 ## Architecture
@@ -35,10 +35,21 @@ app: [DECISIONS.md](../docs/DECISIONS.md) (ADR-001, 002, 003, 004, 006, 009, 011
   screen is not visible. This is a review checkpoint, not a suggestion.
 - Only `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` (while-in-use).
   Background location is out of scope — never add it.
-- Model permission, service-availability, and fix-quality as explicit states
-  (`PermissionRequired`, `LocationServicesDisabled`, `AcquiringFix`, coarse-only
-  treated as insufficient for a 50 m decision). Never represent these as
-  independent booleans that could contradict each other.
+- Model permission, service-availability, fix-freshness, and fix-quality as explicit
+  states (`PermissionRequired`, `LocationServicesDisabled`, `AcquiringFix`,
+  `RefreshingFix`, coarse-only treated as insufficient for a 50 m decision). Never
+  represent these as independent booleans that could contradict each other.
+- **`LocationAvailability` is advice, never a verdict**
+  ([ADR-014](../docs/DECISIONS.md#adr-014)). Play Services documents it as a best-guess
+  estimate, and a stationary device flips it to `false` routinely. It arrives as
+  `LocationFix.ProviderReportedUnavailable` and may never on its own discard a held fix
+  or produce `AttendanceStatus.LocationUnavailable`. Reintroducing that mapping
+  reintroduces the G3.6 oscillation defect.
+- **Location is a retained value with one freshness bound**, not a stream of verdicts.
+  `LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS` is the only such threshold; measure age
+  on the monotonic elapsed-realtime clock, never the wall clock. Past it the screen
+  shows `RefreshingFix` in the **progress** tone and disables Mark Attendance — it does
+  not show a failure.
 
 ## Persistence
 

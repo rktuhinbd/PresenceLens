@@ -193,8 +193,8 @@ fun AttendanceScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(top = 4.dp, bottom = 32.dp)
+                .padding(horizontal = 18.dp)
+                .padding(top = 2.dp, bottom = 24.dp)
         ) {
             // Section spacing is carried by each section's own bottom padding rather than by
             // Arrangement.spacedBy: two of the sections come and go, and spacedBy would leave
@@ -236,9 +236,7 @@ fun AttendanceScreen(
                     AttendanceStatusPresenter.markAttendanceBlocker(state),
                     radiusMeters.toInt()
                 ),
-                markedAtText = state.attendanceMarkedAtEpochMillis?.let {
-                    stringResource(R.string.mark_attendance_marked_at, TimestampFormatter.time(it))
-                }
+                isMarked = state.attendanceMarkedAtEpochMillis != null
             )
         }
     }
@@ -287,9 +285,9 @@ private fun ProximityCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
+                .padding(horizontal = 18.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             DistanceGauge(
                 distanceMeters = proximity?.distanceMeters,
@@ -312,7 +310,7 @@ private fun ProximityCard(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     RangeStatusChip(
                         label = stringResource(
@@ -331,6 +329,8 @@ private fun ProximityCard(
                     )
 
                     // AND-09: the live distance sentence, recomputed on every emission.
+                    // Where you are and what to do about it are two short lines rather than
+                    // one long one, so neither has to be read to reach the other.
                     Text(
                         text = stringResource(
                             R.string.distance_live_readout,
@@ -406,6 +406,7 @@ private fun blockedReasonText(blocker: MarkAttendanceBlocker?, radiusMeters: Int
         MarkAttendanceBlocker.PRECISE_LOCATION -> stringResource(R.string.blocked_reason_precise)
         MarkAttendanceBlocker.SERVICES_OFF -> stringResource(R.string.blocked_reason_services_off)
         MarkAttendanceBlocker.NO_FIX -> stringResource(R.string.blocked_reason_no_fix)
+        MarkAttendanceBlocker.STALE_FIX -> stringResource(R.string.blocked_reason_stale_fix)
         MarkAttendanceBlocker.OUT_OF_RANGE ->
             stringResource(R.string.blocked_reason_out_of_range, radiusMeters)
     }
@@ -450,4 +451,4 @@ private fun messageText(message: AttendanceMessage?): String? = when (message) {
 }
 
 /** The vertical rhythm between the screen's four sections. */
-private const val SECTION_GAP_DP = 16
+private const val SECTION_GAP_DP = 12

@@ -20,6 +20,7 @@ import io.github.rktuhinbd.presencelens.attendance.domain.location.DeviceLocatio
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationDataSource
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFailureCause
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFix
+import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFreshness
 import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -41,6 +42,12 @@ import kotlin.coroutines.resumeWithException
  * The streaming flow is cold. The platform callback is registered when collection starts
  * and removed in `awaitClose` when it stops, so an unsubscribed screen leaves no listener
  * behind - that is the whole mechanism behind lifecycle-aware observation here.
+ *
+ * **This class reports; it does not judge.** An availability estimate arrives as
+ * [LocationFix.ProviderReportedUnavailable] and never as a failure, and an empty
+ * `LocationResult` produces no emission at all rather than an invented one. Whether the app
+ * still holds a usable position is decided upstream, where the last fix and its age are both
+ * known.
  */
 class FusedLocationDataSource(
     private val context: Context,
@@ -69,18 +76,26 @@ class FusedLocationDataSource(
             .build()
 
         val callback = object : LocationCallback() {
+            /**
+             * A result with no usable location is not a failure and not news - it is the
+             * provider saying nothing. Emitting nothing leaves the last fix and its age as the
+             * only things that decide the screen's state.
+             */
             override fun onLocationResult(result: LocationResult) {
-                val location = result.lastLocation?.toDeviceLocationOrNull()
-                if (location != null) {
-                    trySend(LocationFix.Available(location))
-                } else {
-                    trySend(LocationFix.Unavailable(LocationFailureCause.NO_FIX_AVAILABLE))
-                }
+                val location = result.lastLocation?.toDeviceLocationOrNull() ?: return
+                trySend(LocationFix.Available(location))
             }
 
+            /**
+             * Play Services documents this as a best-effort estimate, not a verdict, and on a
+             * stationary device it flips to `false` routinely between confident reports. It is
+             * therefore forwarded as the advisory it is. Mapping it to a failure here is what
+             * made the screen oscillate between eligible and "Location unavailable" every few
+             * seconds while nothing about the device had changed.
+             */
             override fun onLocationAvailability(availability: LocationAvailability) {
                 if (!availability.isLocationAvailable) {
-                    trySend(LocationFix.Unavailable(LocationFailureCause.NO_FIX_AVAILABLE))
+                    trySend(LocationFix.ProviderReportedUnavailable)
                 }
             }
         }
@@ -106,9 +121,11 @@ class FusedLocationDataSource(
             val request = CurrentLocationRequest.Builder()
                 .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
                 .setDurationMillis(CURRENT_LOCATION_TIMEOUT_MILLIS)
-                // Capturing the office is a deliberate user action (AND-06). Accept only a
-                // very recent fix rather than whatever happens to be cached.
-                .setMaxUpdateAgeMillis(MAX_CACHED_FIX_AGE_MILLIS)
+                // Capturing the office is a deliberate user action (AND-06), so an arbitrarily
+                // old cached position is unacceptable. The bound is the same freshness the rest
+                // of the screen trusts: a fix recent enough to decide the 50 m boundary is
+                // recent enough to define it. Anything older is re-acquired.
+                .setMaxUpdateAgeMillis(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS)
                 .build()
 
             val location = withTimeoutOrNull(CURRENT_LOCATION_TIMEOUT_MILLIS + TIMEOUT_GRACE_MILLIS) {
@@ -116,14 +133,14 @@ class FusedLocationDataSource(
             }?.toDeviceLocationOrNull()
 
             if (location == null) {
-                LocationFix.Unavailable(LocationFailureCause.NO_FIX_AVAILABLE)
+                LocationFix.Failed(LocationFailureCause.NO_FIX_AVAILABLE)
             } else {
                 LocationFix.Available(location)
             }
         } catch (securityException: SecurityException) {
             LocationFix.PermissionDenied
         } catch (error: Exception) {
-            LocationFix.Unavailable(LocationFailureCause.PROVIDER_ERROR)
+            LocationFix.Failed(LocationFailureCause.PROVIDER_ERROR)
         } finally {
             cancellationTokenSource.cancel()
         }
@@ -145,14 +162,15 @@ class FusedLocationDataSource(
         /** Accept faster deliveries when another app has already prompted a fix. */
         private const val FASTEST_UPDATE_INTERVAL_MILLIS = 1_000L
 
-        /** Long enough for a cold GPS fix, short enough that the button does not appear stuck. */
-        private const val CURRENT_LOCATION_TIMEOUT_MILLIS = 10_000L
+        /**
+         * Long enough for a cold fix indoors. The previous 10 s window expired often enough
+         * that capturing the office became repeated tapping - worse than one wait the user can
+         * watch happening, which the button now shows and names.
+         */
+        private const val CURRENT_LOCATION_TIMEOUT_MILLIS = 20_000L
 
         /** Small margin so the coroutine timeout never fires before the request timeout. */
         private const val TIMEOUT_GRACE_MILLIS = 1_000L
-
-        /** Effectively "fresh only" - an older fix is re-acquired instead of reused. */
-        private const val MAX_CACHED_FIX_AGE_MILLIS = 2_000L
     }
 }
 
@@ -182,6 +200,10 @@ private fun Location.toDeviceLocationOrNull(): DeviceLocation? {
     return DeviceLocation(
         coordinates = GeoCoordinates(latitude = latitude, longitude = longitude),
         accuracyMeters = if (hasAccuracy()) accuracy.toDouble() else null,
-        timestampEpochMillis = time
+        // Monotonic since boot, which is what freshness is measured against.
+        // getElapsedRealtimeMillis() would read better but is API 33+; this app supports 24.
+        elapsedRealtimeMillis = elapsedRealtimeNanos / NANOS_PER_MILLI
     )
 }
+
+private const val NANOS_PER_MILLI = 1_000_000L

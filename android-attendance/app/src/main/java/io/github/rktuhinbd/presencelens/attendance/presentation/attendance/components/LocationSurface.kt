@@ -470,7 +470,7 @@ private fun DrawScope.drawLiveMarker(
     drawCircle(color = color, radius = 5.5.dp.toPx(), center = center)
 }
 
-private const val SURFACE_HEIGHT_DP = 232
+private const val SURFACE_HEIGHT_DP = 190
 
 /** The boundary ring sits well inside the panel so an out-of-range marker still fits. */
 private const val BOUNDARY_RADIUS_FRACTION = 0.40f

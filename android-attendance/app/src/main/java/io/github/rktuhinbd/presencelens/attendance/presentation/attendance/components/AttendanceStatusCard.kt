@@ -28,8 +28,8 @@ import io.github.rktuhinbd.presencelens.attendance.ui.theme.AttendanceTheme
  * Composable only maps a [AttendanceStatusPresentation] to words, colour, and an icon. Which
  * state the user is in was never decided here.
  *
- * The card is deliberately the same shape in all twelve states. A user reads the difference in
- * the sentence and the tone, not by re-learning where to look.
+ * The card is deliberately the same shape in every state. A user reads the difference in the
+ * sentence and the tone, not by re-learning where to look.
  */
 @Composable
 fun AttendanceStatusCard(
@@ -69,7 +69,7 @@ fun AttendanceStatusCard(
             containerColor = containerColor,
             contentColor = contentColor,
             iconResId = statusIcon(current.kind),
-            showProgress = current.kind == AttendanceStatusKind.ACQUIRING_FIX,
+            showProgress = current.kind in PROGRESS_KINDS,
             actionLabel = current.action?.let { statusActionLabel(current.kind, it) },
             actionIconResId = when (current.action) {
                 StatusAction.OPEN_APPLICATION_SETTINGS,
@@ -97,6 +97,7 @@ private fun statusTitle(kind: AttendanceStatusKind): String = when (kind) {
 
     AttendanceStatusKind.SERVICES_DISABLED -> stringResource(R.string.status_services_title)
     AttendanceStatusKind.ACQUIRING_FIX -> stringResource(R.string.status_acquiring_title)
+    AttendanceStatusKind.REFRESHING_FIX -> stringResource(R.string.status_refreshing_title)
 
     AttendanceStatusKind.LOCATION_UNAVAILABLE_NO_FIX,
     AttendanceStatusKind.LOCATION_UNAVAILABLE_PROVIDER ->
@@ -125,6 +126,7 @@ private fun statusBody(
 
     AttendanceStatusKind.SERVICES_DISABLED -> stringResource(R.string.status_services_body)
     AttendanceStatusKind.ACQUIRING_FIX -> stringResource(R.string.status_acquiring_body)
+    AttendanceStatusKind.REFRESHING_FIX -> stringResource(R.string.status_refreshing_body)
 
     AttendanceStatusKind.LOCATION_UNAVAILABLE_NO_FIX ->
         stringResource(R.string.status_unavailable_body_no_fix)
@@ -154,7 +156,8 @@ private fun statusIcon(kind: AttendanceStatusKind): Int? = when (kind) {
     AttendanceStatusKind.SERVICES_DISABLED -> R.drawable.ic_crosshair_off
 
     // The spinner takes the icon slot instead.
-    AttendanceStatusKind.ACQUIRING_FIX -> null
+    AttendanceStatusKind.ACQUIRING_FIX,
+    AttendanceStatusKind.REFRESHING_FIX -> null
 
     AttendanceStatusKind.LOCATION_UNAVAILABLE_NO_FIX,
     AttendanceStatusKind.LOCATION_UNAVAILABLE_PROVIDER -> R.drawable.ic_alert
@@ -219,5 +222,14 @@ private fun statusToneColors(tone: StatusTone): ToneColors {
         )
     }
 }
+
+/**
+ * States where the app is working and the user waits. Both show the spinner rather than an
+ * icon, which is the visual difference between "nothing is wrong" and "something is".
+ */
+private val PROGRESS_KINDS = setOf(
+    AttendanceStatusKind.ACQUIRING_FIX,
+    AttendanceStatusKind.REFRESHING_FIX
+)
 
 private const val TONE_TRANSITION_MILLIS = 400

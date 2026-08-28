@@ -446,3 +446,96 @@ padding: `Arrangement.spacedBy` leaves a gap behind when a section collapses.
 ADR-013 is the intended one, since it is the single interpretive change in this pass,
 (b) confirm the office-hours relabel is acceptable against the prescriptive screenshot,
 and (c) sanity-check the haptic on a physical device, which an emulator cannot show.
+
+---
+
+## G3.6 — Location-state stability and the final UX pass (2026-08-28)
+
+**Prompt (abridged).** A human-supplied brief with two halves. First, a **correctness bug**:
+a screen recording of a stationary emulator showed
+`Ready to mark attendance → Location unavailable → Ready to mark attendance` cycling every few
+seconds. The brief required root-causing it before changing behaviour, forbade a debounce
+("fix the state model"), and supplied one platform fact to preserve — Play Services documents
+`LocationAvailability` as an estimate, so `isLocationAvailable == false` must not on its own
+produce a hard failure while services are on, permission is valid, and a recent usable fix
+exists. It specified the seven states the screen should model, asked for **one** clearly named
+freshness threshold (~10 s unless inspection justified otherwise), and listed six regression
+tests. Second, a **final UX pass**: 15–20% less vertical density, less first-use repetition
+with four target strings given verbatim, "attendance" terminology throughout, a completed
+success CTA, concise product copy, and an explicit do-not-regress list. It also ruled ADR-013's
+two open interpretive calls ACCEPTED.
+
+**What the AI was asked to decide, and what it decided.**
+
+**1. The root cause — found by inspection, not assumed.** The brief named nine places to look
+and forbade guessing. Reading them in order located the defect in two lines of
+`FusedLocationDataSource`: `onLocationAvailability` mapped the availability *estimate* straight
+to `LocationFix.Unavailable`, and `AttendanceViewModel` treated any `Unavailable` as terminal —
+discarding the position it was holding. The two-second period of the observed flicker matched
+`UPDATE_INTERVAL_MILLIS` exactly, which is what confirmed the diagnosis before any code changed.
+A second instance of the same mistake sat beside it: an empty `LocationResult` was also mapped
+to a failure, when it carries no information at all.
+
+**2. The shape of the fix.** The brief ruled out a debounce, correctly — a debounce delays a
+wrong answer rather than stopping the production of one. The chosen model separates *what the
+platform said* from *what the app knows*: raw fixes fold into `LocationKnowledge`, and what the
+screen may claim (`LocationReading`) is derived from that knowledge plus the age of the last
+fix. An availability estimate can no longer discard a position already held, because it is no
+longer the thing that decides.
+
+**3. The threshold — 10 s, taken rather than inherited.** The brief offered ~10 s "unless
+inspection reveals a better technically defensible value". Inspection *supported* it, from two
+directions: it is five consecutive missed deliveries at the existing 2 s update cadence, well
+above the one-or-two-sample gaps a stationary device produces; and at walking pace it is about
+14 m of possible drift, inside both the 50 m rule and the 25 m accuracy the app already
+tolerates. Both arguments are written at the constant and pinned by `LocationFreshnessTest`,
+including a test asserting the drift stays under the accuracy tolerance — so the reasoning
+fails loudly if someone later widens the number.
+
+**4. One judgement the AI made that the brief did not specify.** The brief reserved "Location
+unavailable" for a genuine inability "after the normal acquisition path". Left literally, an
+app that had *never* obtained a fix while the provider reported it could not obtain one would
+sit on "Finding your location…" forever, and `LOCATION_UNAVAILABLE_NO_FIX` would become an
+unreachable state — a smell, not a feature. The escalation therefore uses the same single
+threshold as its acquisition window: never held a position, window passed, provider says it
+cannot get one → real failure. One number, two uses, both meaning "this is how long we wait
+before saying we do not have a position". Conversely, a position that is merely *stale* never
+escalates however old it gets, which is a deliberate asymmetry: "Updating your location…" stays
+true, and the brief is explicit that a red state must not be the reaction to a quiet provider.
+
+**5. Where the AI declined to widen scope.** The stale state keeps the last marker on the
+location surface (so nothing blinks) but produces no distance, because `AttendanceUiState`'s
+invariant — no distance without a fix — is what makes AND-08 unrepresentable in a wrong state.
+Carrying a "greyed-out distance" would have read slightly better and cost that invariant. The
+invariant won.
+
+**Verification, including the part that could be automated.** The emulator half of this pass
+was driven rather than eyeballed: `adb emu geo fix` for movement, `settings put secure
+location_mode` for the services toggle, and `uiautomator dump` to read the status card back as
+text so the result is a transcript rather than an impression. That is what makes the central
+claim measurable — **30 samples over ~70 s on a stationary device, all "Ready to mark
+attendance"**. The same method measured the density change: the span from the status-card title
+to the "OUT OF RANGE" chip fell from **2288 px to 1853 px (19%)**, taken from a build of the
+previous commit and a build of this one on the same device, rather than estimated from the dp
+values changed.
+
+**Result.**
+
+- **20 unit tests added (90 total, all passing)** — eight ViewModel stability cases, two
+  presenter cases, six `LocationFreshnessTest` cases, and four other gaps the pass exposed.
+- `assembleDebug` passes; `lintDebug` reports **0 errors** (10 warnings: six dependency-version
+  advisories against the toolchain pinned at G1, four `PluralsCandidate`).
+- Eight manual checks executed on `emulator-5554`, all passing, recorded in PROJECT_STATE.md.
+- ADR-014 recorded; ADR-013 marked ACCEPTED with both rulings; matrix rows AND-06, AND-07,
+  AND-08, AND-09, GEN-01, GEN-04 and AMB-13 updated. AND-07 moved to `DONE` — its stated
+  verification method is the force-stop/relaunch check, and that check was executed.
+
+**Honest limitation.** The `LocationAvailability` → advisory mapping in `FusedLocationDataSource`
+has no automated test: it is Play Services-facing and the project deliberately carries no
+Robolectric or mocking framework. Its ViewModel counterpart is covered by four JVM regression
+cases, and the emulator soak is the data-source half's evidence. This is stated rather than
+papered over, because a reviewer reading the regression suite would otherwise reasonably assume
+both halves are pinned.
+
+**Human verification.** PENDING — the author should re-run the eight manual checks on their own
+device, and confirm the haptic on physical hardware, which an emulator cannot show.
