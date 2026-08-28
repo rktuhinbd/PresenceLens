@@ -9,13 +9,14 @@ import io.github.rktuhinbd.presencelens.attendance.data.local.DataStoreOfficeLoc
 import io.github.rktuhinbd.presencelens.attendance.data.local.officeLocationDataStore
 import io.github.rktuhinbd.presencelens.attendance.data.location.FusedLocationDataSource
 import io.github.rktuhinbd.presencelens.attendance.data.location.SystemLocationServiceMonitor
+import io.github.rktuhinbd.presencelens.attendance.domain.attendance.SetOfficeLocationUseCase
 import io.github.rktuhinbd.presencelens.attendance.presentation.attendance.AttendanceViewModel
 
 /**
  * The composition root (ADR-009): the one place that knows about both `data` and
  * `presentation`, so no other file has to.
  *
- * The graph is four objects. A DI framework here would add a plugin, annotation processing,
+ * The graph is five objects. A DI framework here would add a plugin, annotation processing,
  * and generated code for a reviewer to read past, and would remove nothing - so the wiring
  * is written out by hand where it can simply be read.
  */
@@ -26,14 +27,25 @@ object AttendanceComponent {
         val appContext = context.applicationContext
         return viewModelFactory {
             initializer {
+                // Named rather than inlined: both are shared by the ViewModel and the use
+                // case, and two instances of either would mean two location clients and two
+                // views of the same stored office.
+                val locationDataSource = FusedLocationDataSource(
+                    context = appContext,
+                    client = LocationServices.getFusedLocationProviderClient(appContext)
+                )
+                val officeLocationRepository = DataStoreOfficeLocationRepository(
+                    appContext.officeLocationDataStore
+                )
+
                 AttendanceViewModel(
-                    locationDataSource = FusedLocationDataSource(
-                        context = appContext,
-                        client = LocationServices.getFusedLocationProviderClient(appContext)
+                    locationDataSource = locationDataSource,
+                    setOfficeLocation = SetOfficeLocationUseCase(
+                        locationDataSource = locationDataSource,
+                        officeLocationRepository = officeLocationRepository,
+                        clock = System::currentTimeMillis
                     ),
-                    officeLocationRepository = DataStoreOfficeLocationRepository(
-                        appContext.officeLocationDataStore
-                    ),
+                    officeLocationRepository = officeLocationRepository,
                     locationServiceMonitor = SystemLocationServiceMonitor(appContext)
                 )
             }

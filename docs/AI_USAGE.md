@@ -669,3 +669,107 @@ context and Office hours, and the attendance region's measured height falls from
 to 300 px (**~36 % shorter**). Leaving the radius was exercised and still retires the
 confirmation and restores the locked CTA; returning restores the confirmation with its
 originally verified time and distance.
+
+---
+
+## Entry 009 — G3.8 Android accuracy and architecture hardening
+
+**Date.** 2026-08-29
+**Model / tool.** Claude Opus 5 via Claude Code.
+
+**Human prompt, in substance.** The previous session was an audit only. This one was
+handed its findings as an approved work list and told to implement exactly those, with an
+unusually explicit set of guardrails on both sides: restore high-accuracy first delivery,
+add a live accuracy usability policy, make the office capture fresh-only and quality-gated,
+decouple "Set Office Location" from the live stream, make provider failures recoverable,
+move the location state machine into `domain`, add **exactly one** use case, fix the
+attendance-confirmation lifetime, tighten the Haversine test around 50 m, and stop
+describing the architecture as strict Clean Architecture. Equally explicit about what **not**
+to do: no change to the 50 m rule, no `distance + accuracy <= 50`, no averaging or
+best-of-N calibration, no raw GNSS, no Kalman filtering, no mock-location detection, no
+persisted capture accuracy, no extra use cases, no UI redesign, no new dependency, no
+Flutter, no push.
+
+**What the AI did.**
+
+1. **Raised a documented conflict before implementing, rather than after.** Part H of the
+   brief asked for event semantics on the attendance confirmation and added: *if the
+   current behaviour is strongly established in source and docs, report the conflict
+   before changing it.* It was — ADR-013 §7, reaffirmed in the G3.7 revision, plus KDoc in
+   three places and a passing test. The AI stopped, stated exactly where the rule was
+   written and what changing it would cost, offered three options, and implemented only
+   after the human ruled. That ruling is [ADR-016](DECISIONS.md#adr-016), and it is
+   recorded as a supersession rather than edited into ADR-013 so the earlier reasoning
+   stays readable.
+2. **Isolated a pre-existing working-tree change instead of absorbing it.** The tree
+   carried an uncommitted office-hours copy change (`10:30 AM` → `5:00 PM`) alongside a
+   `rememberSaveable` → `rememberSavable` comment typo. The typo was reverted; the copy
+   change was committed **separately, before the hardening work**, with its divergence
+   from ADR-013 §5's "keeps the reference's value" noted in the commit message. The
+   hardening commit contains only hardening.
+3. **Expressed accuracy as a prerequisite, not as a rule.** The trap in Part B is that
+   "don't let a bad fix authorise attendance" reads like "add accuracy to the rule", which
+   the same brief forbids. The implementation keeps `canMarkAttendance` reading distance
+   alone and gates *upstream*: an unusable fix never becomes `AttendanceStatus.Tracking`,
+   so there is no code path where accuracy is a term in the comparison. Both thresholds are
+   derived from `AttendanceRule.ELIGIBLE_RADIUS_METERS`; neither 25 nor 50 is written down
+   a second time.
+4. **Made the office capture strictly stricter than a live fix, and said why.**
+   `maxUpdateAge = 0` with a 28 s window, and a refusal above 50 m of error or on unknown
+   accuracy that persists nothing. The asymmetry is the argument: a rejected live fix costs
+   a second, a bad anchor silently biases every distance the app will ever report.
+5. **Chose `retryWhen` over a hand-rolled collect loop.** The obvious implementation of
+   Part E — `while (true) { try { collect } catch { emit; delay } }` inside a `flow {}` —
+   also catches exceptions thrown by the *downstream* collector and violates Kotlin's flow
+   exception transparency, which surfaces as an `IllegalStateException` under load rather
+   than in a test. `retryWhen` catches upstream only, keeps cancellation working, and lets
+   `awaitClose` remove the platform callback before each re-subscription.
+6. **Added one use case and argued for the absence of the others.**
+   `SetOfficeLocationUseCase` orchestrates four steps across two collaborators;
+   `GetOfficeLocationUseCase` and its siblings would each forward one call. The reasoning
+   is in [ADR-017](DECISIONS.md#adr-017) so a future session does not "improve" the
+   architecture by adding them, and `android-attendance/AGENTS.md` now names them as
+   forbidden.
+7. **Made the Haversine claim falsifiable.** The existing large-distance test had a 500 m
+   tolerance, which substantiates nothing about a 50 m rule. The new tests compare the
+   spherical result against an **independent WGS-84 ellipsoidal computation** (local
+   meridional and normal radii of curvature) across 24 bearings at the radius. Worst-case
+   divergence is under 0.25 m — about 1/100th of the tightest accuracy the app calls
+   precise. Testing the formula against itself would have passed and proved nothing.
+8. **Asserted the architecture rule instead of trusting it.** `DomainLayerPurityTest`
+   reads the domain sources as text and fails on any `android.*`, `androidx.*`, or Play
+   Services import — with a second test that fails if the scan found no files, because an
+   architecture guard that silently scans nothing is worse than none.
+
+**Where the AI exercised judgement beyond the literal instruction.**
+
+- Part L asked for a test that the fresh-only request configuration is used "where testable
+  at current seams". The apparent answer was "it isn't — `FusedLocationDataSource` needs
+  Play Services". The AI checked rather than assumed, found that
+  `LocationRequest.Builder` and `CurrentLocationRequest.Builder` are plain value objects
+  that construct on the JVM, and extracted the two builders as `internal` functions so the
+  settings are asserted rather than only reviewed. That test immediately earned its place:
+  it failed on first run and revealed that Play Services **floors** the reported
+  `maxUpdateDelayMillis` at the interval, so "never batches" had to be asserted as "no
+  delay beyond one interval" rather than as the zero that was set.
+- The `AttendanceScreenPreviews` "Degraded fix" preview showed a ±180 m accuracy beside a
+  live distance — a combination the ViewModel can no longer construct. It was corrected to
+  40 m and a separate "Improving accuracy" preview added, so no preview depicts an
+  unreachable state.
+- Test fakes were moved out of `presentation/attendance/` into their own `fakes/` package.
+  The domain tests need them, and a test proving the domain is layer-independent while
+  importing from `presentation.*` would undercut its own point.
+- Two verification steps were **not** claimed. The >50 m office-capture refusal and the
+  provider-fault backoff cannot be induced on an emulator — the fused provider will not
+  report a poor error radius on demand and Play Services will not throw on demand. Both are
+  covered by unit tests, and both are recorded as unit-tested-only in PROJECT_STATE.md and
+  the matrix rather than folded into the emulator PASS list.
+
+**Verified, not assumed.** `clean` → `testDebugUnitTest` (**158 tests**, 0 failures, up from
+95) → `assembleDebug` → `lintDebug` (0 errors, no new warnings) → `git diff --check` clean →
+`domain` grep clean → no dependency change. Eight-step emulator QA on `emulator-5554`: cold
+start with no eligibility flash, first fix accepted, 200 m out-of-range stable (and reading
+exactly 200 m, which is the geodesy claim visible on a device), return-to-range stable,
+location services off/on recovered in place, **"Set Office Location" confirmed actionable
+while the live stream had produced nothing at all**, and a mark held its receipt while the
+user stood 200 m away with the gauge honestly reporting OUT OF RANGE.

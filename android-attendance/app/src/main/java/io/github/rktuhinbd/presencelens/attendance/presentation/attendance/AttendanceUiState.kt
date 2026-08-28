@@ -32,43 +32,64 @@ data class AttendanceUiState(
     /**
      * AND-08, and the single source of the Mark Attendance button's enabled state.
      *
-     * Distance against the 50 m radius is the only condition. The availability caption
-     * ("AVAILABLE 09:00 AM - 5:00 PM") is presentation-only and is deliberately absent from
-     * this computation and from every path that reaches it (ADR-011). Fix quality is not
-     * consulted either - it is surfaced as a caution, never converted into a refusal.
+     * Distance against the 50 m radius is the only condition, and this is a **live** value:
+     * it describes where the user is now, not what they have already done. The availability
+     * caption ("Office hours") is presentation-only and is deliberately absent from this
+     * computation and from every path that reaches it (ADR-011).
+     *
+     * Fix accuracy does not appear here either. It cannot: a reading the app has refused to
+     * trust never becomes [AttendanceStatus.Tracking] in the first place, so by the time this
+     * property has anything to evaluate, whether the measurement is sound has already been
+     * settled upstream in the domain (ADR-015). Distance remains the only rule.
      */
     val canMarkAttendance: Boolean
         get() = (status as? AttendanceStatus.Tracking)?.proximity?.isEligible == true
 
     /**
-     * Whether the screen's primary job is finished, and it should present itself as complete.
+     * Whether attendance has been marked in this session.
      *
      * One value, read by the status card, by the action area, and by the presenter, so a
      * completed action cannot end up confirmed in one place and still offered in another.
      *
-     * A mark only counts while the eligibility it recorded still holds: walk out of the radius
-     * and the screen goes back to guiding the user rather than leaving a confirmation standing
-     * over a place where attendance is no longer possible.
+     * **A mark is an event; eligibility is a live condition** (ADR-016). Until G3.8 this read
+     * `markedAttendance != null && canMarkAttendance`, which conflated the two: one stale fix,
+     * or the user stepping outside the radius a minute after marking, erased a confirmation
+     * that had genuinely happened. Nothing about the past had changed in either case. The
+     * receipt now stands for the rest of the session, and [canMarkAttendance] goes on
+     * describing the present independently - which is why the two may be true, false, or mixed
+     * without contradicting each other.
+     *
+     * Session-scoped and nothing more: no history, no persistence, no backend (p3 Note).
      */
     val isAttendanceConfirmed: Boolean
-        get() = markedAttendance != null && canMarkAttendance
+        get() = markedAttendance != null
 
     /**
-     * "Set Office Location" needs the app to be receiving positions at all. It stays disabled
-     * while a capture is already running so a double tap cannot start two requests.
+     * Whether "Set Office Location" may be pressed.
      *
-     * A stale streamed fix does **not** disable it: capturing the office issues its own
-     * one-shot high-accuracy request, so the age of the streamed position is irrelevant to it,
-     * and greying the button out there would leave the user with nothing to press for the one
-     * job the screen exists to let them finish.
+     * Stated as the three conditions the capture actually depends on - a precise grant, the OS
+     * location toggle on, and no capture already running - rather than as a list of streaming
+     * states that happen to be acceptable. That inversion is the point: the capture issues its
+     * **own** one-shot high-accuracy request and owns its own success and failure, so nothing
+     * about the live stream's current state is a reason to refuse it. Whether the stream is
+     * acquiring its first fix, refreshing a stale one, converging on a tighter one, or has
+     * failed outright is not this button's business.
+     *
+     * Before G3.8 it was coupled to the stream, which produced the worst case of all: a user
+     * whose provider was still warming up saw the one control they needed greyed out, and the
+     * request that would have succeeded was never issued.
+     *
+     * The three states below are refusals because the one-shot request cannot succeed in them
+     * either - it would return `PermissionDenied` or no fix - so offering the button would be
+     * offering a guaranteed failure.
      */
     val canSetOfficeLocation: Boolean
         get() = !isCapturingOfficeLocation && when (status) {
-            is AttendanceStatus.OfficeNotSet,
-            is AttendanceStatus.RefreshingFix,
-            is AttendanceStatus.Tracking -> true
+            AttendanceStatus.PermissionRequired,
+            AttendanceStatus.PreciseLocationRequired,
+            AttendanceStatus.LocationServicesDisabled -> false
 
-            else -> false
+            else -> true
         }
 }
 
@@ -112,6 +133,18 @@ sealed interface AttendanceStatus {
     data object AcquiringFix : AttendanceStatus
 
     /**
+     * A current position is held, but its reported error radius is wider than the 50 m
+     * boundary it would be measured against - or the provider reported no accuracy at all, in
+     * which case the app fails closed rather than assuming the best (ADR-015).
+     *
+     * Progress, not failure, and distinct from [RefreshingFix]: nothing here is out of date.
+     * The provider is converging, which for a cold GNSS fix is normal and usually brief. The
+     * last position stays on the location surface, no distance is quoted from a reading that
+     * cannot support one, and Mark Attendance waits for a tighter fix.
+     */
+    data object ImprovingAccuracy : AttendanceStatus
+
+    /**
      * A position is held, but it is older than [LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS] and
      * so may no longer describe where the user is.
      *
@@ -148,6 +181,20 @@ sealed interface AttendanceMessage {
 
     /** The office coordinates were captured and persisted (AND-06, AND-07). */
     data class OfficeLocationSaved(val coordinates: GeoCoordinates) : AttendanceMessage
+
+    /**
+     * The office was saved, but from a fix whose error radius sits between half the attendance
+     * radius and the radius itself. Good enough to anchor from; worth one sentence saying it
+     * can be improved.
+     */
+    data object OfficeLocationSavedWithLimitedAccuracy : AttendanceMessage
+
+    /**
+     * A position arrived but was refused as an anchor: its error radius was wider than the
+     * radius it would define, or it carried no accuracy at all. **Nothing was written** - an
+     * office already saved is left exactly as it was (ADR-015).
+     */
+    data object OfficeLocationAccuracyInsufficient : AttendanceMessage
 
     /** A fix was obtained but writing it to local storage failed (GEN-04). */
     data object OfficeLocationSaveFailed : AttendanceMessage

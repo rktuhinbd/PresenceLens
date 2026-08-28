@@ -99,6 +99,9 @@ private fun statusTitle(kind: AttendanceStatusKind): String = when (kind) {
     AttendanceStatusKind.ACQUIRING_FIX -> stringResource(R.string.status_acquiring_title)
     AttendanceStatusKind.REFRESHING_FIX -> stringResource(R.string.status_refreshing_title)
 
+    AttendanceStatusKind.IMPROVING_ACCURACY ->
+        stringResource(R.string.status_improving_accuracy_title)
+
     AttendanceStatusKind.LOCATION_UNAVAILABLE_NO_FIX,
     AttendanceStatusKind.LOCATION_UNAVAILABLE_PROVIDER ->
         stringResource(R.string.status_unavailable_title)
@@ -127,6 +130,9 @@ private fun statusBody(
     AttendanceStatusKind.SERVICES_DISABLED -> stringResource(R.string.status_services_body)
     AttendanceStatusKind.ACQUIRING_FIX -> stringResource(R.string.status_acquiring_body)
     AttendanceStatusKind.REFRESHING_FIX -> stringResource(R.string.status_refreshing_body)
+
+    AttendanceStatusKind.IMPROVING_ACCURACY ->
+        stringResource(R.string.status_improving_accuracy_body)
 
     AttendanceStatusKind.LOCATION_UNAVAILABLE_NO_FIX ->
         stringResource(R.string.status_unavailable_body_no_fix)
@@ -157,7 +163,8 @@ private fun statusIcon(kind: AttendanceStatusKind): Int? = when (kind) {
 
     // The spinner takes the icon slot instead.
     AttendanceStatusKind.ACQUIRING_FIX,
-    AttendanceStatusKind.REFRESHING_FIX -> null
+    AttendanceStatusKind.REFRESHING_FIX,
+    AttendanceStatusKind.IMPROVING_ACCURACY -> null
 
     AttendanceStatusKind.LOCATION_UNAVAILABLE_NO_FIX,
     AttendanceStatusKind.LOCATION_UNAVAILABLE_PROVIDER -> R.drawable.ic_alert
@@ -229,7 +236,8 @@ private fun statusToneColors(tone: StatusTone): ToneColors {
  */
 private val PROGRESS_KINDS = setOf(
     AttendanceStatusKind.ACQUIRING_FIX,
-    AttendanceStatusKind.REFRESHING_FIX
+    AttendanceStatusKind.REFRESHING_FIX,
+    AttendanceStatusKind.IMPROVING_ACCURACY
 )
 
 private const val TONE_TRANSITION_MILLIS = 400

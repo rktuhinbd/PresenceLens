@@ -710,8 +710,12 @@ it state-driven.
    "ATTENDANCE MARKED" overline, a relabelled disabled button reading "Attendance
    marked", and a green outline around both. It now renders **no control at all**: the
    status card carries the headline, and a single compact confirmation records the time
-   and the distance verified at the moment of the mark. The rule that the confirmation
-   does not outlive its eligibility is unchanged, and so is the haptic.
+   and the distance verified at the moment of the mark. The haptic is unchanged.
+
+   **The rule that "the confirmation is shown only while the eligibility it confirms
+   still holds" is SUPERSEDED by [ADR-016](#adr-016) (G3.8, 2026-08-29).** A mark is an
+   event and now outlives the live condition that permitted it. Everything else in this
+   section stands.
 
 ### Reasoning
 
@@ -818,9 +822,16 @@ elapsed — or by the single escalation path: the app has **never** held a posit
 acquisition window has passed *and* the provider says it cannot obtain one.
 
 **6. Align the one-shot office capture with the same number.** `CurrentLocationRequest`
-`maxUpdateAge` moves from 2 s to `FRESH_FIX_MAX_AGE_MILLIS`, and its duration from 10 s to
-20 s, with an explicit "Getting a precise fix. This can take a few seconds." note while it
-runs (AND-06).
+`maxUpdateAge` moves from an explicit 2 s to `FRESH_FIX_MAX_AGE_MILLIS` — both are chosen
+values, neither is the platform default — and its duration from 10 s to 20 s, with an explicit
+"Getting a precise fix. This can take a few seconds." note while it runs (AND-06).
+
+**This part is SUPERSEDED by [ADR-015](#adr-015) (G3.8, 2026-08-29).** Reusing the live-screen
+freshness bound for the office anchor was a mistake: it let a fix taken up to ten seconds
+earlier, somewhere the user no longer is, permanently define the boundary. `maxUpdateAge` is
+now `0` and the duration is 28 s. Sections 1–5 above are unchanged and remain in force, with
+one addition — ADR-015 adds a **second** bound alongside freshness, so a fix may now also be
+too *imprecise* to decide the rule, not only too old.
 
 ### Reasoning
 
@@ -863,3 +874,280 @@ runs (AND-06).
   remove it); ignoring `LocationAvailability` entirely (throws away the one signal that
   distinguishes "indoors with no signal" from "acquiring"); keeping the distance readout live
   from a stale fix (would leave AND-08 deciding from a position the app cannot vouch for).
+
+---
+
+<a id="adr-015"></a>
+
+## ADR-015 — Fix quality is a prerequisite for the rule, not a second rule
+
+**Status:** ACCEPTED — 2026-08-29 (G3.8), on a source-level accuracy audit.
+
+**Requirements:** AND-06, AND-07, AND-08, AND-09, GEN-04, AMB-13, AMB-14
+
+**Relates to:** [ADR-001](#adr-001) (unchanged — still foreground Fused Location, still no
+geofencing, still no background permission), [ADR-011](#adr-011) (unchanged in force),
+[ADR-014](#adr-014) (this extends its "retained value" model with a second bound)
+
+### Context
+
+ADR-014 made the app stop trusting a position *older* than ten seconds. It left untouched the
+question of whether a position is *precise enough* to answer what is being asked of it, and
+three specific gaps followed:
+
+1. **The live stream asked for a fast first fix rather than a good one.**
+   `setWaitForAccurateLocation(false)` told Play Services to hand over whatever it had rather
+   than briefly hold out for GNSS. Under `PRIORITY_HIGH_ACCURACY` the first delivery is
+   routinely a network fix accurate to a few hundred metres — evaluated against a 50 m rule,
+   and capable of reporting "in range" before the device has any real idea where it is.
+2. **Accuracy was surfaced and never consulted.** A fix reporting ±180 m produced a live
+   distance, an "IN RANGE" chip, and an enabled Mark Attendance button, with a caution banner
+   beside it. The banner was honest; the button was not.
+3. **The office anchor was saved without qualification at all.** `getCurrentLocation` returned
+   what it returned and it was written to disk. `maxUpdateAge` was set to the same ten seconds
+   the live screen uses, so a cached fix from wherever the user stood ten seconds ago could
+   permanently define the boundary.
+
+The third is the one with lasting consequences. A bad live fix is discarded a second later; a
+bad anchor silently biases **every** distance the app ever reports, and nothing on screen
+would ever reveal it.
+
+### Decision
+
+**1. High-accuracy first delivery is restored.** `setWaitForAccurateLocation(true)` on the
+streaming request. The brief wait it can introduce is spent in the "Finding your location…"
+state the screen already has, which is a better trade than a coarse first fix landing against
+a 50 m boundary. The 2 s cadence is unchanged.
+
+**2. Accuracy becomes a usability gate, expressed as a prerequisite.** `LocationQuality` gains
+`UNUSABLE`, and both thresholds derive from `AttendanceRule.ELIGIBLE_RADIUS_METERS`:
+
+| Reported accuracy | Quality | Live fix | Office capture |
+| --- | --- | --- | --- |
+| `<= radius / 2` (25 m) | `PRECISE` | decides the rule | saved |
+| `radius / 2 .. radius` (25–50 m) | `DEGRADED` | decides the rule, with the existing caution | saved, reported as limited |
+| `> radius` (50 m) | `UNUSABLE` | `ImprovingAccuracy`, action disabled | **refused, nothing written** |
+| not reported | `UNKNOWN` | `ImprovingAccuracy`, action disabled | **refused, nothing written** |
+
+**This is not a second geographic rule, and `distance <= 50 m` remains the only one.** The app
+never evaluates `distance + accuracy <= 50`. What the table decides is whether the fix in hand
+is a measurement the rule can be applied to at all — a reading whose own error radius exceeds
+the circle being tested cannot answer "inside or outside" in either direction, so authorising
+from it would be false confidence rather than compliance. `canMarkAttendance` is untouched and
+still reads distance alone; an unusable fix simply never reaches it.
+
+`UNKNOWN` fails closed alongside `UNUSABLE`. The alternative is authorising attendance from a
+reading the app knows nothing about.
+
+**3. The office capture derives a position rather than accepting one.**
+`CurrentLocationRequest` moves to `maxUpdateAgeMillis = 0` — no cache at any age — with
+`GRANULARITY_FINE` stated rather than inherited, and the window widened from 20 s to 28 s
+because the whole window must now cover a genuine acquisition. Above 50 m of error, or with no
+accuracy reported, **nothing is persisted** and an existing office is left exactly as it was.
+Between 25 m and 50 m the capture succeeds and says so, because refusing there would strand a
+user indoors with no way to finish setup at all.
+
+**4. Provider faults are interruptions, not the end of tracking.** The stream was terminated
+by `.catch { emit(Failed) }`, and the only recovery was for the user to leave the screen and
+come back — which is not a recovery a user can be expected to discover. It now retries on a
+capped backoff (1 s → 2 s → 5 s) for as long as the screen is subscribed, via `retryWhen` so
+Kotlin's flow exception transparency is preserved and `awaitClose` still removes the platform
+callback before each re-subscription. The failure is still reported while it stands.
+
+**5. Accuracy is not persisted.** `OfficeLocation` keeps latitude, longitude, and
+`capturedAtEpochMillis` and nothing else. The accuracy that qualified a capture has no later
+consumer — distance is measured from the point, and every live fix carries its own accuracy —
+so storing it would add a nullable field and a migration for a number nothing reads back.
+
+### Reasoning
+
+- **Why thresholds at `radius / 2` and `radius`.** Half the radius is the point at which the
+  reported position and the true position can fall on opposite sides of the boundary, which is
+  what makes a caution meaningful. The radius itself is the point at which the uncertainty
+  swallows the whole area being tested, which is what makes the reading useless. Neither number
+  is invented; both are read off the one rule the product has.
+- **Why the capture is stricter than the live screen.** Asymmetric consequences: a rejected
+  live fix costs a second, a bad anchor is permanent and invisible.
+- **Why `ImprovingAccuracy` is its own state rather than `RefreshingFix`.** They are different
+  waits and deserve different sentences — one is waiting for a *newer* reading, the other for a
+  *tighter* one. Age is checked first, so an old imprecise fix reads as stale, which is the
+  more fundamental problem.
+- **Why capped backoff and not something cleverer.** The failure being recovered from is a
+  transient Play Services fault with a user standing there watching. One quick attempt, then a
+  ceiling low enough that recovery still feels immediate, is the whole requirement.
+
+### Consequences
+
+- `AttendanceStatus` gains `ImprovingAccuracy`, `AttendanceStatusKind` gains
+  `IMPROVING_ACCURACY`, and `MarkAttendanceBlocker` gains `IMPRECISE_FIX` — *"Improving
+  location accuracy… / Waiting for a more precise location fix."*, in the **progress** tone,
+  never the failure tone.
+- **A behaviour previously documented as settled is reversed.** ADR-014 and
+  `android-attendance/AGENTS.md` said fix quality is "surfaced as a caution, never converted
+  into a refusal". That remains true for `DEGRADED`, which is the case the sentence was written
+  about; it no longer holds for a fix wider than the radius itself. Both documents are updated.
+- The office capture now has four distinct refusals — no fix, too coarse, accuracy unknown,
+  storage failed — and only two paths that write. `SetOfficeLocationUseCaseTest` asserts *that
+  nothing was written* on each refusal, not merely which result came back.
+- `FusedLocationDataSource` exposes its two request builders as `internal` functions so
+  `LocationRequestConfigurationTest` can assert `maxUpdateAge = 0`,
+  `waitForAccurateLocation = true`, `GRANULARITY_FINE`, and the capture window on the JVM.
+  Play Services floors the reported `maxUpdateDelayMillis` at the interval, so "never batches"
+  is asserted as "no delay beyond one interval" rather than as the zero that was set.
+- **Correcting ADR-014 §6.** It described moving `maxUpdateAge` "from 2 s to
+  `FRESH_FIX_MAX_AGE_MILLIS`" as an alignment. Both values were explicit choices, not platform
+  defaults, and reusing the live-screen bound for the anchor was the mistake this ADR fixes.
+- **Rejected alternatives:** `distance + accuracy <= 50` (changes the mandated rule); averaging
+  or best-of-N capture (a calibration state machine this product does not need, whose failure
+  modes are harder to explain than a single qualified fix); persisting capture accuracy (data
+  with no consumer); raw `GPS_PROVIDER`, GNSS measurements, or Wi-Fi RTT (abandons the fused
+  engine's own sensor blending for a worse result); mock-location detection (an anti-abuse
+  feature the assessment does not ask for).
+
+---
+
+<a id="adr-016"></a>
+
+## ADR-016 — A marked attendance is an event, not a live condition
+
+**Status:** ACCEPTED — 2026-08-29 (G3.8), on explicit human ruling. **Supersedes
+[ADR-013](#adr-013) §7's rule** that "the confirmation is shown only while the eligibility it
+confirms still holds"; ADR-013 is otherwise unchanged and remains in force.
+
+**Requirements:** AND-08, AND-20, EXP-03
+
+### Context
+
+`AttendanceUiState.isAttendanceConfirmed` read:
+
+```kotlin
+markedAttendance != null && canMarkAttendance
+```
+
+which made a completed action depend on a live condition. Two consequences followed, neither
+intended when the rule was written:
+
+- **A momentary stale fix erased the receipt.** Ten seconds of provider silence — the exact
+  condition ADR-014 exists to treat as *normal* — removed a confirmation the user had earned.
+- **Walking away erased it too.** A user who marked attendance and then left the building saw
+  the screen revert to "Move closer to the office", as though the mark had not happened.
+
+In both cases nothing about the past had changed. The screen was reporting a fact about
+history as though it were a fact about the present.
+
+### Decision
+
+`isAttendanceConfirmed` is `markedAttendance != null`. The receipt — the time marked, and the
+distance verified at the instant the rule was applied — stands for the rest of the session.
+
+`canMarkAttendance` is untouched and remains live: it goes on describing where the user is
+now, distance-only, exactly as AND-08 requires. The two values are allowed to disagree, and
+after the user walks away they must.
+
+The status card checks confirmation **before** eligibility, so a marked-and-departed screen
+reads "Attendance marked" rather than asking for work already done. `markAttendanceBlocker`
+returns `null` once confirmed, because no control is rendered and there is no refusal to
+explain.
+
+Scope is unchanged: session-scoped local state, no history, no persistence, no backend (p3
+Note). Leaving the screen still ends it.
+
+### Reasoning
+
+- A mark is a statement about a moment: *at 10:32, verified 12 m from the office*. Nothing the
+  user does afterwards makes that statement false, and a UI that withdraws it is asserting
+  something untrue about the past.
+- The original rule was defending against a real failure — a stale success message sitting over
+  a screen where attendance is no longer possible. That concern is answered by keeping
+  `canMarkAttendance` live and by the panel rendering a receipt rather than a control (the
+  G3.7 rebuild), not by deleting the record.
+- **The conflict with ADR-013 §7 was raised before implementation and ruled on by the human**,
+  as `AGENTS.md`'s requirement discipline demands. It is recorded here rather than edited into
+  ADR-013, so the earlier reasoning stays legible.
+
+### Consequences
+
+- `AttendanceViewModelTest` and `AttendanceStatusPresenterTest` both replace their
+  "confirmation retires" cases with the inverse, plus a stale-fix case and a case asserting
+  that `canMarkAttendance` still tracks the current position after a mark.
+- A user standing outside the radius after marking sees a success headline and a receipt, with
+  the live distance still shown on the gauge above. That combination is intended.
+- **Rejected alternative:** keeping the live status card honest by showing `OUT_OF_RANGE`
+  beneath a standing receipt. It puts two sentences about the same moment on one screen, one of
+  which asks the user to do something they have already done.
+
+---
+
+<a id="adr-017"></a>
+
+## ADR-017 — Layered MVVM with selective use cases, not strict Clean Architecture
+
+**Status:** ACCEPTED — 2026-08-29 (G3.8).
+
+**Requirements:** AND-12, GEN-01
+
+**Relates to:** [ADR-004](#adr-004) (single module, unchanged), [ADR-006](#adr-006) (this
+states what that architecture is and is not), [ADR-009](#adr-009) (same principle, applied to
+wiring)
+
+### Context
+
+Two things were true at once. `AttendanceViewModel` privately owned `LocationKnowledge` and
+`LocationReading` — a pure state machine deciding whether a position may answer a geographic
+question, reachable only through a ViewModel, a test dispatcher and a fake clock. And the
+office capture, the one action in the app with permanent consequences, was sequenced inline in
+an event handler.
+
+The available over-correction is a use case per verb: `GetOfficeLocationUseCase`,
+`ObserveLocationUpdatesUseCase`, `CalculateDistanceUseCase`, `MarkAttendanceUseCase`. Each
+would be a class forwarding one call to one collaborator.
+
+### Decision
+
+**1. The location state machine moves to `domain/location/`.** `LocationKnowledge` and
+`LocationReading` become domain types with zero Android imports, tested directly.
+
+**2. Exactly one use case is added: `SetOfficeLocationUseCase`.** It is the only action that
+spans two collaborators and a policy — acquire a fresh position, qualify it against ADR-015,
+persist it, report which step decided the outcome. It returns `SetOfficeLocationResult` and
+contains no user-facing copy; the ViewModel maps results to messages.
+
+**3. No other use cases are added.** Everything else the screen does is a pure function
+(`AttendanceRule`) or a single repository call. A wrapper around either adds a file to read and
+removes nothing.
+
+**4. The architecture is described accurately.** In documentation and in interview, this is
+**layered MVVM with unidirectional data flow, an Android-free domain layer, repository
+abstractions, and selective use cases where orchestration justifies them.** It is deliberately
+**not** described as "strict Clean Architecture": there are no separate Gradle modules, no
+mapper layer between data and domain models, no entity/interactor split, and no use case for
+most operations. Claiming the label would be inaccurate about the code a reviewer can read.
+
+### Reasoning
+
+- The test for whether logic belongs in `domain` is whether it is a rule that survives the UI.
+  "Is this position trustworthy enough to answer the question?" is such a rule; "which colour
+  is the status card" is not.
+- The test for a use case is whether it *orchestrates*. One that forwards a single call is
+  indirection wearing the costume of structure.
+- Naming the architecture honestly is cheaper than defending an inflated label. A reviewer who
+  hears "Clean Architecture" and finds a single module with no mappers concludes the claim was
+  decoration; one who hears the sentence above finds exactly what was described.
+
+### Consequences
+
+- `AttendanceViewModel` loses roughly 90 lines and gains a use case dependency.
+  `AttendanceComponent` names the location source and the repository so both are shared rather
+  than duplicated.
+- `LocationKnowledgeTest` and `SetOfficeLocationUseCaseTest` exercise the two moved
+  responsibilities with no ViewModel, no dispatcher and no Android.
+- `DomainLayerPurityTest` asserts the "zero Android imports" rule against the domain sources
+  themselves, including a guard that fails if the scan finds no files — an architecture test
+  that silently scans nothing is worse than none.
+- Test fakes move from `presentation/attendance/AttendanceTestFakes.kt` to
+  `fakes/LocationFakes.kt`: a domain test reaching into a `presentation.*` package for a fake
+  would quietly contradict the layering those tests exist to demonstrate.
+- **Rejected alternatives:** a `:domain` Gradle module (ADR-004 — module boundaries for a
+  single-screen assessment cost build complexity and buy an import rule a test already
+  enforces); a use case per operation (ceremony); leaving the state machine in the ViewModel
+  (the status quo the audit found).

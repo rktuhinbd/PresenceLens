@@ -7,6 +7,8 @@ import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
 import io.github.rktuhinbd.presencelens.attendance.domain.model.OfficeLocation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,9 +17,9 @@ import org.junit.Test
  * The status card and the disabled-button reason are the screen's whole explanation of itself,
  * so the mapping that produces them is tested here rather than left to a visual check.
  *
- * These tests also pin the two rules that are easy to regress by accident: a success
- * confirmation must not outlive the eligibility it confirms, and no blocked path may reach the
- * button without a reason attached.
+ * These tests also pin the two rules that are easy to regress by accident: a recorded mark is
+ * an event and must survive a change in live eligibility (ADR-016), and no blocked path may
+ * reach the button without a reason attached.
  */
 class AttendanceStatusPresenterTest {
 
@@ -86,6 +88,27 @@ class AttendanceStatusPresenterTest {
     }
 
     @Test
+    fun `an imprecise fix reads as progress and is worded distinctly from a stale one`() {
+        val imprecise = present(AttendanceStatus.ImprovingAccuracy)
+        val stale = present(AttendanceStatus.RefreshingFix)
+
+        assertEquals(AttendanceStatusKind.IMPROVING_ACCURACY, imprecise.kind)
+        assertEquals(StatusTone.PROGRESS, imprecise.tone)
+        assertNull(imprecise.action)
+        // Two different waits - one for a newer reading, one for a better one - so the screen
+        // must not tell the user the same thing in both.
+        assertNotEquals(stale.kind, imprecise.kind)
+    }
+
+    @Test
+    fun `an imprecise fix names its own reason beside the disabled button`() {
+        assertEquals(
+            MarkAttendanceBlocker.IMPRECISE_FIX,
+            blocker(AttendanceStatus.ImprovingAccuracy)
+        )
+    }
+
+    @Test
     fun `each provider failure keeps its own explanation`() {
         val noFix = present(
             AttendanceStatus.LocationUnavailable(LocationFailureCause.NO_FIX_AVAILABLE)
@@ -142,17 +165,41 @@ class AttendanceStatusPresenterTest {
     }
 
     @Test
-    fun `the confirmation does not outlive the eligibility it confirms`() {
+    fun `the confirmation outlives the eligibility that produced it`() {
         val state = trackingState(distanceMeters = 220.0, markedAtEpochMillis = MARKED_AT)
         val presentation = AttendanceStatusPresenter.present(state, canRequestPermissionInApp = true)
 
-        assertEquals(AttendanceStatusKind.OUT_OF_RANGE, presentation.kind)
-        assertFalse(state.isAttendanceConfirmed)
-        // The action comes back with it: the screen is guiding again, not confirming.
+        // ADR-016. The mark happened; walking away afterwards does not unmake it, and the
+        // headline must not go back to asking for work the user has already done.
+        assertTrue(state.isAttendanceConfirmed)
+        assertEquals(AttendanceStatusKind.ATTENDANCE_MARKED, presentation.kind)
         assertEquals(
-            MarkAttendanceAction.BLOCKED,
+            MarkAttendanceAction.COMPLETED,
             AttendanceStatusPresenter.markAttendanceAction(state)
         )
+        // No control is rendered, so there is no refusal to explain either.
+        assertNull(AttendanceStatusPresenter.markAttendanceBlocker(state))
+        // But the live condition is still reported honestly underneath.
+        assertFalse(state.canMarkAttendance)
+    }
+
+    @Test
+    fun `a confirmation survives a stale fix without becoming a failure`() {
+        val state = trackingState(distanceMeters = 20.0, markedAtEpochMillis = MARKED_AT)
+            .copy(status = AttendanceStatus.RefreshingFix)
+
+        // The status card goes on reporting the live situation - the app really is waiting for
+        // a fresh reading - while the receipt below it stands.
+        assertEquals(
+            AttendanceStatusKind.REFRESHING_FIX,
+            AttendanceStatusPresenter.present(state, canRequestPermissionInApp = true).kind
+        )
+        assertTrue(state.isAttendanceConfirmed)
+        assertEquals(
+            MarkAttendanceAction.COMPLETED,
+            AttendanceStatusPresenter.markAttendanceAction(state)
+        )
+        assertNull(AttendanceStatusPresenter.markAttendanceBlocker(state))
     }
 
     @Test
@@ -238,6 +285,21 @@ class AttendanceStatusPresenterTest {
     }
 
     @Test
+    fun `no unmarked blocked state reaches the button without a reason`() {
+        // The guarantee, rather than a list of cases: a disabled control that explains nothing
+        // is a dead end, and a newly added status is exactly how one appears.
+        allStatuses()
+            .map { AttendanceUiState(status = it) }
+            .filterNot { it.canMarkAttendance }
+            .forEach { state ->
+                assertNotNull(
+                    "no blocker for ${state.status}",
+                    AttendanceStatusPresenter.markAttendanceBlocker(state)
+                )
+            }
+    }
+
+    @Test
     fun `an enabled button carries no reason`() {
         assertNull(
             AttendanceStatusPresenter.markAttendanceBlocker(trackingState(distanceMeters = 12.0))
@@ -269,6 +331,24 @@ class AttendanceStatusPresenterTest {
 
     private fun blocker(status: AttendanceStatus): MarkAttendanceBlocker? =
         AttendanceStatusPresenter.markAttendanceBlocker(AttendanceUiState(status = status))
+
+    /**
+     * Every status the ViewModel can produce. Listed here so the exhaustiveness check below
+     * has something to iterate; a status added to the sealed interface and forgotten here is
+     * the one gap this file cannot close on its own.
+     */
+    private fun allStatuses(): List<AttendanceStatus> = listOf(
+        AttendanceStatus.PermissionRequired,
+        AttendanceStatus.PreciseLocationRequired,
+        AttendanceStatus.LocationServicesDisabled,
+        AttendanceStatus.AcquiringFix,
+        AttendanceStatus.RefreshingFix,
+        AttendanceStatus.ImprovingAccuracy,
+        AttendanceStatus.LocationUnavailable(LocationFailureCause.NO_FIX_AVAILABLE),
+        AttendanceStatus.LocationUnavailable(LocationFailureCause.PROVIDER_ERROR),
+        AttendanceStatus.OfficeNotSet,
+        AttendanceStatus.Tracking(AttendanceRule.evaluate(current = office, office = office))
+    )
 
     /** Displacement due north, so a case can name an exact distance. */
     private fun trackingState(

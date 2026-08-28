@@ -145,10 +145,29 @@ private fun AttendanceScreenMarkedAtEdgePreview() {
     )
 }
 
+/**
+ * A fix wide enough to caution about and still narrow enough to decide the rule with. The
+ * accuracy is deliberately inside the radius: past it the app no longer produces a tracking
+ * state at all, so a preview showing 180 m beside a live distance would depict something the
+ * ViewModel cannot construct.
+ */
 @Preview(name = "Degraded fix", showBackground = true, heightDp = 1_100)
 @Composable
 private fun AttendanceScreenDegradedFixPreview() {
-    PreviewScreen(trackingState(distanceMeters = 18.0, accuracyMeters = 180.0))
+    PreviewScreen(trackingState(distanceMeters = 18.0, accuracyMeters = 40.0))
+}
+
+/** The state that replaces it once the error radius exceeds the boundary being tested. */
+@Preview(name = "Improving accuracy", showBackground = true, heightDp = 1_100)
+@Composable
+private fun AttendanceScreenImprovingAccuracyPreview() {
+    PreviewScreen(
+        AttendanceUiState(
+            office = savedOffice(),
+            currentLocation = deviceLocation(accuracyMeters = 180.0),
+            status = AttendanceStatus.ImprovingAccuracy
+        )
+    )
 }
 
 @Preview(name = "First use - setup", showBackground = true, heightDp = 1_100)

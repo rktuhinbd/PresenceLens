@@ -4,12 +4,14 @@ import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.rktuhinbd.presencelens.attendance.domain.attendance.AttendanceRule
-import io.github.rktuhinbd.presencelens.attendance.domain.location.DeviceLocation
+import io.github.rktuhinbd.presencelens.attendance.domain.attendance.SetOfficeLocationResult
+import io.github.rktuhinbd.presencelens.attendance.domain.attendance.SetOfficeLocationUseCase
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationDataSource
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFailureCause
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFix
-import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFreshness
+import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationKnowledge
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationPermissionStatus
+import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationReading
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationServiceMonitor
 import io.github.rktuhinbd.presencelens.attendance.domain.model.OfficeLocation
 import io.github.rktuhinbd.presencelens.attendance.domain.model.OfficeLocationRepository
@@ -19,17 +21,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.IOException
 
 /**
  * The single coordinator for `AttendanceScreen` (ADR-006, AND-12, GEN-01).
@@ -43,17 +44,17 @@ import java.io.IOException
  * callback and the location-mode broadcast receiver are torn down. Resuming re-subscribes.
  * There is no manual start/stop for the screen to forget to call.
  *
- * **Location is a retained value, not a stream of verdicts** ([LocationReading]). Each raw
- * [LocationFix] updates what the app knows; what the app *shows* is then decided from that
- * knowledge plus the age of the last fix ([LocationFreshness]). This is the difference between
- * a screen that reports the provider's mood and one that reports the user's situation - and it
- * is why a momentary availability estimate can no longer flash a failure over a position the
- * app is still holding.
+ * **Location is a retained value, not a stream of verdicts** (ADR-014). Each raw [LocationFix]
+ * updates what the app knows ([LocationKnowledge]); what the app *may say* is then derived
+ * from that knowledge plus the age and the accuracy of the last fix ([LocationReading]). Both
+ * of those types are domain code and are tested directly - this class consumes their answer
+ * and maps it to a screen state; it does not re-derive it.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AttendanceViewModel(
     private val locationDataSource: LocationDataSource,
-    private val officeLocationRepository: OfficeLocationRepository,
+    private val setOfficeLocation: SetOfficeLocationUseCase,
+    officeLocationRepository: OfficeLocationRepository,
     locationServiceMonitor: LocationServiceMonitor,
     private val clock: () -> Long = System::currentTimeMillis,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime
@@ -70,12 +71,33 @@ class AttendanceViewModel(
     private val locationFixes: Flow<LocationFix?> = permissionStatus
         .flatMapLatest { permission ->
             if (permission == LocationPermissionStatus.PRECISE) {
-                locationDataSource.locationUpdates()
+                recoveringLocationUpdates()
             } else {
                 flowOf(null)
             }
         }
-        .catch { emit(LocationFix.Failed(LocationFailureCause.PROVIDER_ERROR)) }
+
+    /**
+     * The device location stream, with the provider's own faults treated as interruptions
+     * rather than as the end of tracking.
+     *
+     * A `callbackFlow` that throws is a *terminated* flow: before this, one Play Services
+     * fault ended location observation for as long as the screen stayed on it, and the only
+     * recovery was for the user to navigate away and come back - which is not a recovery a
+     * user can be expected to discover. The failure is still reported, because the screen must
+     * not claim to be tracking when it is not; it is simply no longer permanent.
+     *
+     * `retryWhen` rather than a hand-rolled collect loop, because it preserves Kotlin's flow
+     * exception transparency: only upstream failures are caught, a cancellation still cancels,
+     * and `awaitClose` still removes the platform callback before each re-subscription.
+     */
+    private fun recoveringLocationUpdates(): Flow<LocationFix> = locationDataSource
+        .locationUpdates()
+        .retryWhen { _, attempt ->
+            emit(LocationFix.Failed(LocationFailureCause.PROVIDER_ERROR))
+            delay(RETRY_BACKOFF_MILLIS[attempt.coerceAtMost(RETRY_BACKOFF_LAST_INDEX).toInt()])
+            true
+        }
 
     /**
      * Re-evaluates freshness while nothing else is happening.
@@ -125,23 +147,20 @@ class AttendanceViewModel(
     }
 
     /**
-     * AND-06: capture the current GPS coordinates and persist them (AND-07).
+     * AND-06 / AND-07, delegated to [SetOfficeLocationUseCase].
      *
-     * Deliberately a fresh one-shot request rather than a reuse of the streamed position:
-     * setting the office is an explicit act, and it should not silently record a cached fix
-     * from some earlier moment.
+     * The whole of this method is guarding against a second concurrent capture and turning a
+     * domain outcome into something to say. Acquiring the position, judging whether it is good
+     * enough to anchor the boundary, and persisting it are the use case's job - a decision
+     * that permanent should not live in a class whose other responsibility is what colour the
+     * status card is.
      */
     fun onSetOfficeLocationClicked() {
         if (transientState.value.isCapturingOfficeLocation) return
 
         viewModelScope.launch {
             transientState.update { it.copy(isCapturingOfficeLocation = true, message = null) }
-            val message = when (val fix = locationDataSource.currentLocation()) {
-                is LocationFix.Available -> persistOfficeLocation(fix.location)
-                LocationFix.PermissionDenied -> AttendanceMessage.LocationPermissionMissing
-                LocationFix.ProviderReportedUnavailable,
-                is LocationFix.Failed -> AttendanceMessage.OfficeLocationCaptureFailed
-            }
+            val message = messageFor(setOfficeLocation())
             transientState.update { it.copy(isCapturingOfficeLocation = false, message = message) }
         }
     }
@@ -175,30 +194,44 @@ class AttendanceViewModel(
         transientState.update { it.copy(message = null) }
     }
 
-    private suspend fun persistOfficeLocation(location: DeviceLocation): AttendanceMessage =
-        try {
-            officeLocationRepository.save(
-                OfficeLocation(
-                    coordinates = location.coordinates,
-                    capturedAtEpochMillis = clock()
-                )
-            )
-            AttendanceMessage.OfficeLocationSaved(location.coordinates)
-        } catch (error: IOException) {
-            // Local storage can fail (full disk, corrupt file). GEN-04 requires this to reach
-            // the user rather than surface as a silent no-op.
-            AttendanceMessage.OfficeLocationSaveFailed
-        }
+    /**
+     * The domain's outcome, translated into something the user can read.
+     *
+     * The translation lives here and only here: [SetOfficeLocationResult] carries no copy, so
+     * the rule about what counts as a good enough anchor is stated once, in the domain, and is
+     * not reachable through a string resource.
+     *
+     * The two refusals collapse to one message deliberately. "The fix was too coarse" and "the
+     * fix reported no accuracy" are different facts about the provider and identical advice to
+     * the user, and inventing a second sentence would be precision the reader cannot act on.
+     */
+    private fun messageFor(result: SetOfficeLocationResult): AttendanceMessage = when (result) {
+        is SetOfficeLocationResult.Saved ->
+            AttendanceMessage.OfficeLocationSaved(result.officeLocation.coordinates)
+
+        is SetOfficeLocationResult.SavedWithLimitedAccuracy ->
+            AttendanceMessage.OfficeLocationSavedWithLimitedAccuracy
+
+        SetOfficeLocationResult.AccuracyInsufficient,
+        SetOfficeLocationResult.AccuracyUnavailable ->
+            AttendanceMessage.OfficeLocationAccuracyInsufficient
+
+        SetOfficeLocationResult.NoFix -> AttendanceMessage.OfficeLocationCaptureFailed
+        SetOfficeLocationResult.PermissionDenied -> AttendanceMessage.LocationPermissionMissing
+        SetOfficeLocationResult.StorageFailure -> AttendanceMessage.OfficeLocationSaveFailed
+    }
 
     /**
      * The ordering below is the whole failure model. Permission outranks everything because
      * nothing else is knowable without it; the services toggle outranks any fix already in
      * hand, so switching location off cannot leave a stale distance on screen.
      *
-     * A stale fix sits between "no fix at all" and "tracking": the position is kept on the
-     * location surface so the screen does not blink, but it no longer produces a distance, so
-     * [AttendanceUiState.canMarkAttendance] is false and the user is told the app is waiting
-     * for a fresh reading rather than that something failed.
+     * [LocationReading.Stale] and [LocationReading.Imprecise] both sit between "no fix at all"
+     * and "tracking": the position is kept on the location surface so the screen does not
+     * blink, but neither produces a distance, so [AttendanceUiState.canMarkAttendance] is false
+     * and the user is told the app is still working rather than that something failed. They are
+     * separate states because the honest sentence differs - one is waiting for a *newer* fix,
+     * the other for a *tighter* one.
      */
     private fun buildUiState(
         permission: LocationPermissionStatus,
@@ -228,6 +261,9 @@ class AttendanceViewModel(
 
             reading is LocationReading.Stale ->
                 AttendanceStatus.RefreshingFix
+
+            reading is LocationReading.Imprecise ->
+                AttendanceStatus.ImprovingAccuracy
 
             office == null ->
                 AttendanceStatus.OfficeNotSet
@@ -276,104 +312,20 @@ class AttendanceViewModel(
          * changes the answer: identical readings are dropped before they reach the state.
          */
         const val FRESHNESS_TICK_MILLIS = 1_000L
+
+        /**
+         * How long to wait before re-subscribing after a provider fault, capped rather than
+         * unbounded.
+         *
+         * The first retry is quick because most Play Services faults are transient and the
+         * user is standing there watching. It then backs off so a genuinely broken provider is
+         * not re-attached to five times a second for as long as the screen is open, and stops
+         * growing at five seconds so recovery still feels immediate whenever the provider
+         * comes back. Retrying never stops while the screen is subscribed; leaving the screen
+         * cancels it, because the whole graph is scoped to the subscription.
+         */
+        val RETRY_BACKOFF_MILLIS = longArrayOf(1_000L, 2_000L, 5_000L)
+
+        val RETRY_BACKOFF_LAST_INDEX = RETRY_BACKOFF_MILLIS.lastIndex.toLong()
     }
-}
-
-/**
- * What the app knows about the device's position, accumulated across raw [LocationFix] events.
- *
- * Kept separate from [LocationReading] because knowledge and presentation age differently: this
- * changes only when the platform says something, while the reading derived from it changes with
- * the passage of time as well.
- */
-private data class LocationKnowledge(
-    /** When observation began, used to bound how long "still acquiring" may honestly last. */
-    val observingSinceElapsedMillis: Long? = null,
-    val lastLocation: DeviceLocation? = null,
-    val providerReportsNoLocation: Boolean = false,
-    val permissionDenied: Boolean = false,
-    val failure: LocationFailureCause? = null
-) {
-
-    fun after(fix: LocationFix?, nowElapsedMillis: Long): LocationKnowledge = when (fix) {
-        // Not observing at all: the grant went away, so everything known about position goes
-        // with it rather than lingering as a position the app cannot justify showing.
-        null -> LocationKnowledge()
-
-        is LocationFix.Available -> observingSince(nowElapsedMillis).copy(
-            lastLocation = fix.location,
-            providerReportsNoLocation = false,
-            permissionDenied = false,
-            failure = null
-        )
-
-        LocationFix.PermissionDenied -> LocationKnowledge(permissionDenied = true)
-
-        // An estimate, recorded and nothing more. It cannot discard a fix already held.
-        LocationFix.ProviderReportedUnavailable ->
-            observingSince(nowElapsedMillis).copy(providerReportsNoLocation = true)
-
-        is LocationFix.Failed -> LocationKnowledge(failure = fix.cause)
-    }
-
-    /**
-     * The knowledge above, read at a moment in time.
-     *
-     * The provider's availability estimate is escalated to a failure in exactly one case: the
-     * app has never held a position, and the acquisition window has passed with the provider
-     * saying it cannot obtain one. That is a genuine inability rather than a mood, and it is
-     * the only path from an availability signal to "Location unavailable".
-     */
-    fun readingAt(nowElapsedMillis: Long): LocationReading = when {
-        permissionDenied -> LocationReading.PermissionDenied
-
-        failure != null -> LocationReading.Failed(failure)
-
-        lastLocation != null -> if (
-            LocationFreshness.isFresh(lastLocation.elapsedRealtimeMillis, nowElapsedMillis)
-        ) {
-            LocationReading.Fresh(lastLocation)
-        } else {
-            LocationReading.Stale(lastLocation)
-        }
-
-        providerReportsNoLocation && observingSinceElapsedMillis != null &&
-            !LocationFreshness.isFresh(observingSinceElapsedMillis, nowElapsedMillis) ->
-            LocationReading.Failed(LocationFailureCause.NO_FIX_AVAILABLE)
-
-        else -> LocationReading.Acquiring
-    }
-
-    /** Stamps the start of this observation once, so the acquisition window has an origin. */
-    private fun observingSince(nowElapsedMillis: Long): LocationKnowledge =
-        if (observingSinceElapsedMillis != null) {
-            this
-        } else {
-            copy(observingSinceElapsedMillis = nowElapsedMillis)
-        }
-}
-
-/**
- * What the app can say about the device's position right now: the knowledge above, with the
- * age of the last fix already taken into account.
- */
-private sealed interface LocationReading {
-
-    /** The last usable position, if one is still worth drawing on screen. */
-    val location: DeviceLocation? get() = null
-
-    /** Observing, but no position has arrived yet. Not a failure. */
-    data object Acquiring : LocationReading
-
-    /** A position recent enough to decide the 50 m rule. */
-    data class Fresh(override val location: DeviceLocation) : LocationReading
-
-    /** A position that is still the best one held, but too old to gate attendance with. */
-    data class Stale(override val location: DeviceLocation) : LocationReading
-
-    /** The grant disappeared while updates were running. */
-    data object PermissionDenied : LocationReading
-
-    /** A real inability to obtain a position (GEN-04). */
-    data class Failed(val cause: LocationFailureCause) : LocationReading
 }

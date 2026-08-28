@@ -53,6 +53,7 @@ enum class AttendanceStatusKind {
     SERVICES_DISABLED,
     ACQUIRING_FIX,
     REFRESHING_FIX,
+    IMPROVING_ACCURACY,
     LOCATION_UNAVAILABLE_NO_FIX,
     LOCATION_UNAVAILABLE_PROVIDER,
     OFFICE_NOT_SET,
@@ -97,6 +98,9 @@ enum class MarkAttendanceBlocker {
     SERVICES_OFF,
     NO_FIX,
     STALE_FIX,
+
+    /** A current fix exists, but it is not precise enough to decide the boundary with. */
+    IMPRECISE_FIX,
     OUT_OF_RANGE
 }
 
@@ -157,6 +161,14 @@ object AttendanceStatusPresenter {
             tone = StatusTone.PROGRESS
         )
 
+        // Also progress, and for the same reason: the provider is converging on a tighter fix,
+        // which is a wait rather than a fault. Separate wording from RefreshingFix because the
+        // two waits are different - one is for a newer reading, this one is for a better one.
+        AttendanceStatus.ImprovingAccuracy -> AttendanceStatusPresentation(
+            kind = AttendanceStatusKind.IMPROVING_ACCURACY,
+            tone = StatusTone.PROGRESS
+        )
+
         is AttendanceStatus.LocationUnavailable -> AttendanceStatusPresentation(
             kind = when (status.cause) {
                 LocationFailureCause.NO_FIX_AVAILABLE ->
@@ -174,20 +186,18 @@ object AttendanceStatusPresenter {
         )
 
         is AttendanceStatus.Tracking -> when {
-            // The confirmation stands only while the eligibility it confirms is still true.
-            // Walk out of range and the screen goes back to guiding the user, rather than
-            // leaving a success message on a screen where attendance is no longer possible.
-            !status.proximity.isEligible -> AttendanceStatusPresentation(
-                kind = AttendanceStatusKind.OUT_OF_RANGE,
-                tone = StatusTone.BLOCKED
-            )
-
-            // Once the action is done, the headline stops inviting it. Leaving "Ready to mark
-            // attendance" here while a confirmation sits further down is the screen saying two
-            // different things about the same moment.
+            // Checked before eligibility, and that order is the whole of ADR-016. Once the
+            // action is done the headline stops inviting it - and it stops inviting it even
+            // if the user has since walked away, because "Move closer to the office" over an
+            // attendance that was already recorded is the screen asking for work twice.
             state.isAttendanceConfirmed -> AttendanceStatusPresentation(
                 kind = AttendanceStatusKind.ATTENDANCE_MARKED,
                 tone = StatusTone.SUCCESS
+            )
+
+            !status.proximity.isEligible -> AttendanceStatusPresentation(
+                kind = AttendanceStatusKind.OUT_OF_RANGE,
+                tone = StatusTone.BLOCKED
             )
 
             else -> AttendanceStatusPresentation(
@@ -211,17 +221,20 @@ object AttendanceStatusPresenter {
     }
 
     /**
-     * `null` when attendance can be marked. Derived from the same state value the button reads,
-     * so the reason and the enabled state cannot drift apart.
+     * `null` when there is no refused button to explain - either because attendance can be
+     * marked, or because it already has been and no control is rendered at all. Derived from
+     * the same state value the button reads, so the reason and the enabled state cannot drift
+     * apart.
      */
     fun markAttendanceBlocker(state: AttendanceUiState): MarkAttendanceBlocker? {
-        if (state.canMarkAttendance) return null
+        if (state.isAttendanceConfirmed || state.canMarkAttendance) return null
         return when (state.status) {
             AttendanceStatus.PermissionRequired -> MarkAttendanceBlocker.PERMISSION
             AttendanceStatus.PreciseLocationRequired -> MarkAttendanceBlocker.PRECISE_LOCATION
             AttendanceStatus.LocationServicesDisabled -> MarkAttendanceBlocker.SERVICES_OFF
             AttendanceStatus.AcquiringFix -> MarkAttendanceBlocker.NO_FIX
             AttendanceStatus.RefreshingFix -> MarkAttendanceBlocker.STALE_FIX
+            AttendanceStatus.ImprovingAccuracy -> MarkAttendanceBlocker.IMPRECISE_FIX
             is AttendanceStatus.LocationUnavailable -> MarkAttendanceBlocker.NO_FIX
             AttendanceStatus.OfficeNotSet -> MarkAttendanceBlocker.OFFICE_NOT_SET
             is AttendanceStatus.Tracking -> MarkAttendanceBlocker.OUT_OF_RANGE

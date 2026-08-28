@@ -4,14 +4,18 @@ Resumption document. Read this first, then the active gate in
 [EXECUTION_PLAN.md](EXECUTION_PLAN.md), then only the relevant rows of
 [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md).
 
-Last updated: 2026-08-28
-Overall status: **G3.7 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
+Last updated: 2026-08-29
+Overall status: **G3.8 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
 implemented end to end, passes all automated verification, and has been driven through
-every state on an emulator. A location-state oscillation found by manual testing has been
-root-caused and fixed ([ADR-014](DECISIONS.md#adr-014)); the post-attendance state was
-rebuilt at G3.7 after a physical-device review. The rows whose stated verification method
-is a Compose UI test remain `PARTIAL`; a manual walkthrough is not that method.**
-Current gate: **G3.7 — Android success-state refinement (complete)**
+every state on an emulator. G3.8 was the final substantive engineering pass: location
+measurements are now trusted only when they are both fresh *and* precise enough to decide
+the boundary, the office anchor can no longer be set from a cached or coarse fix, a
+provider fault recovers on its own, the location state machine and the office-capture
+orchestration moved into `domain`, and a recorded attendance became an event rather than a
+live condition ([ADR-015](DECISIONS.md#adr-015), [ADR-016](DECISIONS.md#adr-016),
+[ADR-017](DECISIONS.md#adr-017)). The rows whose stated verification method is a Compose UI
+test remain `PARTIAL`; a manual walkthrough is not that method.**
+Current gate: **G3.8 — Android accuracy and architecture hardening (complete)**
 
 ## Progress
 
@@ -19,8 +23,8 @@ Current gate: **G3.7 — Android success-state refinement (complete)**
 | --- | --- |
 | Requirements extracted from the PDF | Complete — 64 requirements, 15 ambiguities |
 | Architecture defined | Complete (both apps) |
-| ADRs | 14 recorded — 12 `ACCEPTED`, 2 `PROPOSED` (ADR-009 technical revisit, ADR-010 deferred to G8). ADR-013's two open interpretive calls were **ruled on and accepted** at G3.6. |
-| **Android feature implementation** | **Complete, stabilised and polished.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). Location is now a retained value with a named freshness bound rather than a stream of provider verdicts ([ADR-014](DECISIONS.md#adr-014)). The post-attendance state was rebuilt at G3.7 so a completed action stops being rendered as a control. 95 unit tests pass; emulator walkthrough executed. |
+| ADRs | 17 recorded — 16 `ACCEPTED`, 1 `PROPOSED` (ADR-009, a technical revisit; ADR-010 was resolved and accepted at G3.6). ADR-013's two open interpretive calls were **ruled on and accepted** at G3.6; its §7 confirmation-lifetime rule is **superseded by [ADR-016](DECISIONS.md#adr-016)** and ADR-014 §6's office-capture bound by **[ADR-015](DECISIONS.md#adr-015)**, both on explicit human ruling at G3.8. |
+| **Android feature implementation** | **Complete, stabilised, polished, and hardened.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). Location is a retained value bounded by **age and accuracy** ([ADR-014](DECISIONS.md#adr-014), [ADR-015](DECISIONS.md#adr-015)), the office anchor is derived fresh and refused if too coarse, a provider fault retries on a capped backoff, `LocationKnowledge`/`LocationReading` and `SetOfficeLocationUseCase` live in `domain` ([ADR-017](DECISIONS.md#adr-017)), and a recorded mark survives a stale fix and the user walking away ([ADR-016](DECISIONS.md#adr-016)). 158 unit tests pass; emulator walkthrough executed. |
 | **Flutter application** | **0% — project not created** |
 | README / submission artefacts | Not started |
 
@@ -30,34 +34,40 @@ Current gate: **G3.7 — Android success-state refinement (complete)**
 | --- | --- |
 | Android Gradle sync | PASS (Android Studio and PowerShell) |
 | Android `clean` | PASS (PowerShell CLI, verified at G1) |
-| Android `assembleDebug` | PASS — re-verified after the G3.7 pass, 2026-08-28 |
-| Android `testDebugUnitTest` | PASS — **95 tests**, 0 failures, 2026-08-28 |
-| Android `lintDebug` | PASS — **0 errors**, 10 warnings (6 dependency-version advisories, 4 `PluralsCandidate`) |
+| Android `assembleDebug` | PASS — re-verified from `clean` after the G3.8 pass, 2026-08-29 |
+| Android `testDebugUnitTest` | PASS — **158 tests**, 0 failures, 2026-08-29 |
+| Android `lintDebug` | PASS — **0 errors**, warnings unchanged from G3.7 (dependency-version advisories and one `PluralsCandidate`); G3.8 introduced none |
 | `git diff --check` | CLEAN |
-| `domain` free of Android imports | PASS — verified by grep over `domain/` |
-| 50 m radius is a single constant | PASS — one literal, in `AttendanceRule` |
+| `domain` free of Android imports | PASS — **now asserted by `DomainLayerPurityTest`** rather than by grep, including a guard that fails if the scan finds no sources |
+| 50 m radius is a single constant | PASS — one literal, in `AttendanceRule`. Both accuracy thresholds derive from it; no `25` or `50` is written down again |
+| Eligibility is distance-only | PASS — `canMarkAttendance` reads `proximity.isEligible` alone. Accuracy gates whether a fix *reaches* `Tracking`, and is never a term in the rule ([ADR-015](DECISIONS.md#adr-015)) |
+| No new dependency added at G3.8 | PASS — `libs.versions.toml` and `app/build.gradle.kts` untouched |
 | No `GeofencingClient` / Maps SDK / background location | PASS — no such dependency or permission exists |
 | Office-hours caption does not gate eligibility (ADR-011, ADR-013) | PASS — `availability_caption` removed; `office_hours_label` / `office_hours_value` have one reference each, both `Text` calls |
 | Android emulator launch | PASS (verified at G0.1) |
-| **Emulator acceptance run of Task 1** | **PASS — executed three times.** By the author before G3.5, by the G3.5 walkthrough, and again at G3.6 on `emulator-5554` after the stability fix. See below. |
+| **Emulator acceptance run of Task 1** | **PASS — executed four times.** By the author before G3.5, by the G3.5 walkthrough, at G3.6 on `emulator-5554` after the stability fix, and again at G3.8 on `emulator-5554` after the accuracy/architecture pass. See below. |
 | **Stationary-oscillation soak** | **PASS — 30 samples over ~70 s on a stationary emulator, all reading "Ready to mark attendance".** The defect this replaces produced a flip roughly every 2 s. |
 | Location-services off → on recovery | **PASS** — off gives the explicit services state; on gives "Updating your location… / Waiting for a fresh GPS fix." then automatic recovery, with **no** red failure state at any point |
 | Office persistence across force-stop | **PASS** — executed 2026-08-28, AND-07 now `DONE` |
 | Android `assembleRelease` | **PASS, SIGNED — 2026-08-28.** ADR-010 resolved; `apksigner verify` passed (APK Signature Scheme v2, 2048-bit RSA); installed and smoke-tested on `emulator-5554` |
 | Flutter project | **NOT CREATED** |
 
-### Unit test breakdown (95)
+### Unit test breakdown (158)
 
 | Suite | Tests | Covers |
 | --- | --- | --- |
-| `AttendanceViewModelTest` | 32 | Permission, approximate-only, services-off, acquiring, real provider failure, revoked mid-stream (both routes), office-not-set, office restored, per-emission distance, the 50 m boundary in both directions, degraded-fix behaviour, office capture + persistence, capture failure, storage failure, mark-attendance in range / out of range / on a stale fix, message lifecycle, subscription teardown, **and the eight G3.6 stability cases** — availability flapping, the no-flash assertion over the whole emitted sequence, escalation only after the acquisition window, staleness at and past the limit, recovery into eligible and into out-of-range, no subscription restart on a repeated grant, and the freshness tick producing no state churn, **plus the G3.7 case** — a mark records both its time and the distance verified at that instant, and leaving the radius retires the confirmation without rewriting the mark |
-| `AttendanceStatusPresenterTest` | 20 | All thirteen status-card conditions, the action each offers, all seven blocked-button reasons, that a stale fix reads as progress rather than failure, that the success confirmation does not outlive the eligibility it confirms, and **the four G3.7 success-state cases** — eligible-and-unmarked offers the action and reads "Ready to mark attendance", eligible-and-marked reads "Attendance marked" and resolves to `COMPLETED` (no actionable CTA, no blocker), the headline stops inviting an action already done, and the confirmation carries the recorded time and the verified distance |
+| `AttendanceViewModelTest` | 50 | Permission, approximate-only, services-off, acquiring, real provider failure, revoked mid-stream (both routes), office-not-set, office restored, per-emission distance, the 50 m boundary in both directions, degraded-fix behaviour, office capture + persistence, capture failure, storage failure, mark-attendance in range / out of range / on a stale fix, message lifecycle, subscription teardown, **and the eight G3.6 stability cases** — availability flapping, the no-flash assertion over the whole emitted sequence, escalation only after the acquisition window, staleness at and past the limit, recovery into eligible and into out-of-range, no subscription restart on a repeated grant, and the freshness tick producing no state churn, **the G3.7 case** — a mark records both its time and the distance verified at that instant — **and the eighteen G3.8 cases**: the four accuracy bands (precise, degraded-but-usable, exactly at the radius, wider than the radius), unreported accuracy failing closed, convergence from imprecise to precise, a no-op click on an imprecise fix, age outranking accuracy on an old wide fix, the confirmation surviving a stale fix and surviving the user walking out of range while `canMarkAttendance` goes false, the office capture saving / warning / refusing / refusing-on-unknown-accuracy without ever overwriting a saved office, a second tap being ignored while a capture is genuinely in flight, "Set Office Location" staying actionable while the stream is acquiring and after it has failed and being refused only on permission/services, and a provider fault reported then recovered from with backoff and torn down on unsubscribe |
+| `AttendanceStatusPresenterTest` | 24 | All fourteen status-card conditions, the action each offers, all eight blocked-button reasons, that a stale fix reads as progress rather than failure, **the G3.8 cases** — an imprecise fix reads as progress and is worded distinctly from a stale one, names its own blocker, the confirmation now *outlives* the eligibility that produced it and survives a stale fix, and no unmarked blocked state reaches the button without a reason — and **the four G3.7 success-state cases** — eligible-and-unmarked offers the action and reads "Ready to mark attendance", eligible-and-marked reads "Attendance marked" and resolves to `COMPLETED` (no actionable CTA, no blocker), the headline stops inviting an action already done, and the confirmation carries the recorded time and the verified distance |
 | `AttendanceRuleTest` | 5 | AND-08 at 0 / 49.9 / 50.0 / 50.1 / 120 m |
-| `DistanceCalculatorTest` | 5 | Haversine identity, known distance, symmetry; bearing at the four cardinals and its normalisation |
+| `DistanceCalculatorTest` | 8 | Haversine identity, known distance, symmetry; bearing at the four cardinals and its normalisation; **and the G3.8 precision cases** — agreement with an independent WGS-84 ellipsoidal reference within 0.25 m at the 50 m radius across 24 bearings, the worst-case divergence shown to be under 1/100th of the precise-fix threshold, and sub-metre movement resolved cleanly either side of the boundary |
 | `DistanceFormatterTest` | 6 | Metres, the kilometre switch, rounding, and non-finite input |
 | `ProximityGeometryTest` | 5 | Gauge fraction and marker placement, including the off-panel clamp |
 | `GeoCoordinatesTest` | 5 | Latitude/longitude range validation |
-| `LocationQualityTest` | 4 | The degraded-accuracy threshold and unreported accuracy |
+| `LocationQualityTest` | 6 | Both thresholds and their derivation from the radius, the inclusive boundaries, unreported and non-finite accuracy, and which qualities may decide the rule |
+| `LocationKnowledgeTest` | 17 | The domain state machine directly: the four accuracy bands, fail-closed on unknown accuracy, the freshness boundary, age outranking accuracy, recovery, the availability estimate never discarding a held fix and escalating only after the acquisition window, and the terminal permission/failure/not-observing resets |
+| `SetOfficeLocationUseCaseTest` | 12 | All seven capture outcomes with no ViewModel — saved, saved-with-limited-accuracy, both accuracy refusals, no fix, availability estimate, permission, and storage failure — each asserting whether anything was written and that an existing office survived |
+| `LocationRequestConfigurationTest` | 5 | The two built requests: accurate first fix, 2 s cadence, no batching, `maxUpdateAge = 0`, `GRANULARITY_FINE`, and the 28 s capture window |
+| `DomainLayerPurityTest` | 2 | No `android.*`, `androidx.*`, or Play Services import anywhere in `domain`, plus a guard that the scan actually found sources |
 | `LocationFreshnessTest` | 6 | The freshness boundary in both directions, age arithmetic, a fix stamped ahead of now, and that the threshold stays inside the accuracy the app already tolerates |
 | `InMemoryOfficeLocationRepositoryTest` | 5 | Absent, save, overwrite, clear, unreadable-store recovery |
 | `DataStoreOfficeLocationRepositoryTest` | 2 | Real file-backed round trip |
@@ -143,7 +153,36 @@ Matrix rows whose verification method is a **Compose UI test** stay `PARTIAL` re
 a manual walkthrough is not that method, and inflating them would be exactly the kind of
 unearned `DONE` the charter forbids.
 
+### G3.8 accuracy and architecture checks — **executed on `emulator-5554`, 2026-08-29**
+
+Driven with `adb emu geo fix`, `adb shell settings put secure location_mode`, and
+`adb exec-out screencap` reading the screen back visually. Six of eight passed; two could
+not be induced on an emulator and are stated as such rather than claimed.
+
+| # | Check | Expected | Result |
+| --- | --- | --- | --- |
+| 1 | Cold start with app data cleared | "Finding your location…", no eligibility flash from a low-quality first fix | **PASS** — acquiring state held until a qualified fix arrived; no distance and no "IN RANGE" appeared before it |
+| 2 | First precise fix arrives | Distance and eligibility become live | **PASS** — `23.810300, 90.412498` accepted as usable, screen moved to the office-setup face |
+| 3 | Move > 50 m (200 m north) | Stable out-of-range | **PASS** — "200 m AWAY / OUT OF RANGE" held across four samples, no oscillation. The reading was exactly 200 m, which is the Haversine precision claim visible on a device |
+| 4 | Move back inside | Stable eligible | **PASS** — "0 m / IN RANGE / READY TO MARK" on the next fix |
+| 5 | Location services OFF → ON | Recovery without leaving the screen | **PASS** — off gave the attention state with the position cleared and "Change office location" correctly disabled; on gave full in-place recovery on the next fix |
+| 6 | **"Set Office Location" during `AcquiringFix`** | Actionable; its own one-shot request handles acquisition | **PASS** — the button was enabled and prominent while the live stream had produced nothing at all (screenshot 1), and capturing later succeeded from the fresh-only request |
+| 7 | Office capture with > 50 m accuracy | Nothing persisted | **NOT EXECUTED ON DEVICE** — the emulator's fused provider cannot be made to report a poor error radius on demand. Covered by `SetOfficeLocationUseCaseTest` (refusal + nothing written + existing office intact) and by `AttendanceViewModelTest` |
+| 8 | **Mark, then walk out of range** | Confirmation survives | **PASS** — at 200 m the gauge and chip reported "OUT OF RANGE" honestly while the status card read "Attendance marked / Your location was verified at 2:44 AM" and the receipt read "Location verified · 0 m from office · 2:44 AM". Under the pre-G3.8 rule this reverted to "Move closer to the office" |
+
+**Also not executed on device:** the provider-fault retry/backoff path. Play Services cannot
+be made to throw on demand on an emulator, so it is covered by three `AttendanceViewModelTest`
+cases — fault reported → re-subscribed after the first backoff → fresh fix resumes eligibility;
+repeated faults back off rather than spin; retrying stops when the screen stops observing.
+
 ## Active objective
+
+**G3.8 — Android accuracy and architecture hardening. Complete 2026-08-29.**
+
+The final substantive Android engineering pass before Task 1 is frozen. Superseded two
+previously-accepted rules on explicit human ruling ([ADR-015](DECISIONS.md#adr-015),
+[ADR-016](DECISIONS.md#adr-016)) and stated the architecture accurately rather than
+aspirationally ([ADR-017](DECISIONS.md#adr-017)).
 
 **G3.7 — Android success-state refinement. Complete 2026-08-28.**
 
@@ -395,7 +434,7 @@ Remaining before G3/G3.5 can formally close:
       ([ADR-014](DECISIONS.md#adr-014)); 70 s stationary soak clean.
 - [x] State-driven UX pass (G3.5) delivered against the approved direction.
 - [x] Emulator walkthrough of every state executed, in light and dark.
-- [x] 95 unit tests passing; `assembleDebug` and `lintDebug` clean.
+- [x] 158 unit tests passing; `assembleDebug` and `lintDebug` clean (G3.8, from `clean`).
 - [x] `git diff` inspected; five local commits created; nothing pushed.
 - [x] ADR-013 recorded; matrix, AI_USAGE.md and this file updated.
 
@@ -427,6 +466,21 @@ Remaining before G3/G3.5 can formally close:
   becomes. Deliberate ([ADR-014](DECISIONS.md#adr-014)): "Updating your location…" stays true,
   the action stays disabled, and a red failure state is not the honest reaction to a provider
   going quiet.
+- **Two G3.8 paths are unit-tested but not device-verified.** The >50 m office-capture refusal
+  and the provider-fault retry/backoff cannot be induced on an emulator: the fused provider
+  will not report a poor error radius on demand, and Play Services will not throw on demand.
+  Both are covered on the JVM and both are recorded here rather than folded into the emulator
+  PASS list.
+- **The accuracy gate depends on the provider reporting an honest error radius.** If a device
+  under-reports accuracy, the app trusts the fix. There is no cross-check, and deliberately so
+  ([ADR-015](DECISIONS.md#adr-015) rejects mock-location detection and custom GNSS processing);
+  the assessment asks for a proximity feature, not an anti-abuse one.
+- **A device that never reports accuracy cannot mark attendance at all.** The fail-closed
+  policy is intentional, and every mainstream Android provider does report it, but a device
+  that did not would sit in "Improving location accuracy…" indefinitely.
+- **The confirmation is session-scoped.** Leaving the screen ends it. That is unchanged by
+  [ADR-016](DECISIONS.md#adr-016), which extends the receipt across location changes, not
+  across process death; the assessment provides no attendance API (p3 Note).
 - **Dynamic colour is off by default** so status colour keeps its meaning and a reviewer
   sees the designed palette. The parameter remains available.
 - **Distance uses a hand-rolled Haversine, not `Location.distanceTo`.** ADR-001's

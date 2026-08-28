@@ -414,6 +414,8 @@ private fun blockedReasonText(blocker: MarkAttendanceBlocker?, radiusMeters: Int
         MarkAttendanceBlocker.SERVICES_OFF -> stringResource(R.string.blocked_reason_services_off)
         MarkAttendanceBlocker.NO_FIX -> stringResource(R.string.blocked_reason_no_fix)
         MarkAttendanceBlocker.STALE_FIX -> stringResource(R.string.blocked_reason_stale_fix)
+        MarkAttendanceBlocker.IMPRECISE_FIX ->
+            stringResource(R.string.blocked_reason_imprecise_fix)
         MarkAttendanceBlocker.OUT_OF_RANGE ->
             stringResource(R.string.blocked_reason_out_of_range, radiusMeters)
     }
@@ -446,6 +448,15 @@ private fun messageText(message: AttendanceMessage?): String? = when (message) {
         CoordinateFormatter.latitude(message.coordinates),
         CoordinateFormatter.longitude(message.coordinates)
     )
+
+    // Saved, with the one thing the user can do about it if they want a tighter anchor. The
+    // coordinates are omitted here on purpose: the sentence is already advice, and appending
+    // a lat/lon pair would bury it.
+    AttendanceMessage.OfficeLocationSavedWithLimitedAccuracy ->
+        stringResource(R.string.snackbar_office_saved_limited_accuracy)
+
+    AttendanceMessage.OfficeLocationAccuracyInsufficient ->
+        stringResource(R.string.snackbar_office_accuracy_insufficient)
 
     AttendanceMessage.OfficeLocationSaveFailed ->
         stringResource(R.string.snackbar_office_save_failed)

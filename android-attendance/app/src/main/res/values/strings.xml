@@ -83,6 +83,7 @@
     <string name="blocked_reason_services_off">Turn on device location to continue.</string>
     <string name="blocked_reason_no_fix">Waiting for your location.</string>
     <string name="blocked_reason_stale_fix">Waiting for a fresh GPS fix.</string>
+    <string name="blocked_reason_imprecise_fix">Waiting for a more precise location fix.</string>
     <string name="blocked_reason_out_of_range">Move within %1$d m to mark attendance.</string>
 
     <!-- Status: permission required (GEN-04) -->
@@ -107,6 +108,8 @@
     <string name="status_acquiring_body">Waiting for an accurate fix. This is usually quicker near a window or outdoors.</string>
     <string name="status_refreshing_title">Updating your location…</string>
     <string name="status_refreshing_body">Waiting for a fresh GPS fix.</string>
+    <string name="status_improving_accuracy_title">Improving location accuracy…</string>
+    <string name="status_improving_accuracy_body">Waiting for a more precise location fix. This is usually quicker near a window or outdoors.</string>
     <string name="status_unavailable_title">Location unavailable</string>
     <string name="status_unavailable_body_no_fix">No position could be obtained. Move somewhere with a clearer view of the sky and it will retry automatically.</string>
     <string name="status_unavailable_body_provider">The location provider reported an error. It will retry automatically.</string>
@@ -129,6 +132,8 @@
 
     <!-- Snackbar feedback -->
     <string name="snackbar_office_saved">Office location saved at %1$s, %2$s</string>
+    <string name="snackbar_office_saved_limited_accuracy">Office location saved. Accuracy is limited; setting it again near a window may improve distance readings.</string>
+    <string name="snackbar_office_accuracy_insufficient">Couldn\'t get an accurate enough location. Try again near a window or outdoors.</string>
     <string name="snackbar_office_save_failed">Could not save the office location to this device. Please try again.</string>
     <string name="snackbar_office_capture_failed">Could not get an accurate position. Please try again.</string>
     <string name="snackbar_permission_missing">Location access is required to capture the office location.</string>

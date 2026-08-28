@@ -3,18 +3,31 @@
 Scoped to `android-attendance/`. Read the root [AGENTS.md](../AGENTS.md) first —
 this file only adds Android-specific rules. Priority order for facts about this
 app: [DECISIONS.md](../docs/DECISIONS.md) (ADR-001, 002, 003, 004, 006, 009, 011,
-012, 013, 014) → [ARCHITECTURE.md](../docs/ARCHITECTURE.md) → [REQUIREMENTS_MATRIX.md](../docs/REQUIREMENTS_MATRIX.md)
+012, 013, 014, 015, 016, 017) → [ARCHITECTURE.md](../docs/ARCHITECTURE.md) → [REQUIREMENTS_MATRIX.md](../docs/REQUIREMENTS_MATRIX.md)
 (`AND-*` rows) → this file.
 
 ## Architecture
 
+- **The architecture is "layered MVVM with unidirectional data flow, an Android-free
+  domain layer, repository abstractions, and selective use cases where orchestration
+  justifies them"** ([ADR-017](../docs/DECISIONS.md#adr-017)). Use that phrasing.
+  **Never describe it as "strict Clean Architecture"** — there are no separate modules,
+  no mapper layer, no entity/interactor split, and one use case rather than one per
+  operation. The label would be inaccurate about code a reviewer can read.
 - Single `:app` module ([ADR-004](../docs/DECISIONS.md#adr-004)). Layer with
   packages — `domain`, `data`, `presentation` — not Gradle modules.
 - MVVM + unidirectional data flow ([ADR-006](../docs/DECISIONS.md#adr-006)): one
   `ViewModel` exposing a single `StateFlow<AttendanceUiState>`. UI events flow in
   as function calls, never the reverse.
-- `domain` has zero Android imports. The 50 m rule (`AttendanceRule`, AND-08)
-  must be plain-JUnit testable with no device, no emulator, no Robolectric.
+- `domain` has zero Android imports, and `DomainLayerPurityTest` asserts it. The 50 m
+  rule (`AttendanceRule`, AND-08), the freshness and accuracy bounds
+  (`LocationKnowledge`/`LocationReading`), and `SetOfficeLocationUseCase` must all be
+  plain-JUnit testable with no device, no emulator, no Robolectric.
+- **`SetOfficeLocationUseCase` is the only use case, and that is deliberate.** Do not add
+  `GetOfficeLocationUseCase`, `SaveOfficeLocationUseCase`, `ObserveLocationUpdatesUseCase`,
+  `EvaluateAttendanceEligibilityUseCase`, `MarkAttendanceUseCase`, or
+  `CalculateDistanceUseCase`. Each would forward one call to one collaborator. A use case
+  earns its place by orchestrating; this one acquires, qualifies, persists, and reports.
 - No business logic in Composables. A Composable reads state and emits events —
   nothing else. If a Composable needs a decision (in-range? which state to
   render?), that decision was computed upstream, not inline.
@@ -45,11 +58,33 @@ app: [DECISIONS.md](../docs/DECISIONS.md) (ADR-001, 002, 003, 004, 006, 009, 011
   `LocationFix.ProviderReportedUnavailable` and may never on its own discard a held fix
   or produce `AttendanceStatus.LocationUnavailable`. Reintroducing that mapping
   reintroduces the G3.6 oscillation defect.
-- **Location is a retained value with one freshness bound**, not a stream of verdicts.
-  `LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS` is the only such threshold; measure age
-  on the monotonic elapsed-realtime clock, never the wall clock. Past it the screen
-  shows `RefreshingFix` in the **progress** tone and disables Mark Attendance — it does
-  not show a failure.
+- **Location is a retained value with two bounds**, not a stream of verdicts.
+  *Age:* `LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS`, measured on the monotonic
+  elapsed-realtime clock, never the wall clock — past it the screen shows `RefreshingFix`.
+  *Accuracy:* `LocationQuality`, past the attendance radius (or unreported) it shows
+  `ImprovingAccuracy` ([ADR-015](../docs/DECISIONS.md#adr-015)). Both are the **progress**
+  tone and both disable Mark Attendance; neither is a failure. Age is checked first.
+- **Fix accuracy is a prerequisite for the rule, never a term in it**
+  ([ADR-015](../docs/DECISIONS.md#adr-015)). `distance <= 50 m` remains the *only*
+  eligibility rule and `canMarkAttendance` still reads distance alone. What accuracy
+  decides is whether the fix is a measurement the rule can be applied to — a reading whose
+  error radius exceeds the radius being tested never reaches `Tracking`. **Never write
+  `distance + accuracy <= radius`.** Both thresholds derive from
+  `AttendanceRule.ELIGIBLE_RADIUS_METERS`; never hard-code 25 or 50.
+- Between half the radius and the radius, a fix is `DEGRADED`: **surfaced as a caution,
+  never converted into a refusal.** That earlier rule still holds for this band, and only
+  for this band.
+- **The office capture is stricter than a live fix, and must stay so.** `maxUpdateAge = 0`
+  (no cache at any age), and a fix wider than the radius — or carrying no accuracy —
+  **persists nothing** and leaves an existing office untouched. A bad live fix costs a
+  second; a bad anchor silently biases every distance the app will ever report.
+- Do **not** persist capture accuracy on `OfficeLocation`. It has no later consumer.
+- **A provider fault is an interruption, not the end of tracking.** The stream retries on
+  a capped backoff while the screen is subscribed. Never replace that with a terminal
+  `.catch { }` — that is the defect ADR-015 §4 fixed.
+- **"Set Office Location" is not coupled to the live stream.** It depends on the precise
+  grant, the OS toggle, and whether a capture is already running — nothing else. It issues
+  its own one-shot request and owns its own outcome.
 
 ## Persistence
 
@@ -79,6 +114,11 @@ app: [DECISIONS.md](../docs/DECISIONS.md) (ADR-001, 002, 003, 004, 006, 009, 011
   [ADR-013](../docs/DECISIONS.md#adr-013) — is presentation only
   ([ADR-011](../docs/DECISIONS.md#adr-011)). **No code path may consult it when
   deciding Mark Attendance enablement.** The 50 m radius is the only gate.
+- **A marked attendance is an event, not a live condition**
+  ([ADR-016](../docs/DECISIONS.md#adr-016), superseding ADR-013 §7). Once marked in a
+  session, `isAttendanceConfirmed` stays true through a stale fix and through the user
+  walking out of range; `canMarkAttendance` stays live and distance-only. Never restore
+  `markedAttendance != null && canMarkAttendance`.
 - The screen is state-driven ([ADR-013](../docs/DECISIONS.md#adr-013)): a setup face
   before an office exists, a tracking face after. `AttendanceStatusPresenter` resolves
   state to what the status card says and to why Mark Attendance is unavailable — that

@@ -9,6 +9,7 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.Granularity
 import com.google.android.gms.location.LocationAvailability
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -20,7 +21,6 @@ import io.github.rktuhinbd.presencelens.attendance.domain.location.DeviceLocatio
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationDataSource
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFailureCause
 import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFix
-import io.github.rktuhinbd.presencelens.attendance.domain.location.LocationFreshness
 import io.github.rktuhinbd.presencelens.attendance.domain.model.GeoCoordinates
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -62,19 +62,6 @@ class FusedLocationDataSource(
             return@callbackFlow
         }
 
-        val request = LocationRequest
-            .Builder(Priority.PRIORITY_HIGH_ACCURACY, UPDATE_INTERVAL_MILLIS)
-            .setMinUpdateIntervalMillis(FASTEST_UPDATE_INTERVAL_MILLIS)
-            // Report even while the user stands still: the distance readout (AND-09) should
-            // reflect accuracy improvements, and emulator coordinate changes must land at once.
-            .setMinUpdateDistanceMeters(0f)
-            // Never batch. Batched delivery would make the 50 m crossing appear late.
-            .setMaxUpdateDelayMillis(0L)
-            // Deliver the first fix as soon as one exists rather than holding out for a better
-            // one; the UI reports fix quality on its own instead (LocationQuality).
-            .setWaitForAccurateLocation(false)
-            .build()
-
         val callback = object : LocationCallback() {
             /**
              * A result with no usable location is not a failure and not news - it is the
@@ -101,7 +88,7 @@ class FusedLocationDataSource(
         }
 
         try {
-            client.requestLocationUpdates(request, callback, Looper.getMainLooper())
+            client.requestLocationUpdates(liveUpdateRequest(), callback, Looper.getMainLooper())
         } catch (securityException: SecurityException) {
             // The permission was revoked between the check above and this call.
             send(LocationFix.PermissionDenied)
@@ -118,18 +105,9 @@ class FusedLocationDataSource(
 
         val cancellationTokenSource = CancellationTokenSource()
         return try {
-            val request = CurrentLocationRequest.Builder()
-                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
-                .setDurationMillis(CURRENT_LOCATION_TIMEOUT_MILLIS)
-                // Capturing the office is a deliberate user action (AND-06), so an arbitrarily
-                // old cached position is unacceptable. The bound is the same freshness the rest
-                // of the screen trusts: a fix recent enough to decide the 50 m boundary is
-                // recent enough to define it. Anything older is re-acquired.
-                .setMaxUpdateAgeMillis(LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS)
-                .build()
-
             val location = withTimeoutOrNull(CURRENT_LOCATION_TIMEOUT_MILLIS + TIMEOUT_GRACE_MILLIS) {
-                client.getCurrentLocation(request, cancellationTokenSource.token).awaitOrNull()
+                client.getCurrentLocation(officeCaptureRequest(), cancellationTokenSource.token)
+                    .awaitOrNull()
             }?.toDeviceLocationOrNull()
 
             if (location == null) {
@@ -163,14 +141,68 @@ class FusedLocationDataSource(
         private const val FASTEST_UPDATE_INTERVAL_MILLIS = 1_000L
 
         /**
-         * Long enough for a cold fix indoors. The previous 10 s window expired often enough
-         * that capturing the office became repeated tapping - worse than one wait the user can
-         * watch happening, which the button now shows and names.
+         * Long enough for a cold high-accuracy fix indoors, now that the request refuses the
+         * cache entirely. A 20 s window was sized against a request that could be satisfied by
+         * a 10 s-old position; with [OFFICE_CAPTURE_MAX_UPDATE_AGE_MILLIS] at zero the whole
+         * window has to cover a genuine acquisition, and GNSS convergence indoors routinely
+         * takes past 20 s. Capped below half a minute so the wait stays one the user can watch
+         * rather than abandon, which the in-place capture note names while it runs.
          */
-        private const val CURRENT_LOCATION_TIMEOUT_MILLIS = 20_000L
+        internal const val CURRENT_LOCATION_TIMEOUT_MILLIS = 28_000L
+
+        /**
+         * Zero, and deliberately not `LocationFreshness.FRESH_FIX_MAX_AGE_MILLIS`.
+         *
+         * Setting the office is the one act whose result is written to disk and used to judge
+         * every later distance, so it must derive a position now rather than accept the most
+         * recent one the fused engine happens to be holding. The freshness bound answers a
+         * different question - whether a *live* fix may still decide the rule - and reusing it
+         * here let a cached fix, taken up to ten seconds earlier somewhere the user no longer
+         * is, define the anchor permanently.
+         */
+        internal const val OFFICE_CAPTURE_MAX_UPDATE_AGE_MILLIS = 0L
 
         /** Small margin so the coroutine timeout never fires before the request timeout. */
         private const val TIMEOUT_GRACE_MILLIS = 1_000L
+
+        /**
+         * The streaming request (AND-09).
+         *
+         * `setWaitForAccurateLocation(true)` is the one setting here worth arguing for. Under
+         * `PRIORITY_HIGH_ACCURACY` the platform may hold back the *first* delivery briefly
+         * while GNSS converges, instead of handing over a coarse network fix it is about to
+         * replace. That short wait is exactly what this screen wants: the app already has an
+         * honest "Finding your location…" state to spend it in, and the alternative is a
+         * first fix accurate to a few hundred metres arriving against a 50 m rule. Only the
+         * initial delivery is affected; the cadence below is unchanged.
+         */
+        internal fun liveUpdateRequest(): LocationRequest = LocationRequest
+            .Builder(Priority.PRIORITY_HIGH_ACCURACY, UPDATE_INTERVAL_MILLIS)
+            .setMinUpdateIntervalMillis(FASTEST_UPDATE_INTERVAL_MILLIS)
+            // Report even while the user stands still: the distance readout (AND-09) should
+            // reflect accuracy improvements, and emulator coordinate changes must land at once.
+            .setMinUpdateDistanceMeters(0f)
+            // Never batch. Batched delivery would make the 50 m crossing appear late.
+            .setMaxUpdateDelayMillis(0L)
+            .setWaitForAccurateLocation(true)
+            .build()
+
+        /**
+         * The one-shot office-capture request (AND-06): high accuracy, fine granularity, and
+         * no cache at all.
+         *
+         * `GRANULARITY_FINE` is stated rather than left to the permission level. The call site
+         * has already verified `ACCESS_FINE_LOCATION`, and the anchor this produces is the
+         * origin of every distance the app will ever report - so the request says which
+         * granularity it needs instead of inheriting whatever the grant currently permits.
+         */
+        internal fun officeCaptureRequest(): CurrentLocationRequest = CurrentLocationRequest
+            .Builder()
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setGranularity(Granularity.GRANULARITY_FINE)
+            .setDurationMillis(CURRENT_LOCATION_TIMEOUT_MILLIS)
+            .setMaxUpdateAgeMillis(OFFICE_CAPTURE_MAX_UPDATE_AGE_MILLIS)
+            .build()
     }
 }
 

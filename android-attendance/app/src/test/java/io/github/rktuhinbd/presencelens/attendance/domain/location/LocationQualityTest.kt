@@ -2,6 +2,8 @@ package io.github.rktuhinbd.presencelens.attendance.domain.location
 
 import io.github.rktuhinbd.presencelens.attendance.domain.attendance.AttendanceRule
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocationQualityTest {
@@ -24,8 +26,27 @@ class LocationQualityTest {
     }
 
     @Test
-    fun `an error radius wider than the rule is degraded`() {
-        assertEquals(LocationQuality.DEGRADED, LocationQuality.of(180.0))
+    fun `the unusable threshold is the attendance radius itself and is inclusive`() {
+        assertEquals(
+            AttendanceRule.ELIGIBLE_RADIUS_METERS,
+            LocationQuality.UNUSABLE_ACCURACY_THRESHOLD_METERS,
+            0.0
+        )
+        assertEquals(
+            LocationQuality.DEGRADED,
+            LocationQuality.of(AttendanceRule.ELIGIBLE_RADIUS_METERS)
+        )
+        assertEquals(
+            LocationQuality.UNUSABLE,
+            LocationQuality.of(AttendanceRule.ELIGIBLE_RADIUS_METERS + 0.1)
+        )
+    }
+
+    @Test
+    fun `an error radius wider than the whole area being tested is unusable`() {
+        // 180 m of uncertainty around a 50 m circle is not a coarse measurement of the
+        // boundary - it is not a measurement of it at all.
+        assertEquals(LocationQuality.UNUSABLE, LocationQuality.of(180.0))
     }
 
     @Test
@@ -34,5 +55,16 @@ class LocationQualityTest {
         // warning the app cannot actually justify.
         assertEquals(LocationQuality.UNKNOWN, LocationQuality.of(null))
         assertEquals(LocationQuality.UNKNOWN, LocationQuality.of(0.0))
+        assertEquals(LocationQuality.UNKNOWN, LocationQuality.of(Double.NaN))
+    }
+
+    @Test
+    fun `only precise and degraded fixes may decide the rule`() {
+        // The fail-closed half: UNKNOWN is grouped with UNUSABLE, so a reading the app knows
+        // nothing about can never authorise attendance.
+        assertTrue(LocationQuality.PRECISE.isUsableForAttendance)
+        assertTrue(LocationQuality.DEGRADED.isUsableForAttendance)
+        assertFalse(LocationQuality.UNUSABLE.isUsableForAttendance)
+        assertFalse(LocationQuality.UNKNOWN.isUsableForAttendance)
     }
 }

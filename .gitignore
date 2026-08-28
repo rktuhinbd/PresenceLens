@@ -45,6 +45,11 @@ captures/
 *.aab
 output-metadata.json
 
+# Locally built release binaries and their checksums. The APK is already covered by
+# *.apk above; this keeps the checksum beside it rather than committing a hash for a
+# file the repository deliberately does not carry.
+release-artifacts/
+
 # ============================================================
 # Signing / secrets
 # ============================================================
