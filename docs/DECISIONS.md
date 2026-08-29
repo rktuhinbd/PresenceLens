@@ -15,6 +15,13 @@ An ADR is `PROPOSED` whenever it rests on a technical claim this session could n
 verify from an authoritative source, or on a judgement the human must make. Marking
 something `ACCEPTED` without that verification would be fabricating certainty.
 
+**Flutter-scoped ADRs live in a separate file.** Decisions that apply only to Task 2
+are numbered `ADR-F01` … `ADR-F12` in
+[docs/flutter/DECISIONS.md](flutter/DECISIONS.md), recorded at gate F0 on 2026-08-29.
+The records below remain in force repository-wide; where a Flutter ADR confirms one,
+it says so ([ADR-005](#adr-005) → `ADR-F02`, [ADR-008](#adr-008) → `ADR-F06`,
+[ADR-009](#adr-009) → `ADR-F01`, [ADR-017](#adr-017) → `ADR-F01`).
+
 **G0.1 human review completed 2026-08-28.** ADR-001, ADR-003, and ADR-011 were
 accepted; ADR-012 was added as an accepted design principle. **ADR-010 was resolved
 2026-08-28**, ahead of G8, by explicit human authorisation to prepare the final signed

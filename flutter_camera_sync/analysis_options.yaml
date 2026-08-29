@@ -1,0 +1,60 @@
+# Static analysis configuration for PresenceLens Capture.
+#
+# `flutter analyze` is one of the four non-device gates for this project
+# (see docs/flutter/TEST_STRATEGY.md), so this file is treated as a
+# verification asset rather than as boilerplate.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+  # Tighten the type system beyond the defaults. These three turn the most
+  # common sources of silent runtime failure into analysis errors.
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+  errors:
+    # An unawaited Future in the capture or upload path is a real defect
+    # class here (a write that races the next state), not a style nit.
+    unawaited_futures: error
+    # Dead null-aware code usually means an invariant is misunderstood.
+    invalid_null_aware_operator: error
+
+linter:
+  rules:
+    # Correctness
+    - always_declare_return_types
+    - avoid_dynamic_calls
+    - avoid_slow_async_io
+    - cancel_subscriptions
+    - close_sinks
+    - discarded_futures
+    - only_throw_errors
+    - throw_in_finally
+    - unawaited_futures
+
+    # Immutability of state objects. Cubit states are compared by value, so a
+    # mutable field silently breaks rebuild suppression.
+    - avoid_equals_and_hash_code_on_mutable_classes
+    - prefer_final_fields
+    - prefer_final_in_for_each
+    - prefer_final_locals
+
+    # Readability and reviewer ergonomics
+    - avoid_redundant_argument_values
+    - directives_ordering
+    - prefer_single_quotes
+    - require_trailing_commas
+    - sort_child_properties_last
+    - unnecessary_parenthesis
+
+    # Documentation of the parts a reviewer reads first
+    - public_member_api_docs

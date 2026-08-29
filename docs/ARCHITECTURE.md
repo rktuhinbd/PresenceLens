@@ -26,7 +26,7 @@ real responsibility are not added.
 ```
 PresenceLens/
 ├── android-attendance/       Task 1 — Kotlin + Compose (exists, baseline only)
-├── flutter-camera-sync/      Task 2 — Flutter + BLoC (NOT YET CREATED)
+├── flutter_camera_sync/      Task 2 — Flutter + BLoC (scaffolded; feature code pending)
 ├── docs/                     governance, requirements, decisions, plan
 └── README.md                 submission documentation (NOT YET CREATED)
 ```
@@ -176,7 +176,14 @@ zoom affordances it does not implement.
 
 ## Application 2 — Flutter camera and sync engine
 
-**Not yet created.** Toolchain verified present: Flutter 3.41.2 stable, Dart 3.11.0.
+**Scaffolded; visual direction approved 2026-08-29, feature implementation next.** Toolchain verified
+2026-08-29: Flutter **3.47.2** stable, Dart **3.13.2**, JDK 21.0.12.1, Gradle 8.14, AGP 8.11.1.
+
+The detailed design now lives in its own pack and supersedes the summary below:
+[docs/flutter/ARCHITECTURE.md](flutter/ARCHITECTURE.md),
+[DATA_MODEL.md](flutter/DATA_MODEL.md),
+[CAMERA_ENGINE.md](flutter/CAMERA_ENGINE.md),
+[SYNC_ENGINE.md](flutter/SYNC_ENGINE.md).
 Plugin choices are unverified — see [RESEARCH.md](RESEARCH.md) `ER-05` to `ER-08`.
 Target platform is Android (AMB-12).
 

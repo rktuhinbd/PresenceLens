@@ -136,6 +136,26 @@ The assessment specifies five sections. All five, in order, none a placeholder.
 | 8.15 | [ ] All five per-item upload states render. | FLT-18 |
 | 8.16 | [ ] Camera-permission-denied and camera-unavailable handled gracefully. | GEN-04 |
 
+## 8B. Flutter planning gate (F0) — design approval
+
+Delivered 2026-08-29. These are prerequisites for the section 8 feature rows, not
+substitutes for them.
+
+| # | Check | Req |
+| --- | --- | --- |
+| 8B.1 | [x] 84 Flutter requirements specified with IDs, priorities and verification methods. | EXP-01, EXP-04 |
+| 8B.2 | [x] Architecture, data model, camera engine and sync engine designed and documented. | GEN-02 |
+| 8B.3 | [x] Package versions verified against primary sources **and against a real resolution**. | EXP-01 |
+| 8B.4 | [x] Test strategy written **before** implementation, risk-based. | EXP-04 |
+| 8B.5 | [x] Risk register with probability, impact, mitigation and verification per row. | EXP-04 |
+| 8B.6 | [x] Twelve Flutter ADRs recorded. | EXP-03 |
+| 8B.7 | [x] Seven static UI prototypes produced and self-contained. | EXP-04 |
+| 8B.8 | [x] **Human has approved the visual prototypes. 2026-08-29** — visual direction frozen; `ADR-F13` and `ADR-F14` accepted at the same review. | EXP-03 |
+| 8B.9 | [x] `flutter analyze` clean under strict analysis settings. | GEN-08 |
+| 8B.10 | [x] `flutter build apk --debug` passes. | FLT-01 |
+| 8B.11 | [x] Release build declares `INTERNET` (Flutter's template omits it outside debug/profile). | FLT-10 |
+| 8B.12 | [ ] Device QA executed (camera checklist + sync failure-injection matrix). | FLT-TEST-009 |
+
 ## 9. Release APK
 
 | # | Check | Req |
@@ -148,7 +168,7 @@ The assessment specifies five sections. All five, in order, none a placeholder.
 | 9.6 | [ ] Links included in the README. | SUB-03 |
 | 9.7 | [ ] Both APKs install on a device that has never had them. | SUB-03, DA-08 |
 | 9.8 | [ ] Both apps launch and run from the installed release build. | SUB-03 |
-| 9.9 | [ ] Application IDs do not collide; both install side by side. | DA-09 |
+| 9.9 | [ ] Application IDs do not collide; both install side by side. **IDs confirmed distinct 2026-08-29** — `io.github.rktuhinbd.presencelens.attendance` and `io.github.rktuhinbd.presencelens.capture` ([ADR-F10](flutter/DECISIONS.md#adr-f10-dart-package-renamed-to-presence_lens_capture)); side-by-side install still needs a device. | DA-09 |
 | 9.10 | [ ] APK filenames identify which app each is. | AMB-09, EXP-04 |
 
 ## 10. Final audit (G9)

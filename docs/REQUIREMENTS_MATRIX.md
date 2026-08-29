@@ -89,9 +89,22 @@ manual walkthrough are not that method.
 
 ## FLT — Flutter (Task 2: Advanced Camera & Sync Engine)
 
+> **These 19 rows are the assessment-level view and remain authoritative for
+> traceability back to the PDF.** They are decomposed into **84 atomic,
+> individually verifiable requirements** in
+> [docs/flutter/REQUIREMENTS_SPEC.md](flutter/REQUIREMENTS_SPEC.md), which adds
+> priorities (MANDATORY / QUALITY / BONUS), named components and per-row
+> verification methods. The mapping between the two is in
+> [docs/flutter/TRACEABILITY_MATRIX.md](flutter/TRACEABILITY_MATRIX.md).
+>
+> **Gate F0 (2026-08-29) produced design, not features.** Every row below except
+> FLT-01 is still `TODO`. The **visual direction was approved on 2026-08-29** and
+> is frozen, but no production camera or upload UI exists yet — that is gates
+> F3/F5.
+
 | ID | Requirement | PDF source | Planned implementation | Verification method | Status |
 | --- | --- | --- | --- | --- | --- |
-| FLT-01 | Task 2 must be **Flutter**. | p2, Task 2 heading | Flutter app at `flutter-camera-sync/` (not yet created). | `flutter build apk` succeeds. | TODO |
+| FLT-01 | Task 2 must be **Flutter**. | p2, Task 2 heading | Flutter app at `flutter_camera_sync/`, Dart package `presence_lens_capture` ([ADR-F10](flutter/DECISIONS.md#adr-f10-dart-package-renamed-to-presence_lens_capture)). | `flutter build apk` succeeds. **Executed 2026-08-29 — `flutter build apk --debug` PASS.** Held `PARTIAL` until it builds with the feature implementation, since a placeholder shell is not evidence for the task. | PARTIAL |
 | FLT-02 | Build a camera preview screen `CameraPreviewScreen`. | p2, Custom Camera UI | Widget named exactly `CameraPreviewScreen`. | Symbol exists with that name; widget test mounts it. | TODO |
 | FLT-03 | Zoom: **pinch-to-zoom**. | p2, Zoom sub-bullet | Scale gestures mapped onto the controller zoom range, clamped to device min/max. | Manual on physical device; unit test on the gesture-to-zoom mapping function. | TODO |
 | FLT-04 | Zoom: **a slider**. | p2, Zoom sub-bullet | Vertical zoom slider bound to the same zoom state as pinch and presets. | Manual on device; widget test drives the slider. | TODO |
@@ -157,7 +170,7 @@ session does not re-derive them.
 
 | ID | Ambiguity | Evidence | Current handling |
 | --- | --- | --- | --- |
-| AMB-01 | **Source text is lost across the p2/p3 page boundary.** Page 2 ends mid-sentence at `buttons (0.5x, 1x, ..` and page 3 resumes at `available back cameras).` Character-level inspection confirms no hidden text exists — the content is genuinely missing from the PDF, not merely unextracted. The exact zoom preset set is therefore unknown. | p2 final text run ends at x=490.3, y(top)=778.1 with the literal token `..`; p3 first run is `available back cameras).` | Build zoom presets **dynamically from the device reported range and available back cameras** (FLT-05), which satisfies any plausible completion of the sentence. No human decision required. |
+| AMB-01 | **Source text is lost across the p2/p3 page boundary.** Page 2 ends mid-sentence at `buttons (0.5x, 1x, ..` and page 3 resumes at `available back cameras).` Character-level inspection confirms no hidden text exists — the content is genuinely missing from the PDF, not merely unextracted. The exact zoom preset set is therefore unknown. | p2 final text run ends at x=490.3, y(top)=778.1 with the literal token `..`; p3 first run is `available back cameras).` | Build zoom presets **dynamically from the device reported range and available back cameras** (FLT-05), which satisfies any plausible completion of the sentence. No human decision required. **Reinforced at F0 by verified evidence:** `camera_android_camerax` 0.7.4+7 never populates `CameraDescription.lensType`, so on Android the app *cannot* truthfully label a lens `0.5x` at all. See [docs/flutter/RESEARCH.md](flutter/RESEARCH.md) `FR-04` and [ADR-F03](flutter/DECISIONS.md#adr-f03-zoom-presets-are-derived-from-device-reported-capability-never-from-fabricated-optical-labels). |
 | AMB-02 | **Attendance availability window.** The p2 reference screenshot shows "AVAILABLE 09:00 AM - 10:30 AM", but no sentence anywhere in the PDF requires a time window. | p2 screenshot only | **RESOLVED** — [ADR-011](DECISIONS.md#adr-011) `ACCEPTED` at G0.1 review. The caption is preserved as presentation detail and **must not** become an eligibility rule; the mandated 50 m radius (AND-08) stays the sole gate. |
 | AMB-03 | **Is a real map required?** The p2 screenshot shows a map tile with a coordinate pill, but no sentence requires a map; the written requirement is only to fetch and save coordinates. | p1 Setup Phase text vs p2 screenshot | **RESOLVED** — [ADR-003](DECISIONS.md#adr-003) `ACCEPTED` at G0.1 review. No Google Maps SDK; an original dependency-free location surface preserves the panel's position and information role. A Maps key cannot be committed and would break clean-clone builds (DOC-07, SUB-01). |
 | AMB-04 | **"STEP 1" implies a step 2 that is never specified.** The card is titled "STEP 1: OFFICE CONTEXT" but no STEP 2 appears in text or screenshot. | p2 screenshot | Treat the screen as two visual stages on one screen (office context, then attendance), consistent with AND-04. Label retained for visual fidelity. No behavioural inference drawn. |
@@ -171,4 +184,4 @@ session does not re-derive them.
 | AMB-12 | **Target platforms for the Flutter app are unspecified** (Android only, or iOS too). | Not stated | Android is the only platform with a mandated deliverable (SUB-03 release APK) and the only one verifiable on this machine. Scope to Android; state this in the README rather than leaving it implied. |
 | AMB-13 | **"Real-time" distance is not quantified** — no update interval is given. | p1, Feedback | **RESOLVED** — 2 s update interval (`FusedLocationDataSource.UPDATE_INTERVAL_MILLIS`), with a 10 s freshness bound on how long a delivered fix may still decide the rule ([ADR-014](DECISIONS.md#adr-014)). Both are named constants with their reasoning at the definition; surface both in the README so the reviewer sees a decision, not an accident. |
 | AMB-14 | **"High accuracy" is not quantified.** | p1, Task 1 intro | **RESOLVED** — [ADR-015](DECISIONS.md#adr-015). High-accuracy priority with an accurate first fix, plus two thresholds *derived from the 50 m rule rather than invented*: `radius / 2` (25 m) below which a fix is precise, and `radius` (50 m) past which it cannot resolve the boundary at all and is refused as a measurement. An unreported accuracy fails closed. Distance remains the only eligibility rule. |
-| AMB-15 | **"A stable connection" is not defined**, and connectivity APIs report link presence, not reachability. | p3, Resilient Sync Engine | Treat "stable" as reachability-confirmed rather than merely connected. Requires library verification — see [RESEARCH.md](RESEARCH.md) `ER-07`. |
+| AMB-15 | **"A stable connection" is not defined**, and connectivity APIs report link presence, not reachability. | p3, Resilient Sync Engine | **RESOLVED at F0 — [ADR-F05](flutter/DECISIONS.md#adr-f05-connectivity-is-advisory-the-upload-outcome-is-authoritative).** `connectivity_plus` states outright that connection type does not guarantee internet access, so reachability cannot be confirmed in advance. Connectivity is demoted to advisory (a WorkManager constraint, a reschedule trigger, UX copy); **the upload attempt and its outcome are the only authority**. `ER-07` closed. |

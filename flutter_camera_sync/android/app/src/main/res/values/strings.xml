@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher label. Kept as a resource so the display name is defined once. -->
+    <string name="app_name">PresenceLens Capture</string>
+</resources>

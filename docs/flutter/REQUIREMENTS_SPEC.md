@@ -1,0 +1,225 @@
+# Flutter Task — Requirements Specification
+
+Atomic, uniquely identified, verifiable requirements for Task 2 (Advanced Camera
+& Sync Engine).
+
+**What this document is for:** it is the checklist the implementation is built
+against and the submission is audited against. If a behaviour is not written
+here, it is not in scope; if it is here and unverified, the task is not done.
+
+Structured on the principles of ISO/IEC/IEEE 29148:2018 — each requirement is
+atomic, uniquely identified, unambiguous, verifiable and traceable. *This is an
+application of those principles, not a claim of certification or formal
+compliance.*
+
+Source authority is the assessment PDF (`../_source/assessment.pdf`). Rows
+derived from the p3 screenshots are marked `[screenshot]` and are **advisory**:
+the PDF labels them *"Suggested UI:"*, unlike the prescriptive Android p2
+reference. See root [REQUIREMENTS_MATRIX.md](../REQUIREMENTS_MATRIX.md).
+
+---
+
+## Priority vocabulary
+
+| Priority | Meaning |
+| --- | --- |
+| **MANDATORY** | Stated in, or directly entailed by, the assessment text. Non-delivery is a failed submission. |
+| **QUALITY** | Not spelled out, but required for the mandatory behaviour to be trustworthy — process-death safety, concurrency defence, lifecycle correctness. A senior reviewer will look for these. |
+| **BONUS** | Genuinely optional. Accepted only where it costs little and demonstrates judgement. Never allowed to delay or destabilise a MANDATORY row. |
+
+## Status vocabulary
+
+Identical to the root matrix. `TODO` / `PARTIAL` / `DONE` / `BLOCKED`. Nothing is
+`DONE` until its own verification method has been executed and its evidence
+recorded. **Everything below is `TODO` at this gate** — this phase produced
+requirements, architecture and design, not feature implementation.
+
+## Verification method vocabulary
+
+| Code | Meaning |
+| --- | --- |
+| `UNIT` | Pure-Dart test, no Flutter binding, no device. |
+| `DATA` | Test against the real SQLite engine via `sqflite_common_ffi` on the host. |
+| `BLOC` | Cubit/Bloc state-transition test (`bloc_test`). |
+| `WIDGET` | `flutter_test` widget test, including semantics assertions. |
+| `BUILD` | Established by a successful build or static analysis. |
+| `REVIEW` | Code or structure review against a stated, checkable criterion. |
+| `DEVICE` | Requires a physical device or emulator. Deferred to hardware QA. |
+| `DOC` | Verified by inspecting a delivered document or artefact. |
+
+---
+
+## FLT-GEN — General engineering
+
+| ID | Requirement | Source | Priority | Component | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| FLT-GEN-001 | Flutter state management shall use BLoC/Cubit. | p1 GR-1 | MANDATORY | `presentation/**/cubit` | `BLOC`, `REVIEW` | TODO |
+| FLT-GEN-002 | The app shall use a layered architecture with unidirectional data flow. | p1 GR-2 | MANDATORY | whole app | `REVIEW` (import-direction check) | TODO |
+| FLT-GEN-003 | The app shall persist data locally following best practice. | p1 GR-3 | MANDATORY | `data/local` | `DATA`, `DEVICE` | TODO |
+| FLT-GEN-004 | The app shall handle permission and hardware failures gracefully. | p1 GR-4 | MANDATORY | `CameraCubit`, `CameraAdapter` | `BLOC`, `WIDGET`, `DEVICE` | TODO |
+| FLT-GEN-005 | Task 2 shall be implemented in Flutter. | p2 heading | MANDATORY | project | `BUILD` | TODO |
+| FLT-GEN-006 | No business rule shall be evaluated inside a widget; widgets render state and emit intent only. | derived from GR-1/GR-2 | QUALITY | `presentation` | `REVIEW` | TODO |
+| FLT-GEN-007 | The `domain` layer shall import no Flutter plugin package (`camera`, `sqflite`, `workmanager`, `connectivity_plus`, `path_provider`). | derived from GR-2 | QUALITY | `domain` | `UNIT` (automated purity test, mirroring the Android `DomainLayerPurityTest`) | TODO |
+
+---
+
+## FLT-CAM — Camera
+
+| ID | Requirement | Source | Priority | Component | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| FLT-CAM-001 | A widget named exactly `CameraPreviewScreen` shall exist. | p2 Custom Camera UI | MANDATORY | `presentation/camera` | `REVIEW`, `WIDGET` | TODO |
+| FLT-CAM-002 | The screen shall render a live in-app camera preview (not a system camera intent). | p2 Custom Camera UI | MANDATORY | `CameraPreviewScreen` | `DEVICE` | TODO |
+| FLT-CAM-003 | Zoom shall be adjustable by pinch gesture. | p2 Zoom | MANDATORY | `CameraPreviewScreen`, `ZoomPolicy` | `UNIT` (gesture→zoom mapping), `DEVICE` | TODO |
+| FLT-CAM-004 | Zoom shall be adjustable by an on-screen slider. | p2 Zoom | MANDATORY | `ZoomSlider` | `WIDGET`, `DEVICE` | TODO |
+| FLT-CAM-005 | Zoom shall offer rounded preset buttons derived from the device's reported capabilities. | p2 Zoom (**text truncated — root AMB-01**) | MANDATORY | `ZoomPresetPolicy` | `UNIT`, `DEVICE` | TODO |
+| FLT-CAM-006 | Pinch, slider and presets shall read and write one shared zoom value; no two controls may disagree. | derived from 003–005 | QUALITY | `CameraCubit` | `BLOC` | TODO |
+| FLT-CAM-007 | Zoom shall be clamped to the active camera's reported min/max; no hard-coded bounds. | derived from 003–005 | QUALITY | `ZoomPolicy` | `UNIT` | TODO |
+| FLT-CAM-008 | Tapping the preview shall set the camera focus point. | p3 Manual Focus | MANDATORY | `CameraCubit`, `FocusPointMapper` | `UNIT` (coordinate normalisation), `DEVICE` | TODO |
+| FLT-CAM-009 | A visual indicator shall appear at the tapped point. | p3 Manual Focus | MANDATORY | `FocusReticle` | `WIDGET` (asserts position), `DEVICE` | TODO |
+| FLT-CAM-010 | The focus indicator shall have a defined lifecycle: appear at the tap, show acquisition, then dismiss. | derived from 009 | QUALITY | `FocusReticle` | `WIDGET` | TODO |
+| FLT-CAM-011 | The app shall enumerate cameras and present only back-facing cameras for selection. | derived from p2 "available back cameras" | MANDATORY | `CameraAdapter` | `UNIT`, `DEVICE` | TODO |
+| FLT-CAM-012 | The app shall own the controller lifecycle: dispose on `paused`/`inactive`, reinitialise on `resumed`. | RESEARCH `FR-02`; GR-4 | MANDATORY | `CameraPreviewScreen` | `WIDGET`, `DEVICE` | TODO |
+| FLT-CAM-013 | Camera switching shall be race-protected: a switch begun while another is in flight shall not leave a disposed controller attached. | derived from 012 | QUALITY | `CameraCubit` | `BLOC` | TODO |
+| FLT-CAM-014 | A capture in flight shall block a second capture (no double-shutter). | derived from GR-4 | QUALITY | `CameraCubit` | `BLOC` | TODO |
+| FLT-CAM-015 | Each capture shall be copied from the plugin's temporary `XFile` into app-owned durable storage before it is considered captured. | entailed by FLT-SYNC-003 | MANDATORY | `CaptureStorage` | `DATA`, `UNIT` | TODO |
+| FLT-CAM-016 | Preset labels shall never assert an optical multiplier the platform did not report. | RESEARCH `FR-04` | QUALITY | `ZoomPresetPolicy` | `UNIT`, `REVIEW` | TODO |
+| FLT-CAM-017 | Audio capture shall be disabled, so no microphone permission is requested. | derived from scope | QUALITY | `CameraAdapter` | `REVIEW` | TODO |
+| FLT-CAM-018 | Tap-to-focus shall also set the exposure point where the platform supports it. | — | BONUS | `CameraAdapter` | `DEVICE` | TODO |
+
+---
+
+## FLT-BAT — Batch management
+
+| ID | Requirement | Source | Priority | Component | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| FLT-BAT-001 | The user shall be able to capture multiple images into one batch. | p3 Batch Management | MANDATORY | `BatchCubit` | `BLOC`, `DATA` | TODO |
+| FLT-BAT-002 | The app shall support multiple batches. | p3 Batch Management | MANDATORY | `BatchRepository` | `DATA` | TODO |
+| FLT-BAT-003 | The app shall show a list of "Pending Uploads". | p3 Batch Management | MANDATORY | `UploadManagerScreen` | `WIDGET`, `DEVICE` | TODO |
+| FLT-BAT-004 | A batch's open/close rule shall be explicit: a batch opens on the first capture after the previous batch was enqueued, and closes when the user enqueues it. | root AMB-10 | QUALITY | `BatchPolicy` | `UNIT`, `DOC` | TODO |
+| FLT-BAT-005 | Enqueuing a batch shall transition every image in it to `pending` in one transaction. | derived from FLT-SYNC-001 | QUALITY | `BatchRepository` | `DATA` | TODO |
+| FLT-BAT-006 | Enqueuing an empty batch shall be refused. | derived from 005 | QUALITY | `BatchPolicy` | `UNIT` | TODO |
+| FLT-BAT-007 | `[screenshot]` The camera screen shall show the current batch's image count. | p3 left | QUALITY | `CameraPreviewScreen` | `WIDGET` | TODO |
+| FLT-BAT-008 | `[screenshot]` The camera screen shall show a thumbnail of the most recent capture. | p3 left | BONUS | `CameraPreviewScreen` | `WIDGET` | TODO |
+
+---
+
+## FLT-SYNC — Resilient sync engine
+
+| ID | Requirement | Source | Priority | Component | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| FLT-SYNC-001 | Queued images and their metadata shall be held in a persistent local queue that survives process death. | p3 Resilient Sync Engine | MANDATORY | `UploadQueueDao`, `CaptureStorage` | `DATA`, `DEVICE` | TODO |
+| FLT-SYNC-002 | A background worker (`workmanager`) shall drain the queue. | p3 Resilient Sync Engine (names `workmanager`) | MANDATORY | `SyncWorker` | `DEVICE` | TODO |
+| FLT-SYNC-003 | When an upload fails from low bandwidth or no internet, the image file **and** its queue row shall both remain. | p3 Resilient Sync Engine | MANDATORY | `QueueProcessor` | `UNIT`, `DATA` | TODO |
+| FLT-SYNC-004 | Upload shall retry automatically once a usable connection exists, with no user intervention. | p3 Resilient Sync Engine | MANDATORY | `SyncScheduler`, `SyncWorker` | `UNIT`, `DEVICE` | TODO |
+| FLT-SYNC-005 | The API shall be a real client seam with a deterministic mock returning Success and Failed. | p3 Note | MANDATORY | `UploadApi`, `MockUploadApi` | `UNIT` | TODO |
+| FLT-SYNC-006 | Failures shall be classified as retryable or permanent; only retryable failures re-queue. | derived from 003/004 | QUALITY | `FailureClassifier` | `UNIT` | TODO |
+| FLT-SYNC-007 | Retry timing shall use WorkManager's exponential backoff rather than an app-side timer. | RESEARCH `FR-06` | QUALITY | `SyncScheduler` | `REVIEW`, `DEVICE` | TODO |
+| FLT-SYNC-008 | Two workers shall not upload the same item concurrently. Exclusion shall be enforced in the database, not by an in-process lock. | RESEARCH `FR-08` | QUALITY | `UploadQueueDao.claim` | `DATA` | TODO |
+| FLT-SYNC-009 | An item left `uploading` by process death shall be reclaimed automatically after a defined lease period. | derived from 001/008 | QUALITY | `StaleClaimPolicy` | `UNIT`, `DATA` | TODO |
+| FLT-SYNC-010 | Marking an item or batch uploaded shall be idempotent; a repeat shall not corrupt state or double-count. | derived from 008 | QUALITY | `UploadQueueDao` | `DATA` | TODO |
+| FLT-SYNC-011 | Connectivity type shall never be treated as proof of reachability; the upload outcome is authoritative. | RESEARCH `FR-05`; root AMB-15 | QUALITY | `SyncScheduler` | `REVIEW`, `UNIT` | TODO |
+| FLT-SYNC-012 | Pending work shall be reconciled and rescheduled when the app returns to the foreground. | derived from 004 | QUALITY | `SyncCubit` | `BLOC` | TODO |
+| FLT-SYNC-013 | Items shall be processed in a deterministic order (oldest queued first) across multiple batches. | derived from FLT-BAT-002 | QUALITY | `UploadQueueDao` | `DATA` | TODO |
+| FLT-SYNC-014 | Any manual retry affordance shall be an accelerator only; automatic recovery shall never depend on it. | p3 "without user intervention" | MANDATORY | `UploadManagerScreen` | `REVIEW`, `WIDGET` | TODO |
+| FLT-SYNC-015 | The release build shall hold the `INTERNET` permission. | derived from 002 | MANDATORY | `AndroidManifest.xml` | `BUILD`, `REVIEW` | **DONE** — declared in the `main` manifest this gate; Flutter's generated project declares it only for debug/profile. |
+| FLT-SYNC-016 | A confirmed-uploaded image's file shall be deleted, and its row retained as history. | — | BONUS | `RetentionPolicy` | `UNIT`, `DATA` | TODO |
+
+---
+
+## FLT-ERR — Failure handling
+
+Every row here is an instance of the mandatory `FLT-GEN-004`.
+
+| ID | Requirement | Source | Priority | Component | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| FLT-ERR-001 | Camera permission denial shall produce an explanatory state with a retry action, not a crash or blank preview. | GR-4 | MANDATORY | `CameraCubit` | `BLOC`, `WIDGET` | TODO |
+| FLT-ERR-002 | Permanent denial shall route the user to the OS app settings. | GR-4 | MANDATORY | `CameraPreviewScreen` | `DEVICE` | TODO |
+| FLT-ERR-003 | A device reporting no usable camera shall produce a named state, not an exception. | GR-4 | MANDATORY | `CameraCubit` | `BLOC` | TODO |
+| FLT-ERR-004 | Camera initialisation failure shall be recoverable without leaving the screen. | GR-4 | MANDATORY | `CameraCubit` | `BLOC` | TODO |
+| FLT-ERR-005 | A failure to write a captured image to durable storage shall abort that capture and surface it; no queue row shall be created for a file that does not exist. | GR-4 | MANDATORY | `CaptureStorage` | `UNIT`, `DATA` | TODO |
+| FLT-ERR-006 | A database write failure shall leave the queue in its prior consistent state. | GR-4 | QUALITY | `UploadQueueDao` | `DATA` | TODO |
+| FLT-ERR-007 | An item whose local file is missing at upload time shall be resolved deterministically to a permanent failure and shall not be retried forever. | derived from 005 | QUALITY | `QueueProcessor` | `UNIT`, `DATA` | TODO |
+| FLT-ERR-008 | Upload timeouts shall classify as retryable, distinctly from a rejection by the server. | derived from FLT-SYNC-006 | QUALITY | `FailureClassifier` | `UNIT` | TODO |
+
+---
+
+## FLT-UX — Experience and accessibility
+
+| ID | Requirement | Source | Priority | Component | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| FLT-UX-001 | The camera preview shall be the dominant surface; chrome shall not obstruct it unnecessarily. | derived; p3 left | QUALITY | `CameraPreviewScreen` | `REVIEW`, `DEVICE` | TODO |
+| FLT-UX-002 | Every interactive control shall have a touch target of at least 48×48 dp. | accessibility baseline | QUALITY | `presentation` | `WIDGET` | TODO |
+| FLT-UX-003 | Every control shall carry a screen-reader label describing its action and current value. | accessibility baseline | QUALITY | `presentation` | `WIDGET` (semantics) | TODO |
+| FLT-UX-004 | All motion shall respect `MediaQuery.disableAnimations`; required feedback shall still occur, without animation. | RESEARCH `FR-11` | QUALITY | `presentation` | `WIDGET` | TODO |
+| FLT-UX-005 | No state shall be distinguishable by colour alone; each shall carry an icon or text. | accessibility baseline | QUALITY | `UploadManagerScreen` | `WIDGET`, `REVIEW` | TODO |
+| FLT-UX-006 | Pending Uploads shall have a designed empty state. | derived from FLT-BAT-003 | QUALITY | `UploadManagerScreen` | `WIDGET` | TODO |
+| FLT-UX-007 | Queued-while-offline messaging shall state that the capture is safe and will retry automatically. | derived from FLT-SYNC-004 | QUALITY | `UploadManagerScreen` | `WIDGET`, `REVIEW` | TODO |
+| FLT-UX-008 | Non-camera surfaces shall use Material 3 role-based colour and render correctly in light and dark. | RESEARCH `FR-10` | QUALITY | `theme` | `WIDGET`, `DEVICE` | TODO |
+| FLT-UX-009 | `[screenshot]` A retrying item shall show its attempt count. | p3 right ("ATTEMPT 3/5") | QUALITY | `UploadManagerScreen` | `WIDGET` | TODO |
+| FLT-UX-010 | `[screenshot]` Connectivity status shall be visible on the Upload Manager, worded as a hint rather than a guarantee. | p3 right ("STABLE LINK"); RESEARCH `FR-05` | QUALITY | `UploadManagerScreen` | `WIDGET` | TODO |
+| FLT-UX-011 | `[screenshot]` Per-item states shall be distinguishable: in queue, waiting for connection, uploading, retrying, synced. | p3 right; root RF-06 | QUALITY | `UploadManagerScreen` | `WIDGET` | TODO |
+| FLT-UX-012 | The camera screen shall offer a discoverable route to Pending Uploads. | derived from FLT-BAT-003 | QUALITY | `CameraPreviewScreen` | `WIDGET` | TODO |
+| FLT-UX-013 | Zoom shall remain operable without gestures, via the slider and presets. | accessibility; FLT-CAM-004 | QUALITY | `CameraPreviewScreen` | `WIDGET` | TODO |
+
+---
+
+## FLT-TEST — Verification requirements
+
+| ID | Requirement | Priority | Verification | Status |
+| --- | --- | --- | --- | --- |
+| FLT-TEST-001 | Batch and queue state transitions shall be covered by pure-Dart tests with no Flutter binding. | QUALITY | `UNIT` | TODO |
+| FLT-TEST-002 | Queue persistence, transactions and ordering shall be tested against the real SQLite engine on the host. | QUALITY | `DATA` | TODO |
+| FLT-TEST-003 | The claim/lease mechanism shall be tested for the concurrent case: two claimants, one winner. | QUALITY | `DATA` | TODO |
+| FLT-TEST-004 | Stale-`uploading` recovery shall be tested by simulating an expired lease. | QUALITY | `DATA` | TODO |
+| FLT-TEST-005 | Camera, batch and sync Cubits shall have state-transition tests including every failure state. | MANDATORY (evidences FLT-GEN-001) | `BLOC` | TODO |
+| FLT-TEST-006 | A retryable failure followed by a later success shall be tested end to end through the processor. | QUALITY | `UNIT`, `DATA` | TODO |
+| FLT-TEST-007 | Widget tests shall assert semantics and the rendering of every Upload Manager item state. | QUALITY | `WIDGET` | TODO |
+| FLT-TEST-008 | The domain-layer purity rule (FLT-GEN-007) shall be asserted by an automated test, not by inspection. | QUALITY | `UNIT` | TODO |
+| FLT-TEST-009 | Device verification shall cover preview, zoom limits, pinch, tap-focus, capture, camera switching, lifecycle, and the offline→online drain. | MANDATORY | `DEVICE` | TODO |
+
+---
+
+## FLT-DEL — Deliverables
+
+| ID | Requirement | Source | Priority | Verification | Status |
+| --- | --- | --- | --- | --- | --- |
+| FLT-DEL-001 | Complete functioning source in a public GitHub repository. | p3 Deliverables 1 | MANDATORY | `DOC` | TODO — repository is intentionally private until the human publishes it. |
+| FLT-DEL-002 | The README shall cover the Flutter app's structure and name its Cubits in 1–2 sentences. | p4 Guidelines 2 | MANDATORY | `DOC` | TODO |
+| FLT-DEL-003 | A release APK shall be built and linked. | p3 Deliverables 3 | MANDATORY | `BUILD`, `DOC` | TODO |
+| FLT-DEL-004 | Screenshots/GIFs of the running Flutter app shall be included. | p4 Guidelines 5 | MANDATORY | `DOC` | TODO |
+| FLT-DEL-005 | Generative AI usage and representative prompts shall be documented. | p4 Guidelines 3 | MANDATORY | `DOC` | TODO |
+
+---
+
+## Counts
+
+| Category | MANDATORY | QUALITY | BONUS | Total |
+| --- | --- | --- | --- | --- |
+| FLT-GEN | 5 | 2 | 0 | 7 |
+| FLT-CAM | 10 | 7 | 1 | 18 |
+| FLT-BAT | 3 | 4 | 1 | 8 |
+| FLT-SYNC | 7 | 8 | 1 | 16 |
+| FLT-ERR | 5 | 3 | 0 | 8 |
+| FLT-UX | 0 | 13 | 0 | 13 |
+| FLT-TEST | 2 | 7 | 0 | 9 |
+| FLT-DEL | 5 | 0 | 0 | 5 |
+| **Total** | **37** | **44** | **3** | **84** |
+
+One row is `DONE` at this gate (`FLT-SYNC-015`); the other 83 are `TODO`.
+
+The QUALITY count exceeds the MANDATORY count, which is expected and deliberate:
+the assessment states *what* must happen, and most of the engineering effort is in
+making it survive process death, concurrency and hardware failure. Every QUALITY
+row traces to a MANDATORY row it protects — see
+[TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md).
+
+## Requirements not carried forward
+
+Recorded so their absence is a decision rather than an oversight.
+
+| Item | p3 screenshot shows | Why it is not a requirement |
+| --- | --- | --- |
+| "PAUSE ALL" control | A button pausing all uploads | Nothing in the text requires it, and a user-pausable queue is in tension with `FLT-SYNC-004`'s "without user intervention". Rejected as a bonus — see [DECISIONS.md](DECISIONS.md) `ADR-F09`. |
+| Non-image queue entries (`.dat`, `.zip`, `.csv`) at gigabyte sizes | A generic file-transfer list | The text says *images*. Root `AMB-11` already resolves this: text wins, the screenshot is illustration. |
+| Flash and settings controls | Camera overlay icons | Advisory decoration; no sentence requires either. May be added only if it costs nothing after mandatory work is complete. |
+| Batch percentage progress | "42%" batch progress bar | A single mock upload has no meaningful byte-level progress. Item-level state is honest; a fabricated percentage is not. Aggregate *count* progress is delivered instead (`FLT-UX-011`). |

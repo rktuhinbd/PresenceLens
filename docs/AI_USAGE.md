@@ -773,3 +773,155 @@ exactly 200 m, which is the geodesy claim visible on a device), return-to-range 
 location services off/on recovered in place, **"Set Office Location" confirmed actionable
 while the live stream had produced nothing at all**, and a mark held its receipt while the
 user stood 200 m away with the gauge honestly reporting OUT OF RANGE.
+
+---
+
+## Entry 010 — F0 Flutter requirements, architecture and design direction
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-29 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Opus 5 |
+| **Gate** | F0 — Flutter planning, architecture and visual approval gate |
+| **Purpose** | Produce the complete engineering pack for Task 2 — requirements, architecture, data model, camera and sync engine design, UX specification, test strategy, risk register, ADRs, execution plan — plus static visual prototypes, and normalise the scaffolded Flutter project. Explicitly **no production UI**. |
+
+**Prompt summary.** Act as primary senior Flutter implementation engineer. Verify the
+repository (single repo, `main`, no nested `.git`, `android-attendance` frozen and
+read-only). Re-read the assessment as the authoritative source. Perform fresh
+primary-source research before selecting versions or APIs, and verify rather than
+trust. Produce a twelve-document engineering pack with stable requirement IDs,
+traceability, and risk-based verification design. Design a pragmatic layered
+architecture and answer ten specific architecture questions (Bloc vs Cubit, isolate
+bootstrapping, concurrency defence, process-death recovery, idempotency, retained
+platform differences). Produce static, openable visual prototypes for seven screen
+states. Run the non-device gates. Make exactly one milestone commit. **Do not
+implement `CameraPreviewScreen` or the Pending Uploads UI**; stop at a visual approval
+gate.
+
+**Method.** Research was done against primary sources and then re-checked against the
+**resolved packages in the local pub cache**, because two of the most important
+findings could not be established from documentation alone. Package versions in the
+pack are the versions in `pubspec.lock` after a real `flutter pub get`, not the
+numbers advertised on package landing pages. The visual prototypes were rendered in a
+browser and audited programmatically for overflow and touch-target size rather than
+being declared finished on the strength of the markup.
+
+**What the AI produced.** All twelve documents in `docs/flutter/`, the seven prototypes
+and their generator, the `pubspec.yaml` dependency set, the project identity
+normalisation, the strict `analysis_options.yaml`, the manifest changes, the
+placeholder app shell and its two tests, and the reconciliation edits to the five root
+documents.
+
+**Load-bearing findings the AI produced, and which the author must be able to defend:**
+
+1. **`camera_android_camerax` never populates `CameraDescription.lensType`.** Verified
+   by grepping the resolved package — the identifier does not occur in it — while
+   `camera_avfoundation` maps all four cases. Consequence: on Android, the only
+   mandated platform, the app has no truthful basis for a `0.5x` or `2x` label, so
+   zoom presets are derived from the device-reported zoom range instead
+   (`ADR-F03`). This closes the long-standing `ER-05`.
+2. **sqflite's synchronisation does not span isolates.** The WorkManager callback runs
+   in a separate isolate with its own database connection, so no Dart-level lock can
+   coordinate the two. Mutual exclusion was moved into SQLite as an atomic conditional
+   `UPDATE` whose `WHERE` clause re-tests the precondition (`ADR-F04`). This is the
+   single most consequential design decision in the task.
+3. **`INTERNET` was missing from the release manifest.** Flutter's generated project
+   declares it only for debug and profile. Left alone, the release APK — the actual
+   deliverable — would have failed every upload on a permission error while debug
+   worked perfectly (`ADR-F11`).
+4. **The active zoom preset failed contrast.** The UX spec originally called for white
+   text on a 22%-white fill; rendering it over a bright document showed it was close to
+   invisible. Both the prototype and the spec were corrected. This is the prototype
+   gate doing its job.
+
+**Human verification.** ☐ **Pending.** The four findings above are the ones to check
+first: each is independently verifiable in a few minutes — (1) `grep -ri lensType` in
+the `camera_android_camerax` package, (2) the sqflite documentation on transaction
+exclusivity plus the fact that the worker runs in its own isolate, (3) reading
+`android/app/src/{debug,profile}/AndroidManifest.xml`, (4) opening
+`docs/flutter/design/03-camera-active-batch.html`.
+
+**Not accepted from the AI.** Nothing in this gate was retained on the AI's assertion
+alone where a check was available: every dependency version was confirmed by a real
+resolution, the camera and connectivity claims were confirmed in the resolved source,
+and the prototypes were confirmed by rendering and measuring them rather than by
+reading the markup. Device behaviour was **not** claimed anywhere — the four open
+questions that need hardware are recorded as open (`FQ-01` … `FQ-04`) rather than
+answered optimistically.
+
+---
+
+## Entry 011 — F0 visual polish pass (pre-approval refinement)
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-29 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Opus 5 |
+| **Gate** | F0 — visual polish before production UI is unlocked |
+| **Purpose** | Apply six targeted refinements to the design direction after human review of the first prototype set. Explicitly **not** a redesign: preserve the visual language, palettes, camera-first hierarchy and 48 dp floor, and change only what was named. |
+
+**Prompt summary.** Two decisions approved by the human: ADR-F12 stands (no fake
+retry denominator), and the stray empty `flutter-camera-sync` directory may be
+removed after verifying it is empty. Then six refinements: relabel the batch
+action from "Upload batch" to "Finish batch" because finishing is a local durable
+act and the old label made Offline + Upload read as contradictory; remove the
+ambiguous top-left X from the camera; refine connection copy so it communicates
+that captures are safe, sync is automatic and no user retry is required, without
+overpromising OS-controlled scheduling; reduce Upload Manager density by roughly
+5–10%; specify one signature production interaction (focus → capture → batch) in
+documentation rather than animating the prototypes; and add no decoration.
+Regenerate all seven prototypes, verify overflow / touch targets / CTA fit at
+realistic counts, update only affected documents, and **do not commit**.
+
+**What the AI produced.** Edits to the prototype generator and all eight generated
+pages; new `UX_SPEC.md` §3.1 (navigation semantics), §3.2 (batch action
+language), §4.1 (status copy rules) and §7.1 (the signature motion sequence);
+`ADR-F13` and `ADR-F14`; the ADR-F12 approval note; traceability and test-strategy
+updates; removal of the empty directory.
+
+**Judgements the AI made that are worth checking:**
+
+1. **"Finish batch" was extended into a copy rule, not just a label change.** The
+   same reasoning — say what is true of the data before anything about the
+   network — was applied to the status chips, giving "Offline · captures are safe"
+   and "Connected · uploading automatically" (the latter because *retrying*
+   asserts a failure that has not happened). A table of forbidden phrasings was
+   added so the rule survives future copy edits.
+2. **Removing the X was turned into an explicit invariant.** The interesting part
+   is not the deleted control but the guarantee it forced into writing: no
+   gesture, control or navigation path may discard an open batch as a side
+   effect. That is now a table in `UX_SPEC.md` §3.1 with a row per event.
+3. **The motion spec deliberately refuses precision it cannot have.** Durations
+   are given as a starting point derived from the existing tokens, with the
+   ordering marked non-negotiable and the numbers marked as requiring device
+   tuning. It also states the two cases where the animation must *not* play — on
+   capture failure, and ahead of the database write — because a motion that
+   asserts durability must not run when durability was not achieved.
+
+**Verification performed.** All seven prototypes were re-rendered and audited in a
+browser: zero elements escaping the 390×844 frame, zero interactive targets under
+48 dp, zero horizontally clipped text, and no close control present on any screen.
+The "Finish batch (n)" label was measured at counts 1, 4, 12, 99 and 128 —
+156–171 px against a 358 px budget. After the density increase, the reassurance
+line (679–717 px) and CTA (734–786 px) were confirmed still inside the frame on
+every Upload Manager screen, and both batch headers still visible on screen 04.
+
+One apparent defect — the camera-flip control rendering as an iconless dark square
+— was investigated against the DOM and computed styles, found correct (48×48,
+radius 999 px, icon present, `currentColor` inherited), and confirmed as a
+preview-pane snapshot artefact on re-render. It was not "fixed", because there was
+nothing wrong.
+
+**Human verification.** ☐ **Pending re-review.** The four things to look at:
+the camera top bar now that the X is gone (does its absence read as confident or
+as missing?), whether "Finish batch" reads as completing capture rather than
+starting a transfer, whether the Upload Manager is easier to scan without feeling
+sparse, and whether the signature motion sequence in `UX_SPEC.md` §7.1 describes
+something that would feel purposeful rather than decorative on a real device.
+
+**Not accepted from the AI.** The prototypes were not animated to demonstrate the
+motion spec — the instruction was to document it, and an animated HTML mock would
+have implied timing precision that has not been earned before device tuning. No
+new documents were created for this pass; only affected ones were edited.

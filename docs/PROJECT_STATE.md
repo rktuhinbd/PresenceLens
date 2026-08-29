@@ -15,7 +15,16 @@ orchestration moved into `domain`, and a recorded attendance became an event rat
 live condition ([ADR-015](DECISIONS.md#adr-015), [ADR-016](DECISIONS.md#adr-016),
 [ADR-017](DECISIONS.md#adr-017)). The rows whose stated verification method is a Compose UI
 test remain `PARTIAL`; a manual walkthrough is not that method.**
-Current gate: **G3.8 — Android accuracy and architecture hardening (complete)**
+Flutter Task 2 status: **F0 COMPLETE — VISUAL DIRECTION APPROVED 2026-08-29.** Requirements, architecture,
+data model, camera and sync engine designs, UX specification, test strategy, risk register,
+twelve ADRs and seven static visual prototypes are delivered. The non-device gates are green
+(`analyze` 0 issues, `test` 2/2, `build apk --debug` PASS). The prototypes in
+[docs/flutter/design/](flutter/design/index.html) were reviewed and **approved**, so the visual
+gate is **unlocked** and the design direction is frozen (`ADR-F13`, `ADR-F14`). **No production
+Flutter UI exists yet** — `CameraPreviewScreen` and the Pending Uploads manager are still
+unimplemented. Task 2 is implementation in progress; the data and queue layer (gate F1) is next.
+
+Current gate: **F1 — Flutter data layer and queue (next).** F0 is complete and its visual gate is **APPROVED / UNLOCKED**. Android Task 1 is **FROZEN** at G3.8.
 
 ## Progress
 
@@ -25,7 +34,7 @@ Current gate: **G3.8 — Android accuracy and architecture hardening (complete)*
 | Architecture defined | Complete (both apps) |
 | ADRs | 17 recorded — 16 `ACCEPTED`, 1 `PROPOSED` (ADR-009, a technical revisit; ADR-010 was resolved and accepted at G3.6). ADR-013's two open interpretive calls were **ruled on and accepted** at G3.6; its §7 confirmation-lifetime rule is **superseded by [ADR-016](DECISIONS.md#adr-016)** and ADR-014 §6's office-capture bound by **[ADR-015](DECISIONS.md#adr-015)**, both on explicit human ruling at G3.8. |
 | **Android feature implementation** | **Complete, stabilised, polished, and hardened.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). Location is a retained value bounded by **age and accuracy** ([ADR-014](DECISIONS.md#adr-014), [ADR-015](DECISIONS.md#adr-015)), the office anchor is derived fresh and refused if too coarse, a provider fault retries on a capped backoff, `LocationKnowledge`/`LocationReading` and `SetOfficeLocationUseCase` live in `domain` ([ADR-017](DECISIONS.md#adr-017)), and a recorded mark survives a stale fix and the user walking away ([ADR-016](DECISIONS.md#adr-016)). 158 unit tests pass; emulator walkthrough executed. |
-| **Flutter application** | **0% — project not created** |
+| **Flutter application** | **Planning complete; feature code 0%.** Project scaffolded at `flutter_camera_sync/`, identity normalised, dependency set researched and resolved, and a twelve-document engineering pack plus seven static UI prototypes produced under [docs/flutter/](flutter/). The visual direction was **approved on 2026-08-29** and is now frozen. **No production camera or upload UI is implemented yet** — that is gate F3/F5 ([EXECUTION_PLAN](flutter/EXECUTION_PLAN.md)); F1 (data layer and queue) is the next work. 84 Flutter requirements specified; 1 `DONE`. |
 | README / submission artefacts | Not started |
 
 ## Verification status
@@ -50,7 +59,13 @@ Current gate: **G3.8 — Android accuracy and architecture hardening (complete)*
 | Location-services off → on recovery | **PASS** — off gives the explicit services state; on gives "Updating your location… / Waiting for a fresh GPS fix." then automatic recovery, with **no** red failure state at any point |
 | Office persistence across force-stop | **PASS** — executed 2026-08-28, AND-07 now `DONE` |
 | Android `assembleRelease` | **PASS, SIGNED — 2026-08-28.** ADR-010 resolved; `apksigner verify` passed (APK Signature Scheme v2, 2048-bit RSA); installed and smoke-tested on `emulator-5554` |
-| Flutter project | **NOT CREATED** |
+| Flutter project | **CREATED and building.** Flutter 3.47.2 / Dart 3.13.2 / JDK 21.0.12.1 / Gradle 8.14 / AGP 8.11.1 |
+| Flutter `pub get` | PASS — 92 packages resolved, 2026-08-29 |
+| Flutter `analyze` | PASS — **0 issues**, with `strict-casts`, `strict-inference`, `strict-raw-types` and `unawaited_futures: error` enabled |
+| Flutter `test` | PASS — **2/2** (app-shell smoke only; the real suite is specified, not written) |
+| Flutter `build apk --debug` | PASS — `app-debug.apk` produced, 2026-08-29 |
+| Flutter device QA | **NOT STARTED** — deferred to gate F7; no device evidence is claimed |
+| iOS | Configured (bundle identity, `NSCameraUsageDescription`, background modes). **Never built or validated — impossible from a Windows host** |
 
 ### Unit test breakdown (158)
 
