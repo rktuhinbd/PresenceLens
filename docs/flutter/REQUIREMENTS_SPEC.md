@@ -31,8 +31,16 @@ reference. See root [REQUIREMENTS_MATRIX.md](../REQUIREMENTS_MATRIX.md).
 
 Identical to the root matrix. `TODO` / `PARTIAL` / `DONE` / `BLOCKED`. Nothing is
 `DONE` until its own verification method has been executed and its evidence
-recorded. **Everything below is `TODO` at this gate** — this phase produced
-requirements, architecture and design, not feature implementation.
+recorded.
+
+**Status as of gate F1 (2026-08-29).** The durable queue, the sync engine and the
+background-worker plumbing are implemented and verified on the host: 188 tests
+pass, `flutter analyze` reports no issues, and the debug APK builds. A row is
+`DONE` only where its *own* stated method has actually been executed — so rows
+whose method includes `DEVICE` are `PARTIAL` however complete the code is, and no
+statement anywhere in this document claims physical background-worker behaviour
+from a JVM test run. The camera, batch-UI and presentation rows are untouched:
+they are gates F3–F5.
 
 ## Verification method vocabulary
 
@@ -54,12 +62,12 @@ requirements, architecture and design, not feature implementation.
 | ID | Requirement | Source | Priority | Component | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | FLT-GEN-001 | Flutter state management shall use BLoC/Cubit. | p1 GR-1 | MANDATORY | `presentation/**/cubit` | `BLOC`, `REVIEW` | TODO |
-| FLT-GEN-002 | The app shall use a layered architecture with unidirectional data flow. | p1 GR-2 | MANDATORY | whole app | `REVIEW` (import-direction check) | TODO |
-| FLT-GEN-003 | The app shall persist data locally following best practice. | p1 GR-3 | MANDATORY | `data/local` | `DATA`, `DEVICE` | TODO |
+| FLT-GEN-002 | The app shall use a layered architecture with unidirectional data flow. | p1 GR-2 | MANDATORY | whole app | `REVIEW` (import-direction check) | **DONE** — `presentation`/`domain`/`data` in place for the data and sync half; the import-direction rule is asserted by `domain_purity_test` (5 cases), not by inspection. |
+| FLT-GEN-003 | The app shall persist data locally following best practice. | p1 GR-3 | MANDATORY | `data/local` | `DATA`, `DEVICE` | PARTIAL — `DATA` **executed**: schema, transactions, reopen-and-survive, 58 DAO/schema tests pass against real SQLite. `DEVICE` kill-and-relaunch outstanding. |
 | FLT-GEN-004 | The app shall handle permission and hardware failures gracefully. | p1 GR-4 | MANDATORY | `CameraCubit`, `CameraAdapter` | `BLOC`, `WIDGET`, `DEVICE` | TODO |
-| FLT-GEN-005 | Task 2 shall be implemented in Flutter. | p2 heading | MANDATORY | project | `BUILD` | TODO |
+| FLT-GEN-005 | Task 2 shall be implemented in Flutter. | p2 heading | MANDATORY | project | `BUILD` | PARTIAL — `flutter build apk --debug` **PASS** with the durable queue and sync engine compiled in. Held short of `DONE` until the camera task itself builds (F3). |
 | FLT-GEN-006 | No business rule shall be evaluated inside a widget; widgets render state and emit intent only. | derived from GR-1/GR-2 | QUALITY | `presentation` | `REVIEW` | TODO |
-| FLT-GEN-007 | The `domain` layer shall import no Flutter plugin package (`camera`, `sqflite`, `workmanager`, `connectivity_plus`, `path_provider`). | derived from GR-2 | QUALITY | `domain` | `UNIT` (automated purity test, mirroring the Android `DomainLayerPurityTest`) | TODO |
+| FLT-GEN-007 | The `domain` layer shall import no Flutter plugin package (`camera`, `sqflite`, `workmanager`, `connectivity_plus`, `path_provider`). | derived from GR-2 | QUALITY | `domain` | `UNIT` (automated purity test, mirroring the Android `DomainLayerPurityTest`) | **DONE** — `domain_purity_test` scans `lib/domain`, rejects Flutter, all five plugins, `dart:io`, `dart:ui` and any `data`/`presentation` import, and fails if the scan finds no sources. |
 
 ---
 
@@ -81,7 +89,7 @@ requirements, architecture and design, not feature implementation.
 | FLT-CAM-012 | The app shall own the controller lifecycle: dispose on `paused`/`inactive`, reinitialise on `resumed`. | RESEARCH `FR-02`; GR-4 | MANDATORY | `CameraPreviewScreen` | `WIDGET`, `DEVICE` | TODO |
 | FLT-CAM-013 | Camera switching shall be race-protected: a switch begun while another is in flight shall not leave a disposed controller attached. | derived from 012 | QUALITY | `CameraCubit` | `BLOC` | TODO |
 | FLT-CAM-014 | A capture in flight shall block a second capture (no double-shutter). | derived from GR-4 | QUALITY | `CameraCubit` | `BLOC` | TODO |
-| FLT-CAM-015 | Each capture shall be copied from the plugin's temporary `XFile` into app-owned durable storage before it is considered captured. | entailed by FLT-SYNC-003 | MANDATORY | `CaptureStorage` | `DATA`, `UNIT` | TODO |
+| FLT-CAM-015 | Each capture shall be copied from the plugin's temporary `XFile` into app-owned durable storage before it is considered captured. | entailed by FLT-SYNC-003 | MANDATORY | `CaptureStorage` | `DATA`, `UNIT` | PARTIAL — `CaptureStore` + `RecordCapture` implemented and verified (`UNIT`/`DATA`): bytes durable before any row, compensation on a failed insert. The camera has no caller yet (F3). |
 | FLT-CAM-016 | Preset labels shall never assert an optical multiplier the platform did not report. | RESEARCH `FR-04` | QUALITY | `ZoomPresetPolicy` | `UNIT`, `REVIEW` | TODO |
 | FLT-CAM-017 | Audio capture shall be disabled, so no microphone permission is requested. | derived from scope | QUALITY | `CameraAdapter` | `REVIEW` | TODO |
 | FLT-CAM-018 | Tap-to-focus shall also set the exposure point where the platform supports it. | — | BONUS | `CameraAdapter` | `DEVICE` | TODO |
@@ -93,11 +101,11 @@ requirements, architecture and design, not feature implementation.
 | ID | Requirement | Source | Priority | Component | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | FLT-BAT-001 | The user shall be able to capture multiple images into one batch. | p3 Batch Management | MANDATORY | `BatchCubit` | `BLOC`, `DATA` | TODO |
-| FLT-BAT-002 | The app shall support multiple batches. | p3 Batch Management | MANDATORY | `BatchRepository` | `DATA` | TODO |
+| FLT-BAT-002 | The app shall support multiple batches. | p3 Batch Management | MANDATORY | `BatchRepository` | `DATA` | **DONE** — multiple independent batches persist, list and drain separately; ordering across them is deterministic. |
 | FLT-BAT-003 | The app shall show a list of "Pending Uploads". | p3 Batch Management | MANDATORY | `UploadManagerScreen` | `WIDGET`, `DEVICE` | TODO |
-| FLT-BAT-004 | A batch's open/close rule shall be explicit: a batch opens on the first capture after the previous batch was enqueued, and closes when the user enqueues it. | root AMB-10 | QUALITY | `BatchPolicy` | `UNIT`, `DOC` | TODO |
-| FLT-BAT-005 | Enqueuing a batch shall transition every image in it to `pending` in one transaction. | derived from FLT-SYNC-001 | QUALITY | `BatchRepository` | `DATA` | TODO |
-| FLT-BAT-006 | Enqueuing an empty batch shall be refused. | derived from 005 | QUALITY | `BatchPolicy` | `UNIT` | TODO |
+| FLT-BAT-004 | A batch's open/close rule shall be explicit: a batch opens on the first capture after the previous batch was enqueued, and closes when the user enqueues it. | root AMB-10 | QUALITY | `BatchPolicy` | `UNIT`, `DOC` | PARTIAL — `BatchPolicy` and the one-draft guard implemented and unit-tested; `DOC` recorded. The capture-side wiring that opens the next batch is F4. |
+| FLT-BAT-005 | Enqueuing a batch shall transition every image in it to `pending` in one transaction. | derived from FLT-SYNC-001 | QUALITY | `BatchRepository` | `DATA` | **DONE** — one transaction moves batch and every image together; a forced mid-transaction failure moves nothing. |
+| FLT-BAT-006 | Enqueuing an empty batch shall be refused. | derived from 005 | QUALITY | `BatchPolicy` | `UNIT` | **DONE** — refused by `BatchPolicy` and by the DAO; the batch stays `DRAFT`. |
 | FLT-BAT-007 | `[screenshot]` The camera screen shall show the current batch's image count. | p3 left | QUALITY | `CameraPreviewScreen` | `WIDGET` | TODO |
 | FLT-BAT-008 | `[screenshot]` The camera screen shall show a thumbnail of the most recent capture. | p3 left | BONUS | `CameraPreviewScreen` | `WIDGET` | TODO |
 
@@ -107,22 +115,22 @@ requirements, architecture and design, not feature implementation.
 
 | ID | Requirement | Source | Priority | Component | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| FLT-SYNC-001 | Queued images and their metadata shall be held in a persistent local queue that survives process death. | p3 Resilient Sync Engine | MANDATORY | `UploadQueueDao`, `CaptureStorage` | `DATA`, `DEVICE` | TODO |
-| FLT-SYNC-002 | A background worker (`workmanager`) shall drain the queue. | p3 Resilient Sync Engine (names `workmanager`) | MANDATORY | `SyncWorker` | `DEVICE` | TODO |
-| FLT-SYNC-003 | When an upload fails from low bandwidth or no internet, the image file **and** its queue row shall both remain. | p3 Resilient Sync Engine | MANDATORY | `QueueProcessor` | `UNIT`, `DATA` | TODO |
-| FLT-SYNC-004 | Upload shall retry automatically once a usable connection exists, with no user intervention. | p3 Resilient Sync Engine | MANDATORY | `SyncScheduler`, `SyncWorker` | `UNIT`, `DEVICE` | TODO |
-| FLT-SYNC-005 | The API shall be a real client seam with a deterministic mock returning Success and Failed. | p3 Note | MANDATORY | `UploadApi`, `MockUploadApi` | `UNIT` | TODO |
-| FLT-SYNC-006 | Failures shall be classified as retryable or permanent; only retryable failures re-queue. | derived from 003/004 | QUALITY | `FailureClassifier` | `UNIT` | TODO |
-| FLT-SYNC-007 | Retry timing shall use WorkManager's exponential backoff rather than an app-side timer. | RESEARCH `FR-06` | QUALITY | `SyncScheduler` | `REVIEW`, `DEVICE` | TODO |
-| FLT-SYNC-008 | Two workers shall not upload the same item concurrently. Exclusion shall be enforced in the database, not by an in-process lock. | RESEARCH `FR-08` | QUALITY | `UploadQueueDao.claim` | `DATA` | TODO |
-| FLT-SYNC-009 | An item left `uploading` by process death shall be reclaimed automatically after a defined lease period. | derived from 001/008 | QUALITY | `StaleClaimPolicy` | `UNIT`, `DATA` | TODO |
-| FLT-SYNC-010 | Marking an item or batch uploaded shall be idempotent; a repeat shall not corrupt state or double-count. | derived from 008 | QUALITY | `UploadQueueDao` | `DATA` | TODO |
-| FLT-SYNC-011 | Connectivity type shall never be treated as proof of reachability; the upload outcome is authoritative. | RESEARCH `FR-05`; root AMB-15 | QUALITY | `SyncScheduler` | `REVIEW`, `UNIT` | TODO |
+| FLT-SYNC-001 | Queued images and their metadata shall be held in a persistent local queue that survives process death. | p3 Resilient Sync Engine | MANDATORY | `UploadQueueDao`, `CaptureStorage` | `DATA`, `DEVICE` | PARTIAL — `DATA` **executed**: the queue survives a close-and-reopen with its schema version and rows intact. `DEVICE` process-death check outstanding. |
+| FLT-SYNC-002 | A background worker (`workmanager`) shall drain the queue. | p3 Resilient Sync Engine (names `workmanager`) | MANDATORY | `SyncWorker` | `DEVICE` | PARTIAL — `WorkManagerSyncScheduler`, the `vm:entry-point` dispatcher and the isolate-local composition root are implemented; the finish/continue/retry mapping is host-tested, including that a healthy bounded slice enqueues a continuation rather than reporting failure (`ADR-F19`). **Whether Android actually runs it is `DEVICE` and is not claimed.** |
+| FLT-SYNC-003 | When an upload fails from low bandwidth or no internet, the image file **and** its queue row shall both remain. | p3 Resilient Sync Engine | MANDATORY | `QueueProcessor` | `UNIT`, `DATA` | **DONE** — `UNIT` + `DATA` executed. A retryable failure returns the row to `PENDING`, increments the attempt count, and leaves both row and file untouched; seven consecutive failures discard nothing. |
+| FLT-SYNC-004 | Upload shall retry automatically once a usable connection exists, with no user intervention. | p3 Resilient Sync Engine | MANDATORY | `SyncScheduler`, `SyncWorker` | `UNIT`, `DEVICE` | PARTIAL — `UNIT` **executed**: fail-then-succeed proven end to end through the processor and across two worker invocations, with no user action in the path. `DEVICE` airplane-mode run outstanding. |
+| FLT-SYNC-005 | The API shall be a real client seam with a deterministic mock returning Success and Failed. | p3 Note | MANDATORY | `UploadApi`, `MockUploadApi` | `UNIT` | **DONE** — `UploadApi` seam with `MockUploadApi`; five deterministic scenarios, 12 tests, no randomness. |
+| FLT-SYNC-006 | Failures shall be classified as retryable or permanent; only retryable failures re-queue. | derived from 003/004 | QUALITY | `FailureClassifier` | `UNIT` | **DONE** — `FailureClassifier`, pure; every category has a verdict and unknown faults fail open toward retrying. |
+| FLT-SYNC-007 | Retry timing shall use WorkManager's exponential backoff rather than an app-side timer. | RESEARCH `FR-06` | QUALITY | `SyncScheduler` | `REVIEW`, `DEVICE` | PARTIAL — `REVIEW` **PASS**: no app-side timer exists, the worker cannot register entry work (`BackgroundSyncScheduler`), and the registered policy — exponential, 15 s configured initial delay, above Android's 10 s minimum — is asserted by test. A healthy bounded slice now asks for a *continuation* rather than a retry, so backoff is reserved for actual failure (`ADR-F19`). `DEVICE` timing outstanding. |
+| FLT-SYNC-008 | Two workers shall not upload the same item concurrently. Exclusion shall be enforced in the database, not by an in-process lock. | RESEARCH `FR-08` | QUALITY | `UploadQueueDao.claim` | `DATA` | **DONE** — atomic conditional `UPDATE`; two and then eight *independent database connections* race one row and exactly one wins, including on a stale lease. See `TEST_STRATEGY.md` §11 for what this does and does not prove. |
+| FLT-SYNC-009 | An item left `uploading` by process death shall be reclaimed automatically after a defined lease period. | derived from 001/008 | QUALITY | `StaleClaimPolicy` | `UNIT`, `DATA` | **DONE** — 10-minute lease folded into the claim query. A fresh claim cannot be stolen; an expired one is reclaimed exactly once; a contended stale row still yields one winner. |
+| FLT-SYNC-010 | Marking an item or batch uploaded shall be idempotent; a repeat shall not corrupt state or double-count. | derived from 008 | QUALITY | `UploadQueueDao` | `DATA` | **DONE** — success is guarded on `UPLOADING`; a repeat affects zero rows, does not re-complete the batch, and cannot overwrite a terminal row. |
+| FLT-SYNC-011 | Connectivity type shall never be treated as proof of reachability; the upload outcome is authoritative. | RESEARCH `FR-05`; root AMB-15 | QUALITY | `SyncScheduler` | `REVIEW`, `UNIT` | **DONE** — `QueueProcessor` takes no `ConnectivityPort`, so it structurally cannot gate on link state; connectivity appears only as a scheduling constraint and an opportunistic trigger. |
 | FLT-SYNC-012 | Pending work shall be reconciled and rescheduled when the app returns to the foreground. | derived from 004 | QUALITY | `SyncCubit` | `BLOC` | TODO |
-| FLT-SYNC-013 | Items shall be processed in a deterministic order (oldest queued first) across multiple batches. | derived from FLT-BAT-002 | QUALITY | `UploadQueueDao` | `DATA` | TODO |
+| FLT-SYNC-013 | Items shall be processed in a deterministic order (oldest queued first) across multiple batches. | derived from FLT-BAT-002 | QUALITY | `UploadQueueDao` | `DATA` | **DONE** — `ORDER BY captured_at ASC, id ASC`; asserted across two interleaved batches. |
 | FLT-SYNC-014 | Any manual retry affordance shall be an accelerator only; automatic recovery shall never depend on it. | p3 "without user intervention" | MANDATORY | `UploadManagerScreen` | `REVIEW`, `WIDGET` | TODO |
 | FLT-SYNC-015 | The release build shall hold the `INTERNET` permission. | derived from 002 | MANDATORY | `AndroidManifest.xml` | `BUILD`, `REVIEW` | **DONE** — declared in the `main` manifest this gate; Flutter's generated project declares it only for debug/profile. |
-| FLT-SYNC-016 | A confirmed-uploaded image's file shall be deleted, and its row retained as history. | — | BONUS | `RetentionPolicy` | `UNIT`, `DATA` | TODO |
+| FLT-SYNC-016 | A confirmed-uploaded image's file shall be deleted, and its row retained as history. | — | BONUS | `RetentionPolicy` | `UNIT`, `DATA` | PARTIAL — `RetentionPolicy` implemented and tested, including that a failed deletion leaves the item `UPLOADED` and causes no second upload. **Disabled by default** pending the F6 thumbnail decision (`ADR-F16`). |
 
 ---
 
@@ -136,10 +144,10 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 | FLT-ERR-002 | Permanent denial shall route the user to the OS app settings. | GR-4 | MANDATORY | `CameraPreviewScreen` | `DEVICE` | TODO |
 | FLT-ERR-003 | A device reporting no usable camera shall produce a named state, not an exception. | GR-4 | MANDATORY | `CameraCubit` | `BLOC` | TODO |
 | FLT-ERR-004 | Camera initialisation failure shall be recoverable without leaving the screen. | GR-4 | MANDATORY | `CameraCubit` | `BLOC` | TODO |
-| FLT-ERR-005 | A failure to write a captured image to durable storage shall abort that capture and surface it; no queue row shall be created for a file that does not exist. | GR-4 | MANDATORY | `CaptureStorage` | `UNIT`, `DATA` | TODO |
-| FLT-ERR-006 | A database write failure shall leave the queue in its prior consistent state. | GR-4 | QUALITY | `UploadQueueDao` | `DATA` | TODO |
-| FLT-ERR-007 | An item whose local file is missing at upload time shall be resolved deterministically to a permanent failure and shall not be retried forever. | derived from 005 | QUALITY | `QueueProcessor` | `UNIT`, `DATA` | TODO |
-| FLT-ERR-008 | Upload timeouts shall classify as retryable, distinctly from a rejection by the server. | derived from FLT-SYNC-006 | QUALITY | `FailureClassifier` | `UNIT` | TODO |
+| FLT-ERR-005 | A failure to write a captured image to durable storage shall abort that capture and surface it; no queue row shall be created for a file that does not exist. | GR-4 | MANDATORY | `CaptureStorage` | `UNIT`, `DATA` | **DONE** — a storage failure aborts the capture and writes no row; a failed insert removes the file it just wrote, and only that file. |
+| FLT-ERR-006 | A database write failure shall leave the queue in its prior consistent state. | GR-4 | QUALITY | `UploadQueueDao` | `DATA` | **DONE** — a forced failure inside the enqueue transaction leaves batch and images in their prior state. |
+| FLT-ERR-007 | An item whose local file is missing at upload time shall be resolved deterministically to a permanent failure and shall not be retried forever. | derived from 005 | QUALITY | `QueueProcessor` | `UNIT`, `DATA` | **DONE** — a missing file is classified permanent without the transport being called; unrelated batches still drain and a second pass finds nothing to do. |
+| FLT-ERR-008 | Upload timeouts shall classify as retryable, distinctly from a rejection by the server. | derived from FLT-SYNC-006 | QUALITY | `FailureClassifier` | `UNIT` | **DONE** — timeout is retryable, a rejection is permanent, and the two are asserted against each other. |
 
 ---
 
@@ -167,14 +175,14 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 
 | ID | Requirement | Priority | Verification | Status |
 | --- | --- | --- | --- | --- |
-| FLT-TEST-001 | Batch and queue state transitions shall be covered by pure-Dart tests with no Flutter binding. | QUALITY | `UNIT` | TODO |
-| FLT-TEST-002 | Queue persistence, transactions and ordering shall be tested against the real SQLite engine on the host. | QUALITY | `DATA` | TODO |
-| FLT-TEST-003 | The claim/lease mechanism shall be tested for the concurrent case: two claimants, one winner. | QUALITY | `DATA` | TODO |
-| FLT-TEST-004 | Stale-`uploading` recovery shall be tested by simulating an expired lease. | QUALITY | `DATA` | TODO |
+| FLT-TEST-001 | Batch and queue state transitions shall be covered by pure-Dart tests with no Flutter binding. | QUALITY | `UNIT` | **DONE** — 42 pure-Dart policy tests, no Flutter binding. |
+| FLT-TEST-002 | Queue persistence, transactions and ordering shall be tested against the real SQLite engine on the host. | QUALITY | `DATA` | **DONE** — 58 tests against the real SQLite engine on the host. |
+| FLT-TEST-003 | The claim/lease mechanism shall be tested for the concurrent case: two claimants, one winner. | QUALITY | `DATA` | **DONE** — four contention cases over independent connections. |
+| FLT-TEST-004 | Stale-`uploading` recovery shall be tested by simulating an expired lease. | QUALITY | `DATA` | **DONE** — fresh, expired, and contended-stale cases. |
 | FLT-TEST-005 | Camera, batch and sync Cubits shall have state-transition tests including every failure state. | MANDATORY (evidences FLT-GEN-001) | `BLOC` | TODO |
-| FLT-TEST-006 | A retryable failure followed by a later success shall be tested end to end through the processor. | QUALITY | `UNIT`, `DATA` | TODO |
+| FLT-TEST-006 | A retryable failure followed by a later success shall be tested end to end through the processor. | QUALITY | `UNIT`, `DATA` | **DONE** — proven through `QueueProcessor` and again across two worker invocations. |
 | FLT-TEST-007 | Widget tests shall assert semantics and the rendering of every Upload Manager item state. | QUALITY | `WIDGET` | TODO |
-| FLT-TEST-008 | The domain-layer purity rule (FLT-GEN-007) shall be asserted by an automated test, not by inspection. | QUALITY | `UNIT` | TODO |
+| FLT-TEST-008 | The domain-layer purity rule (FLT-GEN-007) shall be asserted by an automated test, not by inspection. | QUALITY | `UNIT` | **DONE** — `domain_purity_test`, including the empty-scan guard. |
 | FLT-TEST-009 | Device verification shall cover preview, zoom limits, pinch, tap-focus, capture, camera switching, lifecycle, and the offline→online drain. | MANDATORY | `DEVICE` | TODO |
 
 ---
@@ -193,6 +201,8 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 
 ## Counts
 
+### Counts by priority
+
 | Category | MANDATORY | QUALITY | BONUS | Total |
 | --- | --- | --- | --- | --- |
 | FLT-GEN | 5 | 2 | 0 | 7 |
@@ -205,7 +215,24 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 | FLT-DEL | 5 | 0 | 0 | 5 |
 | **Total** | **37** | **44** | **3** | **84** |
 
-One row is `DONE` at this gate (`FLT-SYNC-015`); the other 83 are `TODO`.
+### Counts by status, after F1
+
+| Status | Count | Notes |
+| --- | --- | --- |
+| `DONE` | 24 | Own verification method executed and evidenced |
+| `PARTIAL` | 9 | Implemented and host-verified; a `DEVICE` or later-gate step remains |
+| `TODO` | 51 | Camera (F3), batch UI (F4), Upload Manager (F5), bonuses (F6), device QA (F7), submission (F8) |
+| **Total** | **84** | |
+
+The `DONE` rows are the queue's correctness core: `FLT-GEN-002`, `-007`;
+`FLT-BAT-002`, `-005`, `-006`; `FLT-SYNC-003`, `-005`, `-006`, `-008`, `-009`,
+`-010`, `-011`, `-013`, `-015`; `FLT-ERR-005`, `-006`, `-007`, `-008`;
+`FLT-TEST-001`, `-002`, `-003`, `-004`, `-006`, `-008`. Twenty-three of them moved
+at F1; `FLT-SYNC-015` was already `DONE` at F0.
+
+The nine `PARTIAL` rows are `FLT-GEN-003`, `FLT-GEN-005`, `FLT-CAM-015`,
+`FLT-BAT-004`, `FLT-SYNC-001`, `-002`, `-004`, `-007` and `-016`. Six of those are
+waiting on hardware alone.
 
 The QUALITY count exceeds the MANDATORY count, which is expected and deliberate:
 the assessment states *what* must happen, and most of the engineering effort is in

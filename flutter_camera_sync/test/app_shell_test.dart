@@ -21,7 +21,9 @@ void main() {
   ) async {
     await tester.pumpWidget(const PresenceLensCaptureApp());
 
-    final MaterialApp app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    final MaterialApp app = tester.widget<MaterialApp>(
+      find.byType(MaterialApp),
+    );
 
     expect(app.theme, isNotNull);
     expect(app.darkTheme, isNotNull);

@@ -110,6 +110,28 @@ finalised at G8.
    **Why it mattered:** produced ADR-004 (single module) and ADR-009 (no DI framework)
    as reasoned restraint rather than defaults.
 
+5. *Naming the wrong answer, not just the right one* — "Concurrency correctness must
+   NOT depend on Dart bools, in-memory mutexes, process-local locks, singletons,
+   Bloc/Cubit, widget state, or 'only scheduling once'. Those mechanisms do not
+   protect multiple DB connections/isolates."
+   **Why it mattered:** every one of those would pass a naive test and fail in
+   production, which is the worst possible failure mode. Forbidding them by name
+   forced exclusion into SQLite (`ADR-F04`, `ADR-F17`) instead of into Dart.
+
+6. *Evidence standard for the riskiest test* — "Write the contention test early, with
+   `sqflite_common_ffi` and separate database connections. A fake repository is NOT
+   evidence. A test around an in-memory mutex is NOT evidence."
+   **Why it mattered:** it is the difference between a test that proves the claim is
+   atomic and one that passes regardless. It also surfaced that sqflite hands back the
+   *same* connection for one path within an isolate, so the obvious version of the
+   test would have proved nothing.
+
+7. *Honesty boundary on unverifiable claims* — "Do NOT claim emulator/device QA. Do not
+   claim physical/device background-worker behaviour from JVM tests."
+   **Why it mattered:** it is why nine requirement rows are `PARTIAL` rather than
+   `DONE` despite the code being complete, and why the worker tests say they assert a
+   decision rather than an outcome.
+
 ---
 
 ## Logging rules
@@ -925,3 +947,297 @@ something that would feel purposeful rather than decorative on a real device.
 motion spec — the instruction was to document it, and an animated HTML mock would
 have implied timing precision that has not been earned before device tuning. No
 new documents were created for this pass; only affected ones were edited.
+
+---
+
+## Entry 012 — F1/F2 Flutter durable capture and sync foundation
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-29 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Opus 5 |
+| **Gate** | F1 + F2 — Flutter data layer, durable queue and resilient sync engine |
+| **Purpose** | Implement the highest-risk, non-visual half of Task 2: durable capture metadata, a persistent multi-batch queue, transactional state changes, concurrency-safe claiming across isolates, stale-claim recovery, a deterministic mock upload API, the queue processor, and WorkManager scheduling and bootstrap — with risk-based automated verification. Explicitly **no production UI**. |
+
+**Prompt summary.** Act as primary senior Flutter implementation engineer for the
+data + domain + sync + background half of Task 2. Verify the repository first
+(single repo, `main`, expected HEAD, clean tree, no nested `.git`,
+`android-attendance` frozen) and stop rather than repair if anything differs. Read
+the twelve-document engineering pack as a binding contract; where implementation
+evidence contradicts it, resolve the contradiction deliberately and update the ADR
+rather than quietly diverging or rewriting docs to match whatever was typed.
+
+Build in a stated order — domain model, schema, repository, finish-batch
+transaction, **atomic claim, then the real SQLite contention test early**, stale
+lease, filesystem store, file/DB compensation, mock uploader, failure taxonomy,
+processor, scheduler abstraction, worker entry point, connectivity trigger, batch
+completion, architecture tests, documentation, verification, one commit.
+
+Specific constraints carried by the prompt, each of which shaped code:
+
+- Concurrency correctness must not depend on Dart bools, mutexes, singletons,
+  Bloc, widget state or "only scheduling once" — none of those span isolates.
+- The contention test must use `sqflite_common_ffi` with **separate connections**;
+  a fake repository or a test around an in-memory mutex is explicitly not evidence.
+- No `RETRYABLE_FAILURE` resting state; retry is derived from
+  `status == PENDING && attemptCount > 0`.
+- No invented attempt ceiling, and no fake "attempt 3/5".
+- Connectivity is advisory; `if (connected) upload()` is forbidden as a
+  correctness rule.
+- Success must be persisted **before** any local-file cleanup, and a failed
+  cleanup must never re-queue an upload.
+- Do not implement `CameraPreviewScreen`, the Upload Manager, or any approved
+  visual element. Stop after one commit and await review.
+
+**What the AI produced.** 20 Dart source files under `lib/domain`, `lib/data` and
+`lib/sync_worker_entrypoint.dart`; 16 test files totalling **188 tests**; four new
+ADRs; and the reconciliation edits to eleven living documents.
+
+**Load-bearing findings and decisions the author must be able to defend:**
+
+1. **A real defect, found by a test rather than by review (`ADR-F18`).** The first
+   `QueueProcessor` re-claimed the image it had just failed. A retryable failure
+   returns a row to `PENDING`, which makes it immediately claimable again, so a
+   single offline image produced **25 upload attempts in a fraction of a second** —
+   an app-side retry loop by accident, competing with the WorkManager backoff the
+   design had explicitly delegated to. The risk register had named this risk
+   (`RS-04`) but had imagined it only as a `Timer`. The fix excludes ids already
+   tried in the current pass from the claim query. *This is the single most
+   valuable thing the test suite did in this gate, and it is worth being able to
+   describe.*
+
+2. **The designed claim SQL could not be implemented as written (`ADR-F17`).** The
+   design used one statement with an inline subquery; that form cannot tell the
+   caller **which** row it claimed. `UPDATE … RETURNING` would, but it needs SQLite
+   3.35, and `sqflite` uses the platform's own SQLite on Android. Resolved as a
+   candidate read followed by a conditional `UPDATE … WHERE id = ? AND
+   (precondition)`. The atomicity is unchanged because it was never in the
+   subquery — it is in the `WHERE` clause of the write. `DATA_MODEL.md` §4 was
+   corrected to show the statement that actually runs.
+
+3. **A contention test is worthless unless the connections are genuinely
+   separate.** sqflite returns the *same* connection for the same path within one
+   isolate (`singleInstance: true`), so the obvious version of this test would have
+   been two calls on one connection, proving nothing. `AppDatabase.open` gained a
+   `singleInstance` flag the app never changes, used only by the suite. The test
+   then races two — and eight — real connections and asserts one winner, including
+   on a stale lease. **What it does not prove** (OS-level parallelism; the ffi
+   backend serialises through one isolate) is written down in `TEST_STRATEGY.md`
+   §11 rather than glossed.
+
+4. **A bonus row collided with approved design (`ADR-F16`).** Post-upload file
+   deletion (`FLT-SYNC-016`) conflicts with the approved Upload Manager, which
+   renders a thumbnail on every row including synced ones. The mechanism and its
+   ordering are implemented and tested; the flag defaults to **off**, and the
+   conflict is recorded as an F6 decision instead of being resolved by silently
+   degrading a frozen screen.
+
+**Human verification.** ☐ **Pending.** Four checks, in descending order of value:
+
+1. Read `UploadQueueDao.claimNext` and `upload_queue_claim_test.dart` together, and
+   satisfy yourself that no Dart-level construct is doing the excluding. Delete the
+   `AND (status = ? OR (status = ? AND claimed_at < ?))` clause from the `UPDATE`
+   and confirm the contention tests fail.
+2. Delete the `skip: deferred` argument in `QueueProcessor.drain` and confirm "a
+   failed pass claims each item once, then stops" fails with 25 attempts. That is
+   finding 1 reproduced in ten seconds.
+3. Confirm `QueueProcessor` has no `ConnectivityPort` in its constructor — that is
+   the structural reason `if (wifi) upload()` cannot be written here.
+4. Run `flutter test` and confirm 188/188, then `flutter analyze` for 0 issues.
+
+**Not accepted from the AI.** No device behaviour is claimed anywhere: the worker
+tests assert the *decision* the worker makes, and both the code comments and the
+matrices say plainly that whether Android runs it is a device check. Requirement
+rows whose stated verification method includes `DEVICE` were held at `PARTIAL`
+however complete the code is — nine rows, six of them waiting on hardware alone.
+The `workmanager` and `connectivity_plus` API surfaces were re-checked against the
+resolved packages in the local pub cache rather than recalled, and the host SQLite
+version (3.53.4) was confirmed by running a probe before any `DATA` test was
+written. The approved UI was neither implemented nor redesigned.
+
+---
+
+## Entry 012b — F1 post-audit hardening (same commit, amended)
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-29 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Opus 5 |
+| **Gate** | F1/F2 — corrections required by the architecture audit |
+| **Purpose** | Apply six findings from the Principal Mobile Architect / QA Gatekeeper audit of F1. The architecture was **accepted**; these are corrections within it, not a redesign. Amended into the existing F1 commit rather than added as a second milestone. |
+
+**Prompt summary.** The audit accepted the F1 architecture and instructed: do not
+redesign F1, do not implement camera or UI, do not push, do not create a second
+functional commit — fix and amend. Six findings, each with its own constraint:
+
+1. **Healthy continuation vs retry failure.** The 25-item bound made a bounded
+   slice return the same thing as a failed one, so a large healthy queue attracted
+   escalating backoff. Required: explicit outcome semantics distinguishing at least
+   `DRAINED/IDLE`, `RETRYABLE_FAILURE` and `CONTINUATION_REQUIRED`; keep the worker
+   bounded; consider a time budget as well as an item budget; use a
+   WorkManager-supported continuation mechanism; **no custom timer or polling
+   loop**; no duplicate simultaneous drains; the atomic claim stays the correctness
+   boundary; and seven named properties had to be proven by test.
+2. Correct the backoff documentation — Android's minimum is 10 s, not 15 s.
+3. Make scheduler failure observable without making it unsafe, and without
+   building a logging framework.
+4. Decide explicitly whether "one `DRAFT` batch" is a database invariant or an
+   application policy, preferring the latter unless multiple independent creators
+   exist.
+5. Add a migration scaffold so a future version bump cannot silently record a new
+   version without running a migration. Do not invent a fake v1→v2 migration.
+6. Document Android vs iOS retry semantics honestly; claim nothing about iOS.
+
+Plus: verify stage numbering across the documents rather than assuming the report
+was wrong, and do not damage any of the twenty-one F1 decisions listed as accepted.
+
+**Method.** Every platform claim in this pass was read from an artifact rather
+than recalled, because the finding that triggered it (#2) was itself an
+inherited documentation error:
+
+* `MIN_BACKOFF_MILLIS`, `MAX_BACKOFF_MILLIS` and `DEFAULT_BACKOFF_DELAY_MILLIS`
+  were read with `javap` from the compiled `androidx.work.WorkRequest` inside
+  `work-runtime-2.11.2.aar`, after confirming with `gradlew app:dependencies`
+  that 2.11.2 is what this app actually resolves.
+* The continuation mechanism was chosen only after reading
+  `workmanager_android`'s `WorkManagerUtils.kt`.
+
+**Load-bearing findings the author must be able to defend:**
+
+1. **`ExistingWorkPolicy.keep` would have been silently wrong for a
+   continuation.** A worker asking for its own successor *is* itself uncompleted
+   work under that unique name, so `KEEP` discards the request — the backlog
+   would sit until something unrelated woke it, and nothing would look broken.
+   This is the kind of defect that survives review and never fires in a test.
+2. **The plugin's Dart documentation does not match its native behaviour.** Dart's
+   `append` maps to Android's `APPEND_OR_REPLACE`, not `APPEND`; and the doc for
+   `update` describes periodic-work semantics that one-off work does not have.
+   `APPEND_OR_REPLACE` happens to be the variant we want — it starts a fresh chain
+   rather than inheriting a cancelled or failed one — but that was verified, not
+   assumed (`FR-06a`).
+3. **"Progress" is the right criterion for continuing, and it is what bounds the
+   chain.** A continuation requires at least one item to have left the work set.
+   The obvious alternative — "outstanding > 0" — would allow an endless chain of
+   zero-work continuations whenever another processor held every claimable item.
+   That case now returns retry, which is honest: there was nothing this pass could
+   do (`ADR-F19`).
+4. **A time budget was added because an item count is a poor proxy for the limit
+   Android actually enforces.** Twenty-five slow uploads can exceed the ~10-minute
+   worker window, and a worker killed mid-item reports *nothing* — the pass is cut
+   off rather than finishing and asking for a continuation, which is the exact
+   failure the fix exists to prevent.
+5. **The one-`DRAFT` rule was being described as something it was not.** It is a
+   read-then-insert with no unique index, safe only because the foreground is the
+   sole creator of batches. Declared an application policy, with a test that
+   asserts the *limit* of the guarantee so nobody later reads it as cross-isolate
+   protection (`ADR-F20`).
+
+**Human verification.** ☐ **Pending.** Three checks, in descending order of value:
+
+1. In `sync_worker_entrypoint.dart`, change the `continuationRequired` branch to
+   `return false`. Four tests in "healthy backlog continues instead of failing"
+   should fail. That is finding #1 reproduced in under a minute.
+2. In `WorkManagerSyncScheduler.scheduleContinuation`, change
+   `ExistingWorkPolicy.append` to `.keep`. The continuation test fails — and note
+   that on a device this change would produce no error at all, just a queue that
+   stops draining.
+3. Confirm the backoff figure independently: `javap -constants -p` on
+   `androidx/work/WorkRequest.class` from `work-runtime-2.11.2.aar`.
+
+**Not accepted from the AI.** No iOS behaviour was implemented or claimed; the
+platform difference is recorded as a limitation (`RS-10`) rather than papered
+over. Startup/resume reconciliation was **not** invented to close finding #3 — the
+scheduling outcome is now observable, and the fact that nothing yet acts on it is
+recorded as residual risk (`RS-11`) belonging to `FLT-SYNC-012` at gate F5. The
+stage numbering was checked against `EXECUTION_PLAN.md` rather than assumed: the
+Camera Engine milestone is **F3**, and the report that said so was right.
+
+---
+
+## Entry 012c — F1 final scheduling-race closure (same commit, amended again)
+
+| Field | Value |
+| --- | --- |
+| **Date** | 2026-08-30 |
+| **Tool** | Claude Code (CLI) |
+| **Model** | Claude Opus 5 |
+| **Gate** | F1/F2 — final acceptance correction |
+| **Purpose** | Close a scheduling-liveness race identified by the second architecture audit: `ExistingWorkPolicy.keep` discards a drain request made while a worker is still running, so a batch finished at the wrong moment stays durably `PENDING` with nothing scheduled to collect it. |
+
+**Prompt summary.** The audit supplied the race as a numbered sequence and the
+required invariant — *commit pending work → request drain → either the current
+chain is guaranteed to revisit it, or a successor is durably enqueued; no
+check-then-finish window may leave newly `PENDING` work with neither*. It
+suggested using the unique chain consistently but stated the outcome mattered
+more than the mechanism, and required the policy mapping to be verified **from
+the resolved native source rather than from pub.dev prose or memory**.
+
+It also required an audit of every scheduling call site — specifically whether a
+capture schedules work, given that a `DRAFT` image is not uploadable — ten named
+properties proven by test with the exact `ExistingWorkPolicy` asserted, and a
+truthful audit of whether chained continuations can hammer the transport, with
+explicit permission to record a bounded risk rather than engineer it away. Twenty
+accepted F1 decisions were listed as not to be disturbed.
+
+**Method.** The native mapping was read verbatim from
+`workmanager_android-0.10.8/.../WorkManagerUtils.kt` in the local pub cache,
+along with the `enqueueUniqueWork` call that applies it. `APPEND → APPEND_OR_REPLACE`,
+`KEEP → KEEP`.
+
+**Load-bearing findings the author must be able to defend:**
+
+1. **The race is real and was confirmed, not assumed.** `KEEP` discards while
+   *uncompleted* work exists, and a RUNNING worker is uncompleted. Nothing is
+   lost, every component reports success, and the queue stops draining until an
+   unrelated trigger appears. It is invisible by construction, which is why it
+   survived two passes of review.
+
+2. **The fix is one word, and its cost is the opposite failure.** `append`
+   everywhere means a request can never vanish — but redundant requests now
+   accumulate as extra chain nodes instead of collapsing. That is the cheaper
+   mistake: a redundant node finds an empty queue and returns `idle` in
+   milliseconds; a discarded request loses the feature. Stated as a tradeoff in
+   `ADR-F21` rather than presented as free.
+
+3. **The audit's call-site question exposed a genuine gap, though not the one it
+   expected.** `RecordCapture` never scheduled anything — so there was nothing to
+   remove. But **nothing scheduled on finish-batch either**: the DAO's
+   `enqueueBatch` had no caller that requested a drain, so the app's main
+   scheduling trigger did not exist yet. Added as a `FinishBatch` use case,
+   ordered transaction-then-schedule, which is also what makes the audit's
+   properties F, G and J testable at all.
+
+4. **Proving "the atomic claim is still the final protection" exposed a second
+   defect.** Two processors draining one file concurrently produced `SQLITE_BUSY`
+   escaping out of `QueueProcessor.drain` — which documents that it does not throw
+   for an ordinary failure, and contention between the app's own two isolates is
+   ordinary by design. It now ends the pass with `DrainStop.databaseBusy`. This
+   matters most for the *foreground* drain in F5, where no WorkManager exists to
+   catch anything.
+
+5. **The retry-hammering audit was answered honestly rather than optimistically.**
+   A flaky item *is* re-attempted once per chained slice, because the `skip` set
+   spans one pass. It is bounded — each attempt is separated by real upload work,
+   and backoff takes over the moment healthy work runs out — so it is recorded as
+   `RS-12` with the bound asserted by test, not suppressed with a second scheduler.
+
+**Human verification.** ☐ **Pending.** Three checks:
+
+1. Change `WorkManagerSyncScheduler.conflictPolicy` back to
+   `ExistingWorkPolicy.keep`. Three tests fail immediately — and note that on a
+   device this change produces no error at all, only a queue that occasionally
+   stops draining.
+2. Read `WorkManagerUtils.toAndroidWorkPolicy` in the pub cache and confirm
+   `APPEND → APPEND_OR_REPLACE` for yourself; the Dart doc comment says otherwise.
+3. `grep -rn "scheduleDrain" lib` — two call sites, `FinishBatch` and
+   `ConnectivityDrainTrigger`, and neither is on the capture path.
+
+**Not accepted from the AI.** Native WorkManager chain ordering is **not** claimed
+to be verified — the tests assert the policy handed to the plugin, and whether
+Android honours it remains a device check. The retry-hammering behaviour was not
+engineered away to look tidier. The twenty frozen F1 decisions were left alone;
+the one deviation from the "do not change" list — adding `DrainStop.databaseBusy`
+— is additive, is reported rather than buried, and was forced by a defect the
+audit's own required test uncovered.

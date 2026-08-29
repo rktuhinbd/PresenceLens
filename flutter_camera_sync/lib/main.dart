@@ -9,13 +9,38 @@
 /// prototypes in `docs/flutter/design/`; building it is gates F3 and F5 of
 /// `docs/flutter/EXECUTION_PLAN.md`. What ships here is the minimum shell needed
 /// to keep `flutter analyze`, `flutter test` and `flutter build apk` meaningful
-/// gates until then.
+/// gates until then — plus the background-sync bootstrap, which has to exist
+/// before the UI does because the worker isolate does not depend on it.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:workmanager/workmanager.dart';
 
-void main() {
+import 'sync_worker_entrypoint.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await _bootstrapBackgroundSync();
   runApp(const PresenceLensCaptureApp());
+}
+
+/// Registers the WorkManager callback dispatcher for this process.
+///
+/// Registration only — nothing is scheduled here. A drain is requested when
+/// there is something to drain (on finishing a batch, on resume, on regaining a
+/// link); scheduling one unconditionally at launch would ask the OS to wake a
+/// worker for an empty queue.
+///
+/// A failure is swallowed on purpose. If the plugin cannot initialise, the app
+/// must still start and must still be able to capture: images are made durable
+/// by the filesystem and the database, not by the scheduler, and a foreground
+/// drain still works.
+Future<void> _bootstrapBackgroundSync() async {
+  try {
+    await Workmanager().initialize(syncCallbackDispatcher);
+  } catch (_) {
+    // Left to the next launch. Captures already queued are unaffected.
+  }
 }
 
 /// Root widget. Owns the theme and the (currently placeholder) home route.
@@ -35,9 +60,7 @@ class PresenceLensCaptureApp extends StatelessWidget {
     return MaterialApp(
       title: 'PresenceLens Capture',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
-      ),
+      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: seedColor)),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: seedColor,

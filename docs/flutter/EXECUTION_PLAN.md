@@ -9,6 +9,28 @@ is **frozen**. Flutter work is `F0`–`F8`.
 
 ---
 
+## Stage naming — authoritative
+
+This document is the authority for gate labels, and the labels below are the ones
+every other document and report must use. Recorded explicitly because F1 and F2
+were delivered in a single pass, which makes off-by-one confusion easy.
+
+| Gate | Milestone | State |
+| --- | --- | --- |
+| `F0` | Requirements, architecture, design, visual approval | ✅ complete |
+| `F1` | Data layer and durable queue | ✅ complete |
+| `F2` | Sync engine, worker, scheduler | ✅ complete — shipped with F1 |
+| **`F3`** | **Camera engine — the next milestone** | not started |
+| `F4` | Batch management | not started |
+| `F5` | Upload Manager UI | not started |
+| `F6` | Accepted bonuses | not started |
+| `F7` | Device QA | blocked on hardware |
+| `F8` | Submission | not started |
+
+**The Camera Engine milestone is `F3`.** Any instruction referring to it as "F2"
+is using the pre-F0 numbering, which this plan superseded; F2 is the sync engine
+and it is finished.
+
 ## Sequencing principle
 
 **Build the queue before the camera.**
@@ -24,6 +46,10 @@ the day it starts working, rather than a stub that gets retrofitted.
 
 The visual approval gate that previously fenced `F3` and `F5` was **passed on
 2026-08-29**, so no gate now blocks any of the sequence below.
+
+**`F1` and `F2` are complete as of 2026-08-29.** The invisible half is built and
+evidenced; what remains is the visible half, its device verification, and the
+submission package.
 
 ---
 
@@ -57,39 +83,90 @@ recorded as a new ADR.
 
 ---
 
-## F1 — Data layer and queue
+## F1 — Data layer and queue ✅ *complete, 2026-08-29*
 
 The highest-risk work, done first.
 
-1. `AppDatabase` — schema v1, indices, migration hook.
-2. Entities: `CaptureBatch`, `QueuedImage`, `UploadOutcome`.
+1. `AppDatabase` — schema v1, indices, migration hook. ✅
+2. Entities: `CaptureBatch`, `QueuedImage`, `UploadOutcome`, plus the three
+   persisted enums. ✅
 3. `UploadQueueDao` — insert, enqueue transaction, **the atomic claim**, success,
-   retryable failure, permanent failure, queue watch stream.
-4. `FileSystemCaptureStore` — durable persist, delete, missing-file detection.
-5. Pure policies: `UploadStateMachine`, `StaleClaimPolicy`, `BatchPolicy`.
-6. `DATA` suite against real SQLite, including **the contended-claim test**.
+   retryable failure, permanent failure, queue watch stream. ✅
+4. `FileSystemCaptureStore` — durable persist, delete, missing-file detection. ✅
+5. Pure policies: `UploadStateMachine`, `StaleClaimPolicy`, `BatchPolicy`, plus
+   `FailureClassifier` and `RetentionPolicy` brought forward from F2. ✅
+6. `DATA` suite against real SQLite, including **the contended-claim test**. ✅
 
-**Exit:** invariants I1–I10 each have a failing-if-broken test; `flutter test`
-green; analyze clean.
+**Exit criteria — all met**
+
+| Criterion | Result |
+| --- | --- |
+| Invariants I1–I10 each have a failing-if-broken test | **PASS** — mapping tabulated in `TEST_STRATEGY.md` §11 |
+| `flutter test` | **PASS** — 188/188 |
+| `flutter analyze` | **PASS** — no issues |
+| `dart format` stable | **PASS** |
+| `flutter build apk --debug` | **PASS** |
 
 **Why first:** `RD-01`, `RD-02`, `RD-03` are the register's top risks and the ones
-whose design would be most expensive to change later.
+whose design would be most expensive to change later. All three are now mitigated
+*and evidenced*; the register was updated with what each test actually proves.
 
 ---
 
-## F2 — Sync engine
+## F2 — Sync engine ✅ *complete, 2026-08-29 — delivered together with F1*
 
-1. `UploadApi` + `MockUploadApi` with all five scenarios.
-2. `FailureClassifier` (pure).
-3. `QueueProcessor` — the isolate-agnostic drain loop.
-4. `WorkManagerSyncScheduler` — constraints, `ExistingWorkPolicy.keep`, backoff.
-5. `sync_worker_entrypoint.dart` with `@pragma('vm:entry-point')` and its own
-   composition root; the shared `buildDataLayer()` factory.
-6. `ConnectivityPlusAdapter` — advisory only.
+Delivered in the same pass as F1 rather than as a separate gate. The reason is
+`sync_worker_entrypoint.dart`: verifying that the worker isolate can rebuild its
+own data layer means the whole graph has to exist, so splitting the two would have
+produced an F1 whose most important claim could not be tested until F2 anyway.
 
-**Exit:** retryable-failure-then-success proven end to end through the processor
-in tests; a simulated process death recovers via lease expiry; no Dart-level lock
-anywhere in the path.
+1. `UploadApi` + `MockUploadApi` with all five scenarios. ✅
+2. `FailureClassifier` (pure). ✅
+3. `QueueProcessor` — the isolate-agnostic drain loop. ✅
+4. `WorkManagerSyncScheduler` — constraints, one serial unique chain with
+   `ExistingWorkPolicy.append`, backoff. ✅
+5. `sync_worker_entrypoint.dart` with the `vm:entry-point` dispatcher and its own
+   composition root; the shared `buildDataLayer()` factory. ✅
+6. `ConnectivityPlusAdapter` — advisory only — plus `ConnectivityDrainTrigger`
+   for the opportunistic reschedule. ✅
+
+**Exit criteria — all met**
+
+| Criterion | Result |
+| --- | --- |
+| Retryable-failure-then-success proven end to end through the processor | **PASS** — and again across two worker invocations |
+| A simulated process death recovers via lease expiry | **PASS** — in the DAO and through the processor |
+| No Dart-level lock anywhere in the path | **PASS** — exclusion is a conditional SQL `UPDATE`; verified with independent connections |
+
+**Two defects found and fixed inside the gate, both instances of `RS-04`.**
+
+1. The first `QueueProcessor` re-claimed the item it had just failed, because a
+   retryable failure makes a row `PENDING` and therefore immediately claimable —
+   25 attempts on one image in a fraction of a second. A test caught it; the fix
+   excludes already-tried items from the claim (`ADR-F18`).
+2. A bounded slice reported healthy backlog as a failure, so WorkManager applied
+   escalating backoff to a queue that was draining perfectly — the more it
+   succeeded, the slower it went. The **architecture audit** caught it; the fix
+   separates progress from failure and enqueues a WorkManager continuation
+   (`ADR-F19`).
+
+Both are recorded because the register had described `RS-04` only as "an app-side
+timer", and neither of these was one.
+
+### Post-audit hardening *(same gate, amended into the same commit)*
+
+The F1 architecture audit accepted the design and required six corrections:
+
+| # | Finding | Resolution |
+| --- | --- | --- |
+| 1 | Healthy bounded backlog scheduled as a retry | `ADR-F19` — four dispositions, WorkManager continuation, plus a time budget alongside the item budget |
+| 2 | 15 s described as Android's "enforced floor" | Corrected everywhere; the floor is **10 s**, read from `androidx.work:work-runtime:2.11.2`. The configured value is unchanged (`FR-06`) |
+| 3 | Scheduling failure was safe but invisible | `SchedulingOutcome` returned instead of `void`; last error retained; still non-throwing |
+| 4 | "One `DRAFT` batch" implied database enforcement | `ADR-F20` — declared an application workflow rule, with a test asserting the limit of the guarantee |
+| 5 | Empty `onUpgrade` could silently record a version bump | Migration registry that refuses an unregistered step; `onDowngrade` refuses rather than deleting the queue |
+| 6 | iOS retry semantics undocumented | `SYNC_ENGINE.md` §8B; recorded as `RS-10`, not implemented, not claimed |
+
+Tests went from 188 to **212**.
 
 ---
 
@@ -176,30 +253,42 @@ closed or explicitly left open with reasoning.
 
 ```
 F0 ──┬──▶ F1 ──▶ F2 ──┬──▶ F4 ──▶ F6 ──▶ F7 ──▶ F8
- ✅  │                │
+ ✅  │     ✅     ✅   │
      └────────────────┴──▶ F3 ──▶ F5 ──────┘
    (visual gate passed 2026-08-29)
 ```
 
-The visual gate is cleared, so nothing blocks `F1`–`F6`. `F7` still cannot start
-without physical hardware.
+The visual gate is cleared and the queue is built, so nothing blocks `F3`–`F6`.
+`F7` still cannot start without physical hardware.
 
 ---
 
 ## Recommended next implementation sequence
 
-The literal order to work in when `F1` starts:
+`F1` and `F2` are complete. The next gate is **`F3` — Camera engine**, whose
+sequence is listed above. Two things from this pass carry into it:
+
+1. `RecordCapture` already exists and is tested. `F3` supplies it a real temporary
+   file path from `CameraController.takePicture()`; it does not reimplement the
+   persistence.
+2. `BatchPolicy` already owns the open/close rule. `F4`'s `BatchCubit` should call
+   it rather than restating it.
+
+*(The original F1 ordering advice is preserved below because the prediction it
+made turned out to be correct.)*
+
+The literal order worked in during `F1`:
 
 1. `AppDatabase` schema + migration hook, with a creation test.
 2. `UploadStateMachine` (pure) + its transition tests — legal and illegal.
 3. `UploadQueueDao.insert` / `enqueueBatch` + the transaction rollback test.
 4. **`UploadQueueDao.claim`** + the contended-claim test. *Write the contended test
    before the implementation* — it is the one test most likely to be quietly wrong
-   otherwise.
+   otherwise. **This was followed, and it paid: the claim was the first thing
+   proven, before anything was built on top of it.**
 5. `StaleClaimPolicy` + lease-expiry reclaim test.
 6. Success / retryable / permanent transitions + invariant tests I6, I7, I10.
 7. `FileSystemCaptureStore` + write-then-insert ordering test (I1).
-8. Only then move to `F2`.
 
 ---
 

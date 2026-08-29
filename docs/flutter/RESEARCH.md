@@ -194,18 +194,71 @@ Connectivity is demoted to three advisory uses: a WorkManager constraint, an
 opportunistic reschedule trigger, and UX copy. See
 [SYNC_ENGINE.md](SYNC_ENGINE.md) §3.
 
-### FR-06 — WorkManager retry semantics `[VERIFIED]`
+### FR-06 — WorkManager retry semantics `[VERIFIED — CORRECTED AT F1]`
 
 From the Android `ListenableWorker.Result` reference: `success()`, `failure()`
 (terminal, no retry) and `retry()` (reschedule per the backoff policy).
-`BackoffPolicy` is `EXPONENTIAL` or `LINEAR`, and **WorkManager enforces a
-15-second minimum backoff** (`MIN_BACKOFF_MILLIS`) regardless of a smaller
-configured value.
+`BackoffPolicy` is `EXPONENTIAL` or `LINEAR`.
 
-**Consequence:** the platform already provides exponential backoff with a floor.
-Re-implementing a backoff timer in Dart would fight it. The Dart worker's job is
-to return the right *result*; the OS owns the *when*. See
-[SYNC_ENGINE.md](SYNC_ENGINE.md) §5.
+> **Correction, F1 post-audit.** This entry previously stated that WorkManager
+> enforces a **15-second** minimum backoff. That is wrong. Read directly from
+> the compiled `androidx.work.WorkRequest` in
+> `androidx.work:work-runtime:2.11.2` — the version this project actually
+> resolves, confirmed with `gradlew app:dependencies`:
+>
+> | Constant | Value |
+> | --- | --- |
+> | `MIN_BACKOFF_MILLIS` | `10000` — **10 seconds** |
+> | `MAX_BACKOFF_MILLIS` | `18000000` — 5 hours |
+> | `DEFAULT_BACKOFF_DELAY_MILLIS` | `30000` — 30 seconds |
+>
+> The app's configured 15 seconds is therefore a deliberate initial delay that
+> sits above the floor, not the floor itself. The value is unchanged; only the
+> claim about it is corrected. The original figure came from documentation read
+> at F0 rather than from the artifact, which is why the artifact is now the
+> cited source.
+
+**Consequence:** the platform already provides exponential backoff with a floor
+and a ceiling. Re-implementing a backoff timer in Dart would fight it. The Dart
+worker's job is to return the right *result*; the OS owns the *when*.
+
+**Second consequence, found at the F1 audit.** Because `false` means *retry with
+backoff*, it must be reserved for work that actually failed. A worker that
+returns `false` merely because its own item bound was reached puts a perfectly
+healthy backlog under an escalating backoff curve — the more of the queue it
+successfully uploads, the slower the rest drains. Healthy continuation is a
+separate answer; see `ADR-F19` and [SYNC_ENGINE.md](SYNC_ENGINE.md) §5.
+
+### FR-06a — `ExistingWorkPolicy.append` is `APPEND_OR_REPLACE` `[VERIFIED]`
+
+Read from `workmanager_android` 0.10.8's own Kotlin
+(`WorkManagerUtils.kt`, `toAndroidWorkPolicy()`):
+
+```kotlin
+APPEND  -> ExistingWorkPolicy.APPEND_OR_REPLACE
+KEEP    -> ExistingWorkPolicy.KEEP
+REPLACE -> ExistingWorkPolicy.REPLACE
+UPDATE  -> ExistingWorkPolicy.APPEND_OR_REPLACE
+```
+
+Two things follow, and both matter for the continuation design.
+
+**The plugin's Dart documentation does not describe its native behaviour.** The
+Dart doc for `append` describes plain `APPEND`, and the doc for `update` says
+the request "will be updated with the new specification" — which is
+`ExistingPeriodicWorkPolicy.UPDATE` semantics, not what one-off work does. The
+Kotlin is the authority here, and it was read rather than trusted.
+
+**`APPEND_OR_REPLACE` is the variant we want.** Plain `APPEND` marks the new
+work `CANCELLED`/`FAILED` if the existing chain is in that state;
+`APPEND_OR_REPLACE` starts a fresh chain instead. A continuation enqueued from
+inside a running worker therefore cannot inherit a poisoned chain.
+
+**`KEEP` would be silently wrong for a continuation.** A worker asking for its
+own successor *is* itself uncompleted work under that unique name, so `KEEP`
+would discard the request and the backlog would sit until some unrelated trigger
+came along. This is exactly the kind of failure that looks correct in review and
+never fires in a test.
 
 ### FR-07 — `workmanager` 0.10.9 API surface `[VERIFIED]`
 
@@ -244,10 +297,22 @@ Enum values, read from
 The `callbackDispatcher` must be annotated `@pragma('vm:entry-point')` or it is
 tree-shaken out of release builds.
 
-**Consequence:** `ExistingWorkPolicy.keep` on a single fixed unique name is the
-cheapest correct defence against piling up duplicate drain requests — the OS
-simply ignores a second registration while one is pending. This closes root
+**Consequence, as originally read:** `ExistingWorkPolicy.keep` on a single fixed
+unique name is the cheapest defence against piling up duplicate drain requests —
+the OS ignores a second registration while one is pending. This closes root
 `ER-06`.
+
+> **Corrected at F1 final acceptance.** "Ignores a second registration while one
+> is pending" is exactly the problem, because **a running worker is pending**.
+> A drain requested while a worker is mid-pass is discarded, so a batch finished
+> in that window can end up durably `PENDING` with nothing scheduled to collect
+> it — no data loss, no symptom, and no worker coming back.
+>
+> Every registration now uses `append`, which maps to `APPEND_OR_REPLACE`
+> (`FR-06a`) and enqueues a successor instead of discarding. Duplicate protection
+> is retained by the **single unique name**, which keeps WorkManager running the
+> chain one node at a time; redundant requests become idle nodes rather than
+> parallel drains. See `ADR-F21`.
 
 ### FR-08 — **DECISIVE:** sqflite cross-isolate access is not a mutual-exclusion guarantee `[VERIFIED]`
 

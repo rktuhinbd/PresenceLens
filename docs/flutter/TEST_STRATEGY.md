@@ -180,4 +180,125 @@ says nothing about whether the claim query is atomic.
 The stated intent instead: **every row in `DATA_MODEL.md` §5 (invariants I1–I10)
 has at least one test that fails if the invariant is broken.** That is the
 checkable coverage claim for this project, and it is the one a reviewer can audit
-in a minute.
+in a minute. **Discharged at F1** — the mapping is tabulated in §11.
+
+---
+
+## 11. What the suite actually contains after F1
+
+**229 tests, all passing** (188 at the first F1 gate, 212 after the post-audit
+hardening pass, 229 after the final scheduling-race closure). The camera, batch and presentation tiers (`BLOC`, `WIDGET`) are
+not written yet — they are gates F3–F5 — so the numbers below are the data,
+domain and sync half of §3–§6 only.
+
+| File | Tests | Tier | What would break without it |
+| --- | --- | --- | --- |
+| `data/database/upload_queue_dao_test.dart` | 26 | `DATA` | Persistence, the finish-batch transaction and its rollback, batch completion, the retryable transition, idempotency |
+| `domain/policies/policies_test.dart` | 24 | `UNIT` | Lease boundaries, failure classification, batch rules, retention |
+| `data/sync/queue_processor_test.dart` | 29 | `DATA` | The drain loop, both budgets, the disposition it reports, concurrent drains, and a locked database |
+| `domain/policies/upload_state_machine_test.dart` | 18 | `UNIT` | Every legal and illegal image transition |
+| **`data/database/upload_queue_claim_test.dart`** | **17** | **`DATA`** | **The atomic claim, contention, and stale-lease recovery** |
+| `data/sync/work_manager_sync_scheduler_test.dart` | 17 | `UNIT` | The scheduling *policy*: the exact `ExistingWorkPolicy`, the serial chain, backoff, observable failure |
+| `data/storage/file_system_capture_store_test.dart` | 14 | `DATA` | Durable capture storage and its failure paths |
+| `sync_worker_entrypoint_test.dart` | 14 | `DATA` | The worker's finish / continue / retry decision |
+| `data/api/mock_upload_api_test.dart` | 12 | `UNIT` | Determinism of every mock scenario |
+| `data/sync/connectivity_drain_trigger_test.dart` | 12 | `UNIT` | Opportunistic rescheduling, observable failure, and *not* gating on link state |
+| `data/database/app_database_test.dart` | 11 | `DATA` | Schema, indices, foreign keys, reopen, and the migration scaffold's refusals |
+| `domain/usecases/finish_batch_test.dart` | 10 | `DATA` | Transaction-then-schedule ordering; a refused batch scheduling nothing; a `DRAFT` capture scheduling nothing |
+| `domain/usecases/record_capture_test.dart` | 7 | `DATA` | File-then-row ordering and its compensation |
+| `data/composition/data_layer_test.dart` | 6 | `DATA` | The two composition roots drifting apart |
+| `architecture/domain_purity_test.dart` | 5 | `UNIT` | Layering that is claimed but not real |
+| `data/identity/uuid_v4_generator_test.dart` | 5 | `UNIT` | Malformed idempotency keys and file names |
+| `app_shell_test.dart` | 2 | `WIDGET` | The placeholder shell (pre-existing) |
+
+### The seven scheduling-semantics proofs (`ADR-F19`)
+
+The audit asked for these by name; each is a real test rather than a claim.
+
+| # | Property | Where |
+| --- | --- | --- |
+| 1 | A retryable upload failure asks WorkManager to retry | `sync_worker_entrypoint_test` — "a queue that will not upload returns false" |
+| 2 | A completely drained queue completes successfully | — "a fully drained queue completes, and asks for nothing" |
+| 3 | An idle queue completes successfully | — "an empty queue completes, and asks for nothing" |
+| 4 | A healthy queue hitting the bound is **not** classified as an upload failure | — "a bound-limited healthy slice does NOT report an upload failure" |
+| 5 | The healthy continuation stays scheduled | — "and it leaves a continuation scheduled" |
+| 6 | Duplicate-scheduling protection is still sound | — "exactly one continuation per slice"; `work_manager_sync_scheduler_test` — `keep` for entry work, shared unique name for the continuation |
+| 7 | Nothing is lost between bounded slices | — "successive slices drain the queue with nothing lost" (60 items, three slices, every item uploaded exactly once) |
+
+Two further cases guard the edges: a continuation that cannot be enqueued falls
+back to a retry rather than stranding the backlog, and a time-budget stop is
+treated exactly like an item-budget stop.
+
+### The ten scheduling-liveness proofs (`ADR-F21`)
+
+The final audit asked for these by name.
+
+| # | Property | Where |
+| --- | --- | --- |
+| A | A request with no chain in flight registers one-off work | `work_manager_sync_scheduler_test` — "registers one-off work under a single fixed unique name" |
+| B | A request made while a drain may be running is **not** discarded | — "entry work uses append, never keep" (asserts the exact policy, and asserts it is *not* `keep`) |
+| C | A continuation joins the same serial chain | — "appends, so it runs after the slice that asked for it"; "shares the unique name" |
+| D | Repeated requests cannot create parallel processors | — "every request uses the same unique name"; "a redundant request is a wasted wake-up, never a lost one" |
+| E | The atomic claim remains the final duplicate-upload protection | `queue_processor_test` — "two processors draining concurrently upload nothing twice" (two **independent connections**, 8 images, 8 attempts); "a scheduling storm cannot produce a duplicate upload" |
+| F | Finishing a batch schedules **after** the transaction commits | `finish_batch_test` — "the images are already PENDING when the request is made" |
+| G | A refused finish-batch schedules nothing | — three cases: empty, already finished, non-existent |
+| H | Recording a `DRAFT` capture schedules nothing | — "recording captures never asks for a drain"; "a whole session produces exactly one drain request" (20 captures → 1) |
+| I | Regaining a link still requests a drain | `connectivity_drain_trigger_test` — "requests a drain when a link is regained" |
+| J | A scheduling failure cannot roll back durable work | `finish_batch_test` — "the batch stays queued and its images stay pending" |
+
+The `ExistingWorkPolicy` passed to the injected registration function is asserted
+directly, so the fix cannot silently regress to `keep`. **Native WorkManager
+ordering itself is not proven here** — that is a device check and is not claimed.
+
+### The retry-hammering audit (`RS-12`)
+
+Asked for as an audit, not a redesign, and answered with a test rather than an
+assertion: `queue_processor_test` — "a flaky item is attempted once per slice,
+then backs off". A flaky item **is** re-attempted across chained continuations,
+once per slice, because the `skip` set spans one pass. It is bounded twice over —
+each attempt is separated by a slice of real upload work, and the moment the
+healthy backlog runs out the pass makes no progress and returns `retryLater`,
+handing timing to WorkManager's backoff. Recorded as residual risk; suppressing
+it further would mean a second app-side scheduler, which is `RS-04`.
+
+### Invariant coverage — the checkable claim from §10
+
+Every row of `DATA_MODEL.md` §5 has at least one test that fails if the invariant
+is broken.
+
+| # | Invariant | Test |
+| --- | --- | --- |
+| I1 | No row without a durably written file | `record_capture_test` — "a storage failure creates no row at all" |
+| I2 | Finishing a batch is all-or-nothing | `upload_queue_dao_test` — "batch and every image move together", "a failure inside the transaction moves nothing" |
+| I3 | At most one draft batch | `upload_queue_dao_test` — "only one draft batch may be open at a time" |
+| I4 | No item claimed twice | `upload_queue_claim_test` — the four contention cases |
+| I5 | No permanently unclaimable `UPLOADING` row | `upload_queue_claim_test` — "an expired lease is reclaimed, and only once" |
+| I6 | A retryable failure destroys nothing | `queue_processor_test` — "keeps the row, keeps the file, and asks to come back" |
+| I7 | Marking `UPLOADED` twice is harmless | `upload_queue_dao_test` — "is idempotent — a repeat changes nothing" |
+| I8 | A batch completes only when genuinely complete | `upload_queue_dao_test` — the four batch-completion cases |
+| I9 | `image_count` matches reality | `upload_queue_dao_test` — "image_count matches the real row count" |
+| I10 | A missing file reaches a terminal state | `queue_processor_test` — "does not loop: a second pass finds nothing to do" |
+
+### What the contention test does and does not prove — stated precisely
+
+The claim tests open **genuinely independent SQLite connections to one database
+file** (`singleInstance: false`; see `DATA_MODEL.md` §7) and start two — and in
+one case eight — claims before awaiting any of them. Exactly one wins, every time,
+and the stored row is `UPLOADING` exactly once.
+
+What that proves: the exclusion is enforced by **SQLite statement semantics**, in
+the database, across separate connections — not by a Dart lock, a singleton, or a
+process-local mutex, none of which could span the two isolates this app really
+runs (`FR-08`, `ADR-F04`). An implementation that relied on any of those would
+fail this test.
+
+What it does not prove: OS-level parallelism. `sqflite_common_ffi` routes work
+through a single background isolate, so the two statements are dispatched
+concurrently and executed one after another. The property under test — that the
+second `UPDATE` observes zero rows because its `WHERE` clause no longer matches —
+is exercised either way, and it is the property that matters. Genuine parallel
+execution across two Android isolates is a device check (`SYNC_ENGINE.md` §10,
+injection 3), and no claim about it is made from a host run.
+
+`busy_timeout = 5000` is set on every connection for the device case, where the
+two isolates *are* parallel and a write can genuinely find the database locked.

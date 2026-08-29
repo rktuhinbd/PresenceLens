@@ -94,7 +94,8 @@ DRAFT ──enqueue()──▶ QUEUED ──all images UPLOADED──▶ COMPLET
 ```
 
 - `DRAFT` — open, accepting captures. **At most one `DRAFT` batch exists at any
-  time** (`FLT-BAT-004`).
+  time** (`FLT-BAT-004`) — a workflow rule enforced where batches are created,
+  not a database constraint (`ADR-F20`).
 - `QUEUED` — closed and handed to the sync engine. Accepts no further captures.
 - `COMPLETED` — every image uploaded. Terminal.
 
@@ -141,29 +142,54 @@ This is the load-bearing mechanism (`FLT-SYNC-008`). From `RESEARCH.md` `FR-08`,
 the UI isolate and the worker isolate hold **separate** database connections, so no
 Dart-level lock spans them. Exclusion is therefore delegated to SQLite:
 
+**As implemented** (`UploadQueueDao.claimNext`, `ADR-F17`). Two statements: a
+candidate read, then the claim itself.
+
 ```sql
--- Claim exactly one item. Atomic: the UPDATE's WHERE clause is the lock.
+-- 1. Which row would we like? A hint, nothing more.
+SELECT id FROM queued_images
+ WHERE (status = 'PENDING'
+        OR (status = 'UPLOADING' AND claimed_at < :leaseCutoff))  -- reclaim stale
+   AND id NOT IN (:alreadyTriedThisPass)                          -- ADR-F18
+ ORDER BY captured_at ASC, id ASC
+ LIMIT 1;
+
+-- 2. THE claim. Atomic: this statement's WHERE clause is the lock.
 UPDATE queued_images
    SET status = 'UPLOADING',
        claimed_at = :now
- WHERE id = (
-   SELECT id FROM queued_images
-    WHERE status = 'PENDING'
-       OR (status = 'UPLOADING' AND claimed_at < :leaseCutoff)   -- reclaim stale
-    ORDER BY captured_at ASC
-    LIMIT 1
- )
- AND (status = 'PENDING'
-      OR (status = 'UPLOADING' AND claimed_at < :leaseCutoff));  -- re-checked
+ WHERE id = :candidate
+   AND (status = 'PENDING'
+        OR (status = 'UPLOADING' AND claimed_at < :leaseCutoff));  -- re-checked
 ```
 
-The trailing `AND` is not redundant. It re-tests the precondition *inside* the
-same atomic statement, so if two processors select the same row, only the first
-`UPDATE` matches and the second affects **zero rows** and simply moves on. The
-DAO returns the claimed row only when `changes() == 1`.
+The design originally wrote this as a single statement with the candidate chosen
+by an inline subquery. It is two statements because the caller must learn *which*
+row it claimed, and `UPDATE … RETURNING` needs SQLite 3.35 — newer than the
+platform SQLite on the oldest Android version this app supports (`ADR-F17`).
 
-`ORDER BY captured_at ASC` gives the deterministic cross-batch ordering required by
-`FLT-SYNC-013`.
+**The atomicity is unaffected, because it was never in the subquery.** It is in
+the `WHERE` clause of the write. The trailing `AND` re-tests the precondition
+*inside* the atomic `UPDATE`, so if two processors pick the same row, only the
+first matches; the second affects **zero rows** and moves on to the next
+candidate. The DAO returns a row only when the update affected exactly one, and
+retries with the next candidate up to `maxClaimAttempts` (5) so a loser that still
+has other work to do does not report an empty queue.
+
+The claim is deliberately **not** wrapped in a further transaction: the statement
+already is one, and a deferred read-then-write transaction held across two
+connections would add a lock-upgrade deadlock to defend against without making
+anything safer.
+
+`ORDER BY captured_at ASC, id ASC` gives the deterministic cross-batch ordering
+required by `FLT-SYNC-013`; the id is the tie-break, so two captures sharing a
+millisecond still drain in a fixed order.
+
+`id NOT IN (…)` excludes items the *current drain pass* has already tried and
+returned to the queue. Without it, a retryable failure — which makes a row
+`PENDING` and therefore immediately claimable again — is re-claimed by the very
+next iteration and retried in a tight loop, which is the app taking over the
+backoff that belongs to WorkManager. Found by a test; see `ADR-F18`.
 
 The same clause reclaims stale leases (`FLT-SYNC-009`): an item whose
 `claimed_at` is older than the lease period is treated as claimable again. **Lease
@@ -185,11 +211,11 @@ Each is a test in the `DATA` suite.
 | --- | --- | --- |
 | I1 | A `queued_images` row never references a file that was not durably written first. | Write-file-then-insert ordering (`FLT-CAM-015`, `FLT-ERR-005`). |
 | I2 | Enqueuing a batch moves the batch and **all** its images in one transaction, or none of them. | Single `transaction {}` (`FLT-BAT-005`). |
-| I3 | At most one `DRAFT` batch exists. | `BatchPolicy` + a guard on batch creation. |
+| I3 | At most one `DRAFT` batch exists. | `BatchPolicy` + a guard on batch creation — an **application-level capture-workflow rule**, not a database constraint. There is one creator of draft batches (the foreground capture flow) and the background worker never creates one, so there is no second writer to race with and a `UNIQUE` index would buy nothing. The guard is a read-then-insert and is deliberately *not* atomic across connections; contrast I4, which has two writers by design and is therefore enforced in SQL. See `ADR-F20`. |
 | I4 | No image is `UPLOADING` in two processors at once. | The atomic claim, §4. |
 | I5 | An `UPLOADING` row cannot remain unclaimable forever. | Lease expiry in the claim's `WHERE`. |
 | I6 | A retryable failure destroys neither the row nor the file. | Transition writes `status`/`attempt_count` only (`FLT-SYNC-003`). |
-| I7 | Marking an image `UPLOADED` twice is harmless. | `WHERE status != 'UPLOADED'`; second call affects 0 rows (`FLT-SYNC-010`). |
+| I7 | Marking an image `UPLOADED` twice is harmless. | `WHERE status = 'UPLOADING'`; the second call affects 0 rows (`FLT-SYNC-010`). Stricter than the `!= 'UPLOADED'` originally sketched — it also refuses a success from a caller that holds no claim, and refuses to overwrite a terminal `FAILED_PERMANENT` row (`ADR-F17`). |
 | I8 | A batch becomes `COMPLETED` only when it has ≥1 image and none are outstanding. | Completion check inside the success transaction. |
 | I9 | `image_count` equals the actual row count for that batch. | Updated inside the same transaction as every insert; asserted by a reconciliation test. |
 | I10 | An image whose file is missing reaches a terminal state rather than looping. | `FAILED_PERMANENT` (`FLT-ERR-007`). |
@@ -227,6 +253,31 @@ out.
 Schema version starts at 1. `onCreate` builds the tables above; `onUpgrade` is
 implemented but empty. A migration path exists from the first commit because
 retrofitting one onto shipped user data is the expensive version of this problem.
+
+`onUpgrade` is a **registry**, not an empty method body. `AppDatabase.migrations`
+maps a target version to the step that reaches it, and `migrate` refuses a bump
+with no registered step. The failure that guards against is specific: sqflite
+records the new version whenever `onUpgrade` completes, so an empty callback
+would let someone raise `schemaVersion`, ship it, and have every existing install
+record the new version against the old tables — the first symptom being a query
+failing on a user's device rather than in CI. `onDowngrade` refuses too, rather
+than using sqflite's `onDatabaseDowngradeDelete`: deleting a queue of unuploaded
+captures to resolve a version mismatch is the one outcome worse than failing to
+open.
+
+`onConfigure` runs two pragmas on **every** connection, and both are load-bearing:
+`foreign_keys = ON` (off by default in SQLite, which would otherwise make the
+cascade in §2 decoration rather than behaviour) and `busy_timeout = 5000` (two
+connections exist by design, so a write can genuinely find the database locked;
+waiting briefly is correct, failing instantly would surface as a spurious
+"database is locked" on an ordinary drain).
+
+`AppDatabase.open` takes a `singleInstance` flag that the app never changes. It
+exists for the `DATA` suite: within one isolate sqflite hands back the *same*
+connection for the same path, so a contention test would otherwise be two calls on
+one connection and would prove nothing. Setting it `false` gives the test
+genuinely independent connections to one file — the host's reproduction of what
+the UI isolate and the worker isolate do on a device (§8).
 
 ## 8. Test doubles
 

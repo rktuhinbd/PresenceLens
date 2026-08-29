@@ -26,7 +26,7 @@ real responsibility are not added.
 ```
 PresenceLens/
 ├── android-attendance/       Task 1 — Kotlin + Compose (exists, baseline only)
-├── flutter_camera_sync/      Task 2 — Flutter + BLoC (scaffolded; feature code pending)
+├── flutter_camera_sync/      Task 2 — Flutter + BLoC (queue and sync engine built; UI pending)
 ├── docs/                     governance, requirements, decisions, plan
 └── README.md                 submission documentation (NOT YET CREATED)
 ```
@@ -176,15 +176,24 @@ zoom affordances it does not implement.
 
 ## Application 2 — Flutter camera and sync engine
 
-**Scaffolded; visual direction approved 2026-08-29, feature implementation next.** Toolchain verified
-2026-08-29: Flutter **3.47.2** stable, Dart **3.13.2**, JDK 21.0.12.1, Gradle 8.14, AGP 8.11.1.
+**Data, domain and sync layers built and verified 2026-08-29 (gates F1/F2);
+presentation not started.** Toolchain verified 2026-08-29: Flutter **3.47.2**
+stable, Dart **3.13.2**, JDK 21.0.12.1, Gradle 8.14, AGP 8.11.1.
 
-The detailed design now lives in its own pack and supersedes the summary below:
-[docs/flutter/ARCHITECTURE.md](flutter/ARCHITECTURE.md),
-[DATA_MODEL.md](flutter/DATA_MODEL.md),
-[CAMERA_ENGINE.md](flutter/CAMERA_ENGINE.md),
-[SYNC_ENGINE.md](flutter/SYNC_ENGINE.md).
-Plugin choices are unverified — see [RESEARCH.md](RESEARCH.md) `ER-05` to `ER-08`.
+> ### ⚠️ This section is a superseded F0-era summary
+>
+> The **authoritative** design and the model that is actually implemented live in
+> the Flutter pack: [docs/flutter/ARCHITECTURE.md](flutter/ARCHITECTURE.md),
+> [DATA_MODEL.md](flutter/DATA_MODEL.md),
+> [SYNC_ENGINE.md](flutter/SYNC_ENGINE.md),
+> [CAMERA_ENGINE.md](flutter/CAMERA_ENGINE.md).
+>
+> The tables below were written before implementation and **differ from the code
+> in named ways**, listed under "As built" immediately after them. They are kept
+> rather than rewritten because the divergences are decisions with recorded
+> reasoning, and erasing the earlier shape would hide that any decision was made.
+
+Plugin choices verified at F0 — see [docs/flutter/RESEARCH.md](flutter/RESEARCH.md).
 Target platform is Android (AMB-12).
 
 ### Layers
@@ -258,6 +267,31 @@ capture ─▶ file written ─▶ row inserted (queued)
               ▼
        row + file removed
 ```
+
+### As built — where the code differs from the sketch above
+
+Five differences, each deliberate and each recorded. The Flutter pack is the
+authority; this list exists so the divergence is visible from the root document.
+
+| The sketch above says | As implemented | Why |
+| --- | --- | --- |
+| `UploadState` has six values including `waitingForConnection` and `retrying` | `ImageStatus` has five: `DRAFT`, `PENDING`, `UPLOADING`, `UPLOADED`, `FAILED_PERMANENT` | "Waiting for connection" and "retrying" are **presentation** readings of one durable state. A second resting state is a second place for work to get stuck; "retrying" is derived as `status == PENDING && attemptCount > 0` (`DATA_MODEL.md` §3) |
+| The diagram branches on `connectivity present` | Nothing branches on connectivity | Link presence is not reachability, and the low-bandwidth case the assessment names is exactly where a link exists and the transfer still fails. `QueueProcessor` takes no connectivity port at all ([ADR-F05](flutter/DECISIONS.md)) |
+| `RetryPolicy` computes "next delay or give up" | No app-side delay, and no give-up threshold | WorkManager already provides exponential backoff (configured initial backoff 15 s; Android's minimum (`WorkRequest.MIN_BACKOFF_MILLIS`) is 10 s); a second scheduler would fight it. Discarding an image after N attempts would violate FLT-11 ([ADR-F12](flutter/DECISIONS.md)) |
+| On success, "row + file removed" | On success the **row is kept**; the file is released only if retention is enabled, which it is not by default | The row is the history the Pending Uploads list renders, and the approved screen shows a thumbnail on synced rows ([ADR-F16](flutter/DECISIONS.md)) |
+| `ConnectivityMonitor` — "stable means reachability-confirmed" | No reachability confirmation exists | Reachability cannot be known in advance; a pre-flight ping proves only that the ping worked. The upload attempt is the sole authority (AMB-15, [ADR-F05](flutter/DECISIONS.md)) |
+
+Class names also settled differently: `CapturedImage` → `QueuedImage`, `Batch` →
+`CaptureBatch`, `ImageFileStore` → `FileSystemCaptureStore`, `ConnectivityMonitor`
+→ `ConnectivityPlusAdapter`, and `SyncCubit` is planned as a **Bloc** because it
+merges three asynchronous sources ([ADR-F08](flutter/DECISIONS.md)). `UploadQueueDao`
+and `MockUploadApi` kept their names.
+
+The one thing the sketch did not anticipate at all is the mechanism that turned
+out to matter most: **the atomic conditional-`UPDATE` claim** that stops the UI
+isolate and the WorkManager isolate uploading the same image, and the lease folded
+into it that recovers work stranded by process death
+([ADR-F04](flutter/DECISIONS.md), [ADR-F17](flutter/DECISIONS.md)).
 
 Two properties are non-negotiable and become explicit tests at gate G6:
 

@@ -15,16 +15,28 @@ orchestration moved into `domain`, and a recorded attendance became an event rat
 live condition ([ADR-015](DECISIONS.md#adr-015), [ADR-016](DECISIONS.md#adr-016),
 [ADR-017](DECISIONS.md#adr-017)). The rows whose stated verification method is a Compose UI
 test remain `PARTIAL`; a manual walkthrough is not that method.**
-Flutter Task 2 status: **F0 COMPLETE — VISUAL DIRECTION APPROVED 2026-08-29.** Requirements, architecture,
-data model, camera and sync engine designs, UX specification, test strategy, risk register,
-twelve ADRs and seven static visual prototypes are delivered. The non-device gates are green
-(`analyze` 0 issues, `test` 2/2, `build apk --debug` PASS). The prototypes in
-[docs/flutter/design/](flutter/design/index.html) were reviewed and **approved**, so the visual
-gate is **unlocked** and the design direction is frozen (`ADR-F13`, `ADR-F14`). **No production
-Flutter UI exists yet** — `CameraPreviewScreen` and the Pending Uploads manager are still
-unimplemented. Task 2 is implementation in progress; the data and queue layer (gate F1) is next.
+Flutter Task 2 status: **F1 + F2 COMPLETE — DURABLE SYNC FOUNDATION BUILT, 2026-08-29.**
+The invisible half of Task 2 is implemented and evidenced: a SQLite queue with an
+**atomic conditional-`UPDATE` claim** that two isolates cannot both win, a ten-minute lease
+that recovers work stranded by process death without any startup sweep, durable
+file-then-row capture storage with compensation, a deterministic five-scenario mock upload
+API behind a real client seam, an isolate-agnostic `QueueProcessor`, and a WorkManager
+scheduler plus `vm:entry-point` worker that rebuilds its own data layer from the shared
+composition factory. **229 tests pass** (up from 2), `flutter analyze` reports 0 issues,
+`flutter build apk --debug` PASS. Seven new ADRs (`ADR-F15`…`ADR-F21`) record the decisions
+this pass forced, four of them real defects — one caught by a test, three by review.
+**Two rounds of architecture audit have been applied and amended into the same commit:**
+the first required six corrections (scheduling semantics, the Android backoff floor,
+scheduler observability, the one-draft claim, the migration scaffold, iOS retry semantics);
+the second closed a **scheduling-liveness race** in which `ExistingWorkPolicy.keep`
+discarded a drain request made while a worker was still running, leaving durable `PENDING`
+work with nothing scheduled to collect it (`ADR-F21`). **No production Flutter UI exists
+yet** — `CameraPreviewScreen` and the Pending Uploads manager are still unimplemented, and the
+approved visual direction was neither redesigned nor built. **No device QA has been performed
+and none is claimed.**
 
-Current gate: **F1 — Flutter data layer and queue (next).** F0 is complete and its visual gate is **APPROVED / UNLOCKED**. Android Task 1 is **FROZEN** at G3.8.
+Current gate: **F3 — Flutter camera engine (next).** F0, F1 and F2 are complete; the visual
+gate is **APPROVED / UNLOCKED**. Android Task 1 is **FROZEN** at G3.8.
 
 ## Progress
 
@@ -34,7 +46,7 @@ Current gate: **F1 — Flutter data layer and queue (next).** F0 is complete and
 | Architecture defined | Complete (both apps) |
 | ADRs | 17 recorded — 16 `ACCEPTED`, 1 `PROPOSED` (ADR-009, a technical revisit; ADR-010 was resolved and accepted at G3.6). ADR-013's two open interpretive calls were **ruled on and accepted** at G3.6; its §7 confirmation-lifetime rule is **superseded by [ADR-016](DECISIONS.md#adr-016)** and ADR-014 §6's office-capture bound by **[ADR-015](DECISIONS.md#adr-015)**, both on explicit human ruling at G3.8. |
 | **Android feature implementation** | **Complete, stabilised, polished, and hardened.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). Location is a retained value bounded by **age and accuracy** ([ADR-014](DECISIONS.md#adr-014), [ADR-015](DECISIONS.md#adr-015)), the office anchor is derived fresh and refused if too coarse, a provider fault retries on a capped backoff, `LocationKnowledge`/`LocationReading` and `SetOfficeLocationUseCase` live in `domain` ([ADR-017](DECISIONS.md#adr-017)), and a recorded mark survives a stale fix and the user walking away ([ADR-016](DECISIONS.md#adr-016)). 158 unit tests pass; emulator walkthrough executed. |
-| **Flutter application** | **Planning complete; feature code 0%.** Project scaffolded at `flutter_camera_sync/`, identity normalised, dependency set researched and resolved, and a twelve-document engineering pack plus seven static UI prototypes produced under [docs/flutter/](flutter/). The visual direction was **approved on 2026-08-29** and is now frozen. **No production camera or upload UI is implemented yet** — that is gate F3/F5 ([EXECUTION_PLAN](flutter/EXECUTION_PLAN.md)); F1 (data layer and queue) is the next work. 84 Flutter requirements specified; 1 `DONE`. |
+| **Flutter application** | **Data, domain and sync layers complete; presentation 0%.** `domain` (entities, five pure policies, eight ports, one use case) and `data` (SQLite database + DAO, filesystem capture store, mock upload API, connectivity adapter, queue processor, WorkManager scheduler, UUID generator, shared composition root) are implemented, plus the `vm:entry-point` worker. **188 tests pass**; `analyze` 0 issues; debug APK builds. **No production camera or upload UI is implemented yet** — that is gates F3/F5 ([EXECUTION_PLAN](flutter/EXECUTION_PLAN.md)). 84 Flutter requirements specified; **24 `DONE`, 9 `PARTIAL`, 51 `TODO`**. |
 | README / submission artefacts | Not started |
 
 ## Verification status
@@ -62,9 +74,15 @@ Current gate: **F1 — Flutter data layer and queue (next).** F0 is complete and
 | Flutter project | **CREATED and building.** Flutter 3.47.2 / Dart 3.13.2 / JDK 21.0.12.1 / Gradle 8.14 / AGP 8.11.1 |
 | Flutter `pub get` | PASS — 92 packages resolved, 2026-08-29 |
 | Flutter `analyze` | PASS — **0 issues**, with `strict-casts`, `strict-inference`, `strict-raw-types` and `unawaited_futures: error` enabled |
-| Flutter `test` | PASS — **2/2** (app-shell smoke only; the real suite is specified, not written) |
-| Flutter `build apk --debug` | PASS — `app-debug.apk` produced, 2026-08-29 |
-| Flutter device QA | **NOT STARTED** — deferred to gate F7; no device evidence is claimed |
+| Flutter `test` | PASS — **229/229**, 2026-08-30 (F1/F2 including both audit rounds). Breakdown in [TEST_STRATEGY.md](flutter/TEST_STRATEGY.md) §11 |
+| Flutter **scheduling liveness** (`ADR-F21`) | **PASS** — every drain request uses `append` (→ Android `APPEND_OR_REPLACE`), so a request made while a worker is running becomes its successor instead of being discarded. The exact `ExistingWorkPolicy` is asserted, so it cannot regress to `keep` unnoticed |
+| Flutter **healthy-continuation semantics** (`ADR-F19`) | **PASS** — a bound-limited slice that uploaded 25 of 30 returns *success* and enqueues a WorkManager continuation; only a slice that made **no** progress returns retry. 60 items drain across three slices with every item uploaded exactly once |
+| Flutter `build apk --debug` | PASS — `app-debug.apk` produced with the queue and sync engine compiled in, 2026-08-29 |
+| Flutter **contended claim** (`FLT-SYNC-008`) | **PASS** — two, then eight, *independent SQLite connections* to one file race a single row; exactly one wins, and the loser cannot record an outcome. Repeated on a **stale** lease. What this does and does not prove is stated in [TEST_STRATEGY.md](flutter/TEST_STRATEGY.md) §11 |
+| Flutter **stale-lease recovery** (`FLT-SYNC-009`) | **PASS** — a lease inside its 10-minute period cannot be stolen; an expired one is reclaimed exactly once; a `claimed_at` in the future is never treated as expired |
+| Flutter **invariants I1–I10** | **PASS** — each has at least one test that fails if it is broken; mapping tabulated in [TEST_STRATEGY.md](flutter/TEST_STRATEGY.md) §11 |
+| Flutter `domain` free of Flutter/plugin imports | **PASS** — asserted by `domain_purity_test`, including a guard that fails if the scan finds no sources |
+| Flutter device QA | **NOT STARTED** — deferred to gate F7; **no device evidence is claimed anywhere**, and no statement in this repository infers background-worker behaviour from a host test |
 | iOS | Configured (bundle identity, `NSCameraUsageDescription`, background modes). **Never built or validated — impossible from a Windows host** |
 
 ### Unit test breakdown (158)
@@ -527,3 +545,43 @@ Remaining before G3/G3.5 can formally close:
 - Two release APKs are planned, not one (AMB-09).
 - Nothing may be marked `DONE` without executing its own verification method. A passing JVM
   suite is not evidence for a row whose method is a UI test or a device check.
+
+### Flutter, after F1/F2
+
+- **The next gate is F3 (camera engine).** Do not rebuild persistence: `RecordCapture`
+  already does file-then-row with compensation and is tested — F3 only has to hand it a
+  temporary path from `CameraController.takePicture()`. `BatchPolicy` already owns the
+  batch open/close rule; F4's `BatchCubit` should call it, not restate it.
+- **Concurrency lives in SQL, not in Dart.** `UploadQueueDao.claimNext` is the whole of it.
+  A Dart mutex, singleton or "only schedule once" would pass a naive test and fail in
+  production, because the UI isolate and the worker isolate share no memory (`ADR-F04`,
+  `ADR-F17`).
+- **A drain pass must never retry an item it has already tried in that pass.** This was a
+  real defect, caught by a test: a retryable failure makes a row `PENDING` and therefore
+  immediately claimable, so the processor hammered one image 25 times in a fraction of a
+  second. Fixed by `ADR-F18`; do not remove the `skip` set.
+- **`false` from the worker means "retry with backoff" — never return it for a healthy
+  backlog.** A bounded slice that made progress must enqueue a continuation and return
+  success (`ADR-F19`). Returning `false` there makes Android slow the queue down precisely
+  because it is succeeding. The continuation uses `ExistingWorkPolicy.append`; `keep` would
+  be silently discarded, because the running worker is itself pending work under that name.
+- **Never use `ExistingWorkPolicy.keep` for a drain request.** `KEEP` discards a request
+  while uncompleted work exists under that unique name, and a *running* worker is
+  uncompleted — so a batch finished mid-drain can end up durably `PENDING` with nothing
+  scheduled to collect it, and nothing looking broken. Everything uses `append`
+  (`ADR-F21`); a test asserts the exact policy.
+- **Schedule when durable *uploadable* work appears, not on every capture.** A `DRAFT`
+  image is not uploadable. `RecordCapture` deliberately takes no scheduler, so a
+  twenty-photo session produces one drain request rather than twenty idle chain nodes —
+  which matters under `append`, where redundant requests no longer collapse.
+- **The one-`DRAFT`-batch rule is an application policy, not a database constraint**
+  (`ADR-F20`). It is safe only because the foreground is the sole creator of batches. If a
+  second creator ever appears, that assumption is gone.
+- **Do not raise `AppDatabase.schemaVersion` without registering a migration step.** The
+  scaffold refuses the open rather than letting SQLite record a version the tables do not
+  match.
+- Post-upload file deletion is implemented but **off by default** — it conflicts with the
+  approved Upload Manager thumbnail (`ADR-F16`). That is an F6 decision, not a default to
+  flip in passing.
+- `MockUploadApi` defaults to `offlineAware`, which is what makes the airplane-mode demo
+  work on a device with no code change. Do not switch the default to `alwaysSucceed`.

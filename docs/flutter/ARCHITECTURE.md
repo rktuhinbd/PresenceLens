@@ -56,18 +56,25 @@ lib/
 ├── sync_worker_entrypoint.dart     @pragma('vm:entry-point') worker isolate root
 │
 ├── domain/
-│   ├── entities/                   CaptureBatch, QueuedImage, UploadOutcome
+│   ├── entities/                   CaptureBatch, QueuedImage, UploadOutcome,
+│   │                               BatchStatus, ImageStatus, FailureCategory
 │   ├── policies/                   pure decision functions (see §4)
-│   └── ports/                      CameraPort, CaptureStore, UploadQueue,
-│                                   UploadApi, SyncScheduler, ConnectivityPort
+│   ├── ports/                      CameraPort, CaptureStore, UploadQueue,
+│   │                               UploadApi, SyncScheduler, ConnectivityPort,
+│   │                               Clock, IdGenerator
+│   └── usecases/                   RecordCapture — see the note below
 │
 ├── data/
 │   ├── camera/                     CameraXAdapter over the `camera` plugin
-│   ├── storage/                    FileSystemCaptureStore (path_provider + path)
+│   ├── storage/                    FileSystemCaptureStore (injected root dir)
 │   ├── database/                   AppDatabase, migrations, UploadQueueDao
 │   ├── api/                        MockUploadApi behind UploadApi
 │   ├── connectivity/               ConnectivityPlusAdapter
-│   └── sync/                       QueueProcessor, WorkManagerSyncScheduler
+│   ├── identity/                   UuidV4Generator (ADR-F15)
+│   ├── composition/                buildDataLayer / assembleDataLayer (§7)
+│   └── sync/                       QueueProcessor, DrainOutcome,
+│                                   WorkManagerSyncScheduler,
+│                                   ConnectivityDrainTrigger
 │
 └── presentation/
     ├── theme/                      tokens, Material 3 schemes, camera palette
@@ -79,6 +86,21 @@ lib/
 `QueueProcessor` sits in `data/sync` rather than `domain` deliberately: it
 *orchestrates* ports and performs I/O. The decisions it makes are delegated to the
 pure policies in `domain/policies`, which is where the testable behaviour lives.
+
+**`domain/usecases/` was added during F1, and it holds exactly one thing.** §9
+sets the bar — a use case is justified only when it orchestrates more than one
+port — and `RecordCapture` is the operation that clears it: it spans `CaptureStore`
+and `UploadQueue`, and the rule it enforces is what must happen when the *second*
+of them fails after the first succeeded (file, then row; compensate the file if
+the row cannot be written). That rule belongs somewhere pure and testable, not
+inlined into whichever Cubit happens to call it. Nothing else has earned a place
+beside it, and the directory should stay that small.
+
+`FileSystemCaptureStore` takes its root `Directory` by injection rather than
+calling `path_provider` itself. Resolving the directory is the composition root's
+job; taking the plugin as a dependency here would mean every test of durable
+storage needed a Flutter binding, which is exactly the cost the layering exists to
+avoid.
 
 ---
 
@@ -205,6 +227,27 @@ To stop those drifting apart, both call one shared factory,
 `buildDataLayer({required bool forBackground})`. That single function is the only
 place the object graph is described.
 
+`buildDataLayer` does two things: it resolves the platform paths (`path_provider`,
+`getDatabasesPath`) and opens the database, then hands off to
+**`assembleDataLayer`**, which is the pure wiring. The split is not decoration —
+it is what lets the `DATA` suite drive the *real* graph (real DAO, real processor,
+real store, real SQLite) against a temporary directory on the host, instead of a
+test that either needs a device or asserts against a graph nobody ships.
+
+`forBackground` is load-bearing in exactly one place: the worker gets a
+`BackgroundSyncScheduler`, which **suppresses** a request for entry work and
+**forwards** a request for a continuation.
+
+That asymmetry is the whole of the worker's relationship with the scheduler. Its
+lever for "come back and try again" is its **return value** — returning retry
+asks WorkManager to reschedule under the configured backoff — so a worker that
+also registered entry work from inside itself would be a second scheduler
+competing with the OS's own (`RS-04`). But a worker that finished a healthy slice
+with more to do is saying something different, and WorkManager has a mechanism
+for exactly that: an appended successor. Splitting the two into separate methods,
+and letting the type refuse one of them, means a future caller inside the worker
+cannot reintroduce the mistake by accident (`ADR-F19`).
+
 ---
 
 ## 8. Platform differences kept rather than abstracted
@@ -215,7 +258,7 @@ Falsely unifying these would hide real behaviour.
 | --- | --- | --- |
 | Lens identity | iOS populates `CameraLensType`; Android always reports `unknown` (`FR-04`). | `CameraPort` exposes an optional lens type. Presets degrade to range-derived labels when it is absent, rather than pretending. |
 | Background execution | Android WorkManager runs constrained work reasonably reliably; iOS `BGTaskScheduler` is opportunistic and may not run for long periods. | The scheduler interface is shared; README states the iOS caveat plainly. No iOS behaviour is claimed as verified. |
-| Retry timing | Android enforces a 15 s minimum backoff (`FR-06`). | The app sets policy and lets the OS own timing; it does not simulate a uniform cross-platform schedule. |
+| Retry timing | Android clamps backoff to a **10-second** minimum and a 5-hour maximum (`FR-06`); the app configures a 15-second initial delay, which is a choice rather than the floor. | The app sets policy and lets the OS own timing; it does not simulate a uniform cross-platform schedule. |
 
 ---
 

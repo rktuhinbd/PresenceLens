@@ -148,13 +148,59 @@ substitutes for them.
 | 8B.3 | [x] Package versions verified against primary sources **and against a real resolution**. | EXP-01 |
 | 8B.4 | [x] Test strategy written **before** implementation, risk-based. | EXP-04 |
 | 8B.5 | [x] Risk register with probability, impact, mitigation and verification per row. | EXP-04 |
-| 8B.6 | [x] Twelve Flutter ADRs recorded. | EXP-03 |
+| 8B.6 | [x] ~~Twelve~~ **Eighteen** Flutter ADRs recorded (four added at F1/F2). | EXP-03 |
 | 8B.7 | [x] Seven static UI prototypes produced and self-contained. | EXP-04 |
 | 8B.8 | [x] **Human has approved the visual prototypes. 2026-08-29** — visual direction frozen; `ADR-F13` and `ADR-F14` accepted at the same review. | EXP-03 |
 | 8B.9 | [x] `flutter analyze` clean under strict analysis settings. | GEN-08 |
 | 8B.10 | [x] `flutter build apk --debug` passes. | FLT-01 |
 | 8B.11 | [x] Release build declares `INTERNET` (Flutter's template omits it outside debug/profile). | FLT-10 |
 | 8B.12 | [ ] Device QA executed (camera checklist + sync failure-injection matrix). | FLT-TEST-009 |
+
+## 8C. Flutter durable queue and sync engine (F1/F2)
+
+Delivered 2026-08-29. These are the **non-visual** half of Task 2. Every row here
+is host-verified; none of them substitutes for the device rows in section 8, and
+no device behaviour is claimed by any of them.
+
+| # | Check | Req |
+| --- | --- | --- |
+| 8C.1 | [x] SQLite schema v1 with two tables, two purposeful indices, foreign keys enabled and a migration hook. | FLT-16, GEN-03 |
+| 8C.2 | [x] Image bytes live on the filesystem, never as SQLite blobs. | GEN-03, ADR-F02 |
+| 8C.3 | [x] Finishing a batch moves the batch and **all** its images in one transaction; a forced mid-transaction fault moves nothing. | FLT-08, FLT-ERR-006 |
+| 8C.4 | [x] Finishing a batch requires no network and performs no upload. | FLT-11, ADR-F14 |
+| 8C.5 | [x] **Claiming is an atomic conditional SQL `UPDATE`, not a Dart lock.** | FLT-SYNC-008 |
+| 8C.6 | [x] **Contention proven against real SQLite with independent connections: two, then eight, claimants; exactly one winner.** | FLT-SYNC-008 |
+| 8C.7 | [x] A fresh claim cannot be stolen; an expired 10-minute lease is reclaimed exactly once; a contended stale row still yields one winner. | FLT-SYNC-009 |
+| 8C.8 | [x] A capture is written durably **before** its queue row exists; a failed insert removes the file it just wrote, and only that file. | FLT-ERR-005 |
+| 8C.9 | [x] A retryable failure keeps both the row and the file, increments the attempt count, and applies no give-up ceiling. | FLT-11, ADR-F12 |
+| 8C.10 | [x] A missing local file resolves to a terminal state rather than looping, and does not block unrelated batches. | FLT-ERR-007 |
+| 8C.11 | [x] Success is persisted **before** any file cleanup; a failed cleanup leaves the item uploaded and causes no second upload. | FLT-SYNC-016 |
+| 8C.12 | [x] A batch completes only when every image in it uploaded — never with a pending, uploading or failed item. | FLT-08 |
+| 8C.13 | [x] Deterministic mock upload API behind a real client seam, five scenarios, no randomness. | FLT-13 |
+| 8C.14 | [x] Queue processor is isolate-agnostic, bounded per invocation, and does not retry an item twice within one pass. | FLT-12, ADR-F18 |
+| 8C.15 | [x] WorkManager entry point rebuilds its own data layer; nothing is passed from the UI isolate. | FLT-10 |
+| 8C.16 | [x] Registration uses one fixed unique name forming a serial chain, `append` on **every** request, a connected constraint, and exponential backoff with a 15 s configured initial delay (Android's minimum is 10 s). | FLT-10 |
+| 8C.34 | [x] **A drain request made while a worker is still running cannot be discarded** — `append` maps to `APPEND_OR_REPLACE`, verified in the resolved plugin source; the exact policy is asserted by test. | FLT-10, FLT-12 |
+| 8C.35 | [x] Finishing a batch requests a drain **after** the durable transaction commits; a refused finish schedules nothing. | FLT-08, FLT-12 |
+| 8C.36 | [x] Capturing a `DRAFT` image schedules nothing — 20 captures produce 1 drain request. | FLT-12 |
+| 8C.37 | [x] Two processors draining concurrently upload no image twice; a locked database ends the pass instead of escaping it. | FLT-11 |
+| 8C.17 | [x] Worker result mapping is deliberate: drained → success, outstanding → retry, permanent-only → success. | FLT-10, FLT-ERR-007 |
+| 8C.18 | [x] **No code gates an upload on connectivity type**; `QueueProcessor` takes no connectivity port at all. | FLT-12, ADR-F05 |
+| 8C.19 | [x] `domain` purity asserted by an automated test, including a guard against an empty scan. | GEN-02, FLT-GEN-007 |
+| 8C.20 | [x] Invariants I1–I10 each have a test that fails if the invariant is broken. | EXP-04 |
+| 8C.21 | [x] 212 tests pass; `flutter analyze` 0 issues; `dart format` stable; `flutter build apk --debug` PASS. | GEN-08 |
+| 8C.22 | [x] No production camera or Upload Manager UI implemented; the approved visual direction was not redesigned. | EXP-03 |
+| 8C.23 | [x] **A healthy bounded slice enqueues a WorkManager continuation and returns success; only a slice that made no progress returns retry.** | FLT-10, FLT-12 |
+| 8C.24 | [x] The continuation uses the shared unique name with `append`, so duplicate-scheduling protection is preserved and no second chain is created. | FLT-10 |
+| 8C.25 | [x] A continuation that cannot be enqueued falls back to a retry rather than stranding the backlog. | FLT-11 |
+| 8C.26 | [x] Nothing is lost across bounded slices — 60 items drain in three slices, each uploaded exactly once. | FLT-11 |
+| 8C.27 | [x] The worker is bounded by **both** an item budget (25) and a time budget (8 min), under Android's ~10-minute worker window. | FLT-10 |
+| 8C.28 | [x] The background isolate structurally cannot register entry work; it may only ask for a continuation. | FLT-10 |
+| 8C.29 | [x] Scheduling failure is safe **and observable**: a `SchedulingOutcome` is returned, nothing durable is rolled back, and nothing throws. | FLT-10 |
+| 8C.30 | [x] Backoff wording is factually correct: 15 s configured initial delay, Android minimum 10 s (read from the resolved artifact). | FLT-10 |
+| 8C.31 | [x] The one-`DRAFT` rule is documented as an application policy, not as database enforcement, with a test asserting the limit. | FLT-08 |
+| 8C.32 | [x] Raising the schema version without a registered migration is refused; a downgrade is refused rather than deleting the queue. | FLT-16 |
+| 8C.33 | [x] iOS retry semantics documented and recorded as a residual risk; **no iOS behaviour claimed**. | AMB-12 |
 
 ## 9. Release APK
 

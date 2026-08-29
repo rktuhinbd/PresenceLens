@@ -421,3 +421,358 @@ schedule. Full table in `UX_SPEC.md` §4.1.
 **Rejected.** "Queue batch" (accurate but jargon); "Done" (too generic beside a
 count); keeping "Upload" and hiding the offline chip (hiding true information to
 protect a wrong label).
+
+---
+
+## ADR-F15 — Identifiers are generated in-app, not by a `uuid` dependency
+
+**Status:** ACCEPTED — F1 · **Requirements:** FLT-SYNC-010, FLT-CAM-015
+
+**Context.** Every batch and image needs an identifier. Image ids are load-bearing
+three times over: primary key, on-disk file name, and the upload's idempotency key
+(`DATA_MODEL.md` §2). They are created independently in two isolates with no
+coordination between them, so they must be unique without a sequence.
+
+**Decision.** An `IdGenerator` port in `domain`, implemented by `UuidV4Generator`
+in `data`: RFC 4122 version 4 over `Random.secure()`, with the version nibble and
+variant bits set explicitly. No package is added.
+
+**Reasoning.** The port has to exist regardless — tests need deterministic ids to
+assert file paths and idempotency keys, and that means injection, not a static
+call. Given the port, the implementation behind it is about fifteen lines of
+`dart:math`, and the project's standing rule is that a dependency needs a concrete
+need. "Generate 122 random bits and set six of them" is not one.
+
+The risk of a hand-written UUID is getting the version and variant bits wrong, so
+the format is asserted by a test over 200 samples rather than assumed, along with
+collision-freedom over 5 000 and file-name safety. If a future requirement needs
+UUIDv7 or a namespaced identifier, the port is already the seam to change behind.
+
+**Rejected.** `package:uuid` (a dependency for fifteen lines, when the injection
+seam was needed anyway); an autoincrement integer primary key (cannot be generated
+in two isolates without coordination, and is not usable as an idempotency key);
+`DateTime.now().microsecondsSinceEpoch` (collides under a fast shutter, and leaks
+capture time into a filename).
+
+---
+
+## ADR-F16 — Post-upload file deletion is implemented but disabled by default
+
+**Status:** ACCEPTED — F1 · **Requirements:** FLT-SYNC-016 (BONUS), FLT-BAT-003
+
+**Context.** `FLT-SYNC-016` is a bonus row: delete a confirmed-uploaded image's
+file, keep its row as history (`ADR-F09`). Implementing it in F1 surfaced a
+conflict the planning phase had not: the approved Upload Manager renders a
+thumbnail on **every** queue row, synced ones included (`UX_SPEC.md` §3.3). If the
+file is deleted the moment an upload is confirmed, those rows have nothing to show.
+
+**Decision.** `RetentionPolicy` is implemented, the processor honours it, and the
+ordering it depends on is tested — but `deleteAfterUpload` defaults to **`false`**.
+The bonus row stays `PARTIAL`: the mechanism exists and is verified; the app does
+not switch it on.
+
+**Reasoning.** The ordering rule is the part with real engineering content, and it
+is delivered and tested: `UPLOADED` is persisted **first**, deletion is attempted
+only afterwards, and a failed deletion leaves the item `UPLOADED` rather than
+returning it to the queue — housekeeping is never confused with delivery. Turning
+deletion on would silently degrade an approved screen, and the visual direction is
+frozen; changing it needs an evidenced problem and its own decision, not a bonus
+feature's side effect.
+
+Leaving the default off also keeps the bonus honestly subordinate to mandatory
+work, which is what `ADR-F09` asked for. F6 either enables the flag together with
+a designed placeholder for a released file, or records that it was not worth the
+regression.
+
+**Rejected.** Enabling deletion and letting synced rows render a broken thumbnail
+(degrades an approved screen); dropping the policy entirely (the success/cleanup
+ordering is worth having and worth showing); keeping a downscaled thumbnail after
+deleting the original (a second image pipeline, for a bonus row).
+
+---
+
+## ADR-F17 — The claim selects a candidate, then guards the update by id
+
+**Status:** ACCEPTED — F1 · **Refines** the SQL sketch in `DATA_MODEL.md` §4 ·
+**Requirements:** FLT-SYNC-008, FLT-SYNC-009, FLT-SYNC-013
+
+**Context.** The design specified the claim as one statement with the candidate
+chosen by an inline subquery. Implementing it exposed a problem the sketch could
+not show: **the caller cannot learn which row it claimed.** `UPDATE … RETURNING`
+would solve that, but `RETURNING` needs SQLite 3.35 (2021), and `sqflite` uses the
+platform's own SQLite on Android, which on older supported API levels predates it.
+
+**Decision.** `claimNext` reads the oldest claimable id, then issues the
+conditional `UPDATE … WHERE id = ? AND (status = 'PENDING' OR (status =
+'UPLOADING' AND claimed_at < ?))`. A claim succeeded only if that statement
+affected exactly one row. A losing claimant retries with the next candidate, up to
+a small bound.
+
+**Reasoning.** The atomicity is unchanged, and it was never in the subquery. It is
+in the `WHERE` clause of the write: the precondition is re-tested inside the same
+statement, so two claimants that picked the same row cannot both match. The
+candidate read is only a hint — if it is stale, the guarded update simply affects
+zero rows, which is the losing case the design already accounted for.
+
+The statement is deliberately **not** wrapped in a further transaction. It already
+is one, and a deferred read-then-write transaction held across two connections
+would add a lock-upgrade deadlock to defend against without making anything safer
+(`DATA_MODEL.md` §6 says the same).
+
+Verified by `upload_queue_claim_test.dart`, which races two — and then eight —
+**independent database connections** to one file and asserts exactly one winner,
+including on a stale lease.
+
+**Also decided here: `recordSuccess` is guarded on `UPLOADING`,** not on
+`status != 'UPLOADED'` as originally sketched. The stricter guard gives the same
+idempotency (a repeat affects zero rows, invariant I7) and additionally refuses a
+success written by a caller that does not hold the claim, and refuses to overwrite
+a terminal `FAILED_PERMANENT` row.
+
+**Rejected.** `UPDATE … RETURNING` (not available on the oldest supported Android
+SQLite); claiming inside an explicit transaction (deadlock surface, no added
+safety); returning the whole claimable set and filtering in Dart (moves exclusion
+out of the database, which is the mistake `ADR-F04` exists to prevent).
+
+---
+
+## ADR-F18 — A drain pass does not retry an item it has already tried
+
+**Status:** ACCEPTED — F1 · **Requirements:** FLT-SYNC-004, FLT-SYNC-007
+
+**Context.** Found by a test, not by inspection. A retryable failure returns a row
+to `PENDING`, which makes it immediately claimable — so the first `QueueProcessor`
+implementation re-claimed the item it had just failed, on the very next iteration,
+until it hit the per-invocation bound. One offline image produced twenty-five
+upload attempts in a fraction of a second.
+
+**Decision.** `QueueProcessor.drain` keeps a set of ids it has returned to the
+queue during this pass and passes it to `UploadQueue.claimNext(skip: …)`, which
+excludes them from candidate selection. Those items stay `PENDING` and are picked
+up by a **later** invocation.
+
+**Reasoning.** That tight loop is the app running its own retry schedule — the
+exact thing `RS-04` and `FLT-SYNC-007` say must not happen, because it competes
+with the backoff WorkManager already provides and burns a background execution
+window achieving nothing. Excluding the item from *candidate selection*, rather
+than claiming and then releasing it, also avoids stamping a lease on a row the
+processor has decided not to work on, which would strand it for the full lease
+period.
+
+The set is bounded by the per-invocation item limit, so the generated `NOT IN`
+clause stays small.
+
+**Rejected.** Stopping the whole pass at the first retryable failure (one bad item
+would block unrelated batches from draining); claiming then releasing the item
+(a pointless write, and a crash between the two strands it for ten minutes); a
+`Future.delayed` between attempts (an app-side retry timer by another name).
+
+---
+
+## ADR-F19 — A bounded slice asks for a continuation; only failure asks for a retry
+
+**Status:** ACCEPTED — F1 post-audit · **Requirements:** FLT-SYNC-002,
+FLT-SYNC-004, FLT-SYNC-007 · **Raised by:** the F1 architecture audit
+
+**Context.** `QueueProcessor.drain` is bounded at 25 items, and the worker
+returned `false` whenever anything was still outstanding. On Android `false`
+means *retry with backoff*, so the platform could not tell these two apart:
+
+* **the transport is failing** — nothing uploaded, come back later;
+* **the slice worked and there is more** — 25 photos delivered, come back now.
+
+A hundred healthy queued photos therefore drained under an escalating backoff
+curve — 15 s, 30 s, 60 s — growing precisely *because* each slice succeeded. No
+data was at risk; the scheduling semantics were simply wrong, and wrong in the
+direction that gets slower the better the app is working.
+
+**Decision.** Four explicit dispositions, computed from what the pass achieved:
+
+| Disposition | When | Worker returns |
+| --- | --- | --- |
+| `idle` | Nothing eligible, nothing outstanding | `true` |
+| `drained` | Everything outstanding resolved | `true` |
+| `continuationRequired` | **Progress made** and work remains | `true`, after enqueuing a successor |
+| `retryLater` | No progress was possible | `false` |
+
+A continuation is `registerOneOffTask` under the **same** unique name with
+`ExistingWorkPolicy.append`, enqueued from inside the running worker.
+
+**Reasoning.**
+
+*Why progress is the criterion.* "Progress" means at least one item left the work
+set — an upload, or a permanent classification. Requiring it is what makes the
+continuation chain provably finite: every link must have moved something, so the
+chain is bounded by the size of the queue and cannot become a hot loop. A
+condition like "outstanding > 0" would have allowed an endless chain of
+zero-work continuations whenever another processor held every claimable item.
+
+*Why the same unique name.* A pending continuation **is** a scheduled drain, so
+every request stays on one serial chain rather than starting a second one. The
+duplicate-work protection from `RS-03` is preserved.
+
+> **Amended by `ADR-F21`.** This ADR left *entry* work on
+> `ExistingWorkPolicy.keep`. That turned out to open a liveness race of its own —
+> `KEEP` discards a request made while a worker is still running. Entry work now
+> uses `append` as well, and both paths share one constant.
+
+*Why `append` and specifically not `keep`.* Verified in `workmanager_android`
+0.10.8's own Kotlin (`FR-06a`): Dart's `append` maps to Android's
+**`APPEND_OR_REPLACE`**, which runs the successor after the current work and
+starts a fresh chain if the predecessor was cancelled or failed rather than
+inheriting that state. `keep` would have been silently wrong — a worker asking
+for its own successor is itself uncompleted work under that unique name, so
+`KEEP` discards the request and the backlog sits until something unrelated wakes
+it. That is a defect that reads as correct and never fires in a test.
+
+*Why the worker still cannot ask for entry work.* `BackgroundSyncScheduler`
+suppresses `scheduleDrain` and forwards only `scheduleContinuation`. `RS-04` —
+"an app-side scheduler fighting WorkManager's backoff" — remains prevented, but
+now by a type rather than by a comment.
+
+*Why the fallback is `false`.* If the continuation cannot be enqueued the worker
+returns `false`, accepting backoff. A backlog delayed by backoff is recoverable;
+a backlog nobody is coming back for is not.
+
+*Why a time budget was added alongside the item budget.* Android stops a worker
+at roughly ten minutes, and 25 slow uploads can exceed that. A worker killed
+mid-item reports nothing at all — the pass is cut off rather than finishing and
+asking for a continuation, which is the failure mode the whole ADR exists to
+avoid. Eight minutes leaves headroom for the item in flight. It is checked
+between items, never inside one: abandoning an upload half-way would leave a
+claim to expire instead of a clean result.
+
+**Rejected.** Removing the bound (a worker must stay bounded; the platform will
+kill an unbounded one mid-item); a periodic worker (15-minute minimum period,
+and it is polling by another name); `ExistingWorkPolicy.replace` for the
+continuation (it would cancel the very worker enqueuing it); a second unique name
+for continuations (splits the duplicate-work protection in two and re-creates the
+same `KEEP`-while-running trap one level down); an app-side `Future.delayed`
+chain (an app-side scheduler, which is exactly `RS-04`).
+
+**Preserved unchanged.** The atomic claim remains the correctness boundary
+between slices — a continuation is just another claimant, and nothing about
+hand-over between bounded slices relies on the scheduler being correct.
+
+---
+
+## ADR-F20 — One draft batch is an application rule, not a database constraint
+
+**Status:** ACCEPTED — F1 post-audit · **Requirements:** FLT-BAT-004 ·
+**Raised by:** the F1 architecture audit
+
+**Context.** Invariant I3 said "at most one `DRAFT` batch exists", listed beside
+invariants that SQLite genuinely enforces. The schema has no `UNIQUE` index for
+it, and `createDraftBatch` implements it as a read followed by an insert — which
+is not atomic across connections. The claim and the mechanism did not match.
+
+**Decision.** I3 is an **application-level capture-workflow rule**, enforced
+where batches are created, and the documents now say so. No `UNIQUE` index or
+partial index is added.
+
+**Reasoning.** Draft batches have exactly **one** creator: the foreground capture
+flow. The background worker drains a queue; it never creates a batch, and
+nothing else does either. A cross-isolate guarantee protects against a second
+writer that does not exist, and the cost is not zero — a partial unique index on
+`status = 'DRAFT'`, an insert path that has to handle a constraint violation as
+a normal outcome, and a migration to add it later if the shape changes.
+
+The contrast with I4 is the point, and it is the useful thing for a reviewer to
+see. The *claim* has two writers by design, so exclusion lives in SQL and is
+proven with independent connections. Batch creation has one writer, so it does
+not. Applying the heavier mechanism uniformly would look rigorous and would in
+fact be architecture theatre — the same judgement `ADR-F01` and root `ADR-009`
+already applied elsewhere.
+
+What is not acceptable is the previous state: describing an application policy in
+language that implies database enforcement. A test now asserts the *limit* of the
+guarantee — a direct insert bypasses the policy — so nobody later reads I3 as
+cross-isolate protection.
+
+**Revisit if** a second creator of draft batches ever appears (a share-sheet
+import, a background restore). At that point the single-writer assumption is gone
+and the index becomes the right answer.
+
+**Rejected.** A partial `UNIQUE` index (complexity for a race with no second
+writer); wrapping the read-then-insert in a transaction (does not help across
+connections, and would suggest a guarantee it still could not make); leaving the
+wording as it was (the specific thing the audit objected to).
+
+---
+
+## ADR-F21 — One serial chain: every drain request uses `append`, never `keep`
+
+**Status:** ACCEPTED — F1 final acceptance · **Requirements:** FLT-SYNC-002,
+FLT-SYNC-004 · **Amends** `ADR-F19` (which changed only the continuation) ·
+**Raised by:** the F1 final scheduling audit
+
+**Context.** `ADR-F19` gave the continuation `ExistingWorkPolicy.append` but left
+entry work on `keep`. `KEEP` reads well — "a drain is already scheduled, don't add
+another" — and is wrong inside one window, because it discards a request while
+*uncompleted* work exists under that unique name, and a **running** worker is
+uncompleted:
+
+```
+worker: takes its final outstanding-count reading      → sees 0
+                             app: finishes a batch, images → PENDING (committed)
+                             app: scheduleDrain()
+                             OS:  KEEP → request discarded
+worker: returns success — it never saw those rows
+result: durable PENDING work, and nothing scheduled to collect it
+```
+
+No data is lost, and every component reports success. It is a **liveness** gap in
+"retries automatically, without user intervention", and it is invisible.
+
+**Decision.** Both `scheduleDrain` and `scheduleContinuation` enqueue onto **one
+serial unique chain** with `ExistingWorkPolicy.append`, expressed as a single
+`WorkManagerSyncScheduler.conflictPolicy` constant so the two paths cannot drift
+into one safe and one racy.
+
+**Reasoning.**
+
+*Why it closes the race.* `append` maps to Android's `APPEND_OR_REPLACE` —
+verified verbatim in the resolved `workmanager_android` 0.10.8
+`WorkManagerUtils.toAndroidWorkPolicy`, not from the Dart doc comment, which
+describes plain `APPEND`. With no chain it starts one; with a running worker it
+enqueues a successor. **The request cannot vanish**, whatever the worker is doing
+when it arrives. It also starts a fresh chain rather than inheriting a cancelled
+or failed predecessor.
+
+*What it costs, stated plainly.* The opposite failure. Redundant requests now
+accumulate as extra nodes instead of collapsing into one. That is the cheaper
+mistake by a wide margin: a redundant node opens the database, finds nothing
+claimable, returns `idle`, and is gone in milliseconds — whereas a discarded
+request is a queue that stops draining with nothing to indicate it. One wastes a
+wake-up; the other loses the feature.
+
+*Why accumulation stays small.* Because the app asks only when durable
+*uploadable* work appears — a finished batch, or a regained link. It does **not**
+ask on capture: a `DRAFT` image is not uploadable, so a worker woken by the
+shutter has nothing to do. `RecordCapture` takes no scheduler at all, so a
+twenty-photo session produces one request rather than twenty. This mattered less
+under `keep`, where the extras collapsed; under `append` it is what keeps the
+chain short.
+
+*What is preserved.* One unique name still means one **serial chain** —
+WorkManager runs it a node at a time, so the scheduler never asks for two
+parallel drains, and ordering holds (`RS-03`). And correctness never rested on
+that: if two drains ever do overlap, the atomic claim is the boundary. That is
+now proven directly, by two processors on **independent database connections**
+draining one queue concurrently with no image uploaded twice.
+
+**Rejected.** Keeping `keep` and adding a post-commit re-check inside the worker
+(narrows the window, cannot close it — there is always a last read); `replace`
+(cancels the very worker that may be mid-upload); a second unique name for entry
+work (two chains that can run in parallel, splitting `RS-03` for no gain);
+`cancelByUniqueName` before enqueuing (a cancel-then-enqueue race, and it can
+kill a working drain).
+
+**Also decided here: a locked database ends a pass rather than escaping it.**
+Proving the concurrent-drain property exposed that `SQLITE_BUSY` propagated out
+of `QueueProcessor.drain`, which documents that it does not throw for an ordinary
+failure — and contention between the app's own two isolates is ordinary by
+design. It now ends the pass with `DrainStop.databaseBusy` and whatever the pass
+achieved. Nothing is stranded: a claim that lost never happened, and an item
+already claimed is released by its lease. Deliberately not retried in a loop —
+that would be an app-side retry schedule, which is `RS-04`.
