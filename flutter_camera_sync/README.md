@@ -4,7 +4,7 @@ This application is the Flutter submission for Task 2 of the PresenceLens techni
 
 ## What it demonstrates
 
-- **Custom Camera Implementation**: Directly interfacing with CameraX for precise lifecycle and optics control.
+- **Custom Camera Implementation**: Uses Flutter's camera package with the Android CameraX implementation behind a narrow CameraEngine/CameraSession adapter.
 - **Resilient Background Sync**: Durable SQLite queue paired with WorkManager to ensure no data is lost.
 - **Physical Capabilities**: Genuine pinch-to-zoom and tap-to-focus tied to actual device capabilities, not assumed constants.
 - **Truthful UI**: Only representing camera configurations and zoom ranges strictly reported by the hardware.
@@ -32,16 +32,16 @@ The application utilizes the BLoC pattern for rigorous state isolation.
 - **Actual Min/Max Zoom**: Extracted directly from the platform.
 - **Pinch + Slider**: Unified zoom input mapped to a single source of truth.
 - **Tap Focus**: Capability-aware exposure and focus region mapping.
-- **Lifecycle/Race Protection**: Asynchronous initialization guards and shutter-speed bounds to prevent state races.
+- **Lifecycle/Race Protection**: Asynchronous initialization guards and capture concurrency guard to prevent state races.
 
 ## Offline-first flow
 
-1. **Capture** → writes to a durable, app-owned file.
-2. **SQLite Metadata** → atomatically claims the capture record.
-3. **Finish Batch** → transitions the batch to a `PENDING` state.
-4. **WorkManager** → schedules background drainage.
-5. **Deterministic Mock API** → ensures testable success and failure outcomes.
-6. **Durable Success/Retry** → ensures no image is discarded due to a transient failure.
+1. **Capture** → durable app-owned file
+2. **SQLite Metadata** → SQLite image metadata
+3. **Finish Batch** → Finish batch transaction → batch QUEUED + images PENDING
+4. **WorkManager** → WorkManager worker → atomic SQL claim changes an eligible image to UPLOADING
+5. **Deterministic Mock API** → deterministic mock API
+6. **Durable Success/Retry** → durable success or return to PENDING for retry
 
 ## Background sync
 
@@ -71,9 +71,9 @@ The codebase enforces strict quality gates, verified by **521 automated tests** 
 
 ## Screenshots
 
-![Camera Ready](../../docs/assets/flutter/camera-ready.png)
-![Uploads Offline](../../docs/assets/flutter/uploads-offline.png)
-![Uploads Success](../../docs/assets/flutter/uploads-success.png)
+![Camera Ready](../docs/assets/flutter/camera-ready.png)
+![Uploads Offline](../docs/assets/flutter/uploads-offline.png)
+![Uploads Success](../docs/assets/flutter/uploads-success.png)
 
 ## Release APK
 

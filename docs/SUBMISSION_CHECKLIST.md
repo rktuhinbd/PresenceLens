@@ -72,8 +72,8 @@ The assessment specifies five sections. All five, in order, none a placeholder.
 | 4.18 | [x] **§5 Screenshots** present. | DOC-08 |
 | 4.19 | [x] Screenshots of the Android attendance screen included. | DOC-08 |
 | 4.20 | [x] Screenshots of the Flutter camera and Upload Manager screens included. | DOC-08 |
-| 4.21 | [x] GIF: crossing the 50 m boundary with the live distance updating. | DOC-08, AND-09 |
-| 4.22 | [x] GIF: offline → online automatic retry with no user interaction. | DOC-08, FLT-12 |
+| 4.21 | [ ] GIF: crossing the 50 m boundary with the live distance updating. (Not delivered) | DOC-08, AND-09 |
+| 4.22 | [ ] GIF: offline → online automatic retry with no user interaction. (Not delivered) | DOC-08, FLT-12 |
 | 4.23 | [x] All media renders correctly **on github.com**, not just locally. | DOC-08 |
 
 ## 5. Architecture documentation

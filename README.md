@@ -4,7 +4,7 @@ This repository contains the complete submission for the Intelligent Machines te
 
 | Task | Stack | Purpose | Verification | APK |
 | --- | --- | --- | --- | --- |
-| **Task 1** | Native Android / Kotlin | Geo-fenced Attendance | 158 Tests, Physical Device | [Download (v1.0.0)](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Attendance-v1.0.0.apk) |
+| **Task 1** | Native Android / Kotlin | Geo-fenced Attendance | 158 Tests, Emulator | [Download (v1.0.0)](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Attendance-v1.0.0.apk) |
 | **Task 2** | Flutter / Dart | Advanced Camera & Resilient Sync | 521 Tests, Physical Device | [Download (v1.0.0)](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Capture-v1.0.0.apk) |
 
 ## Why this submission stands out
@@ -25,8 +25,7 @@ This repository contains the complete submission for the Intelligent Machines te
 PresenceLens/
 ├── android-attendance/     # Task 1: Native Android Geo-fenced app
 ├── flutter_camera_sync/    # Task 2: Flutter Camera & Resilient Sync app
-├── docs/                   # Architectural decisions, matrices, and planning
-└── release-artifacts/      # Signed APKs
+└── docs/                   # Architectural decisions, matrices, and planning
 ```
 
 ## Architecture at a glance
@@ -38,7 +37,7 @@ Both apps employ strict layered architectures separating UI presentation from do
 ## Screenshots
 
 ### Native Android Attendance
-![Android Attendance](docs/assets/android/attendance_ready.png)
+![Android Attendance](docs/assets/android/attendance-ready.png)
 
 ### Flutter Camera & Sync
 ![Camera Ready](docs/assets/flutter/camera-ready.png)
@@ -62,7 +61,7 @@ flutter run
 
 ## Releases
 
-Final signed APKs are available on the [Releases](https://github.com/rktuhinbd/PresenceLens/releases/tag/v1.0.0) page.
+Final installable release-mode APKs are available on the [Releases](https://github.com/rktuhinbd/PresenceLens/releases/tag/v1.0.0) page.
 
 - [PresenceLens-Attendance-v1.0.0.apk](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Attendance-v1.0.0.apk) (Task 1)
 - [PresenceLens-Capture-v1.0.0.apk](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Capture-v1.0.0.apk) (Task 2)
@@ -70,12 +69,16 @@ Final signed APKs are available on the [Releases](https://github.com/rktuhinbd/P
 ## Verification
 
 ### Automated Gates
-- Native Android: `158` passing tests, 0 lint warnings.
+- Native Android: `158` automated tests + emulator acceptance evidence.
 - Flutter: `521` passing tests, `flutter analyze` 0 issues.
 
 ### Device QA
-- HONOR DNP-NX9 (Android 16)
-- Samsung Galaxy S25 (Android 15)
+Flutter physical QA:
+- **HONOR DNP-NX9 / Android 16** — extensive runtime QA
+- **Samsung Galaxy S25** — physical pinch-to-zoom acceptance after optimization
+
+Native Android:
+- **Emulator** — automated + emulator acceptance evidence
 
 ## Generative AI usage
 

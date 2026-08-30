@@ -28,15 +28,14 @@ Both applications are built on strict Layered Architectures to guarantee that bu
 This project holds rigorous standards for automated verification:
 - **Native Android**: 158 tests passed, 0 lint warnings.
 - **Flutter**: 521 tests passed, 0 analysis issues.
-- **Clean Clone**: Both projects build from scratch out-of-the-box (`./gradlew assembleRelease` and `flutter build apk --release`).
+- **Clean Clone**: Verified from a fresh clone with standard local SDK configuration (`./gradlew assembleRelease` and `flutter build apk --release`).
 
-## Device QA
+**Flutter:**
+- **HONOR DNP-NX9 (Android 16)**: extensive live camera, capture, focus, zoom, offline queue, automatic background recovery, permission and lifecycle QA.
+- **Samsung Galaxy S25 (Android 15)**: manual physical pinch-to-zoom acceptance after selective-rebuild optimization.
 
-Both tasks were extensively vetted on actual Android devices.
-- **Primary**: Samsung Galaxy S25 (Android 15)
-- **Secondary**: HONOR DNP-NX9 (Android 16)
-
-Performance traits, particularly pinch-to-zoom smoothness and hardware-specific WorkManager constraints, were validated on physical hardware rather than purely in emulators.
+**Native Android:**
+- 158 automated tests + emulator acceptance.
 
 ## Generative AI Usage
 
@@ -53,4 +52,4 @@ To build the projects from source:
 
 ## Known Platform Notes
 
-- **HONOR Devices**: Some devices impose an aggressive OEM background restriction (`HN_USER_EXPERIENCE`). For the background queue to drain automatically without the UI present, "Manage manually" must be enabled in App Launch settings. This is standard for apps running background jobs on Honor platforms.
+- **HONOR Devices**: An OEM-specific HN_USER_EXPERIENCE background-launch restriction was observed on the HONOR test device; enabling manual App Launch management allowed WorkManager to execute. This is recorded as device-specific behavior, not a general Android requirement.

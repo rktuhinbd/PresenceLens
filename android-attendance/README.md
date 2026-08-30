@@ -7,7 +7,7 @@ PresenceLens Attendance is the Native Android application developed for Task 1 o
 - **Location Freshness & Precision Validation**: Verifies GPS coordinates in real-time, rejecting stale or imprecise location data.
 - **Office Anchor Handling**: Computes Haversine distance reliably to ensure check-ins only happen within 50 meters of the office.
 - **Provider Failure Recovery**: Degrades gracefully or prompts user intervention when location services fail or permissions are denied.
-- **Attendance Session Correctness**: Ensures transactional check-ins and provides robust visual feedback for office boundary conditions.
+- **Attendance Session Correctness**: Ensures robust visual feedback for office boundary conditions and persistence of check-ins.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ PresenceLens Attendance is the Native Android application developed for Task 1 o
 ## Key correctness behaviors
 
 - Validates that check-ins strictly occur within a 50-meter radius of the office anchor.
-- Handles edge cases such as missing permissions, disabled GPS, and mocked location spoofing attempts.
+- Handles edge cases such as missing permissions and disabled GPS.
 - Recovers safely from lifecycle interruptions and persistence faults.
 - Office anchor dynamically configurable and persistently saved across sessions.
 
