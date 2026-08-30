@@ -148,7 +148,7 @@ substitutes for them.
 | 8B.3 | [x] Package versions verified against primary sources **and against a real resolution**. | EXP-01 |
 | 8B.4 | [x] Test strategy written **before** implementation, risk-based. | EXP-04 |
 | 8B.5 | [x] Risk register with probability, impact, mitigation and verification per row. | EXP-04 |
-| 8B.6 | [x] ~~Twelve~~ **Eighteen** Flutter ADRs recorded (four added at F1/F2). | EXP-03 |
+| 8B.6 | [x] ~~Twelve~~ ~~Eighteen~~ **Twenty-three** Flutter ADRs recorded (seven added at F1/F2, two at F3). | EXP-03 |
 | 8B.7 | [x] Seven static UI prototypes produced and self-contained. | EXP-04 |
 | 8B.8 | [x] **Human has approved the visual prototypes. 2026-08-29** — visual direction frozen; `ADR-F13` and `ADR-F14` accepted at the same review. | EXP-03 |
 | 8B.9 | [x] `flutter analyze` clean under strict analysis settings. | GEN-08 |
@@ -190,6 +190,37 @@ no device behaviour is claimed by any of them.
 | 8C.20 | [x] Invariants I1–I10 each have a test that fails if the invariant is broken. | EXP-04 |
 | 8C.21 | [x] 212 tests pass; `flutter analyze` 0 issues; `dart format` stable; `flutter build apk --debug` PASS. | GEN-08 |
 | 8C.22 | [x] No production camera or Upload Manager UI implemented; the approved visual direction was not redesigned. | EXP-03 |
+
+## 8D. Flutter camera engine (F3)
+
+Engine mechanics only. **No production camera UI was implemented at this gate**, and
+no row below is checked on the strength of an engine API alone.
+
+| # | Item | Requirement |
+| --- | --- | --- |
+| 8D.1 | [x] `CameraEngine` / `CameraSession` ports declared in `domain`, free of any plugin type. | FLT-15, FLT-GEN-007 |
+| 8D.2 | [x] `CameraXAdapter` + `CameraXSession` over `camera` 0.12.0+2, with `enableAudio: false` so no microphone permission is requested. | FLT-CAM-017 |
+| 8D.3 | [x] `package:camera/` confined to `lib/data/camera/` by an automated test. | FLT-15 |
+| 8D.4 | [x] Back-camera filtering; front and external cameras excluded; a deterministic default that makes no optical claim. | FLT-CAM-011 |
+| 8D.5 | [x] Min/max zoom, focus support and exposure support all read back from the controller; nothing assumed, `min` not assumed to be 1.0. | FLT-CAM-007 |
+| 8D.6 | [x] One `currentZoom` written by pinch, slider and presets; they cannot disagree. | FLT-CAM-006 |
+| 8D.7 | [x] Pinch anchored at gesture start, with a test asserting the compounding alternative drifts. | FLT-CAM-003 |
+| 8D.8 | [x] Zoom writes serialised and coalesced; the last requested value is always applied. | — (§19) |
+| 8D.9 | [x] Presets derived from the reported range; **no preset claims an optical identity the platform did not report**. | FLT-CAM-005, FLT-CAM-016 |
+| 8D.10 | [x] Tap-to-focus mapped through the displayed image rect, for both letterbox and full-bleed fits. | FLT-CAM-008 |
+| 8D.11 | [x] Exposure paired with focus only where supported; a failed exposure does not erase the successful focus. | FLT-CAM-018 |
+| 8D.12 | [x] Generation guard on every asynchronous publish; the late session is disposed and never attached. | FLT-CAM-013 |
+| 8D.13 | [x] Application-level capture guard: five simultaneous presses produce one capture. | FLT-CAM-014 |
+| 8D.14 | [x] Lifecycle owned by the app: release on `paused`/`detached`, restore the *selected* camera on `resumed`, `inactive` ignored. | FLT-CAM-012 |
+| 8D.15 | [x] The plugin's temporary `XFile` path handed to `CaptureIntoBatch` → `RecordCapture`; no persistence logic reimplemented in the cubit. | FLT-CAM-015 |
+| 8D.16 | [x] Repeated captures join one draft batch; a new batch opens after the previous is finished; **no drain scheduled for a `DRAFT` capture**. | FLT-BAT-001, FLT-BAT-004 |
+| 8D.17 | [x] Twelve classified error kinds separating session-fatal from operation-local failures. | GEN-04 |
+| 8D.18 | [x] Android's inability to report permanent permission denial found in the plugin source and handled honestly. | FLT-ERR-002, ADR-F22 |
+| 8D.19 | [x] `FakeCameraEngine` with completion gates for initialisation, zoom, capture and disposal. | FLT-TEST-005 |
+| 8D.20 | [x] `CameraDiagnostics` prepared for device QA; logs capability metadata only, never image paths or content. | FLT-TEST-009 |
+| 8D.21 | [x] 445 tests pass; `flutter analyze` 0 issues; debug APK builds. | GEN-08 |
+| 8D.22 | [x] **No `CameraPreviewScreen`, zoom slider, preset row or focus reticle implemented; the approved visual direction was not redesigned or built.** | EXP-03 |
+| 8D.23 | [ ] Camera device QA executed — 17 checks in `CAMERA_ENGINE.md` §9. **Not performed; not claimed.** | FLT-TEST-009 |
 | 8C.23 | [x] **A healthy bounded slice enqueues a WorkManager continuation and returns success; only a slice that made no progress returns retry.** | FLT-10, FLT-12 |
 | 8C.24 | [x] The continuation uses the shared unique name with `append`, so duplicate-scheduling protection is preserved and no second chain is created. | FLT-10 |
 | 8C.25 | [x] A continuation that cannot be enqueued falls back to a retry rather than stranding the backlog. | FLT-11 |

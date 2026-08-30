@@ -172,6 +172,50 @@ see [CAMERA_ENGINE.md](CAMERA_ENGINE.md) §4 and [DECISIONS.md](DECISIONS.md)
 `ADR-F03`. On iOS the richer `lensType` is used when present. That asymmetry is
 kept visible rather than abstracted away.
 
+### FR-12 — **DECISIVE:** Android cannot report *permanent* camera denial `[VERIFIED IN SOURCE]`
+
+Found at gate F3, while mapping permission codes for `FLT-ERR-001`/`FLT-ERR-002`.
+Verified by reading the resolved plugin sources in the local pub cache, the same
+method that produced `FR-04`.
+
+The `camera` plugin's own example app branches on four permission codes:
+
+```
+CameraAccessDenied
+CameraAccessDeniedWithoutPrompt
+CameraAccessRestricted
+AudioAccessDenied
+```
+
+But the two platform implementations do not emit the same set:
+
+| Code | `camera_android_camerax` 0.7.4+7 | `camera_avfoundation` 0.10.3 |
+| --- | --- | --- |
+| `CameraAccessDenied` | **Yes** | Yes |
+| `CameraAccessDeniedWithoutPrompt` | **No** | Yes |
+| `CameraAccessRestricted` | **No** | Yes |
+| `CameraPermissionsRequestOngoing` | Yes | — |
+
+`android/src/main/java/io/flutter/plugins/camerax/CameraPermissionsManager.java`
+declares exactly two error constants — `CAMERA_ACCESS_DENIED` and
+`AUDIO_ACCESS_DENIED` — and its `onRequestPermissionsResult` constructs the
+camera one for **every** refusal, including the empty-`grantResults` case. There
+is no third branch. `CameraPermissionManager.swift` on iOS is where
+`...WithoutPrompt` and `...Restricted` come from.
+
+**Consequence — this constrains `FLT-ERR-002`.** On Android, the only mandated
+platform (root `AMB-12`), the app **cannot distinguish "denied once, ask again"
+from "denied for good, go to settings"** through the camera plugin. Android's
+own `shouldShowRequestPermissionRationale` carries that signal, but the plugin
+does not surface it and reaching it would mean adding `permission_handler` — a
+second permission library for one permission, which `§2` already rejected.
+
+The design therefore reports only what the platform said
+(`CameraPermissionDenied.isPermanentPerPlatform`, always `false` on Android) and
+separately counts consecutive refusals so the later UI can *escalate its offer*
+without asserting a verdict it was never given. See
+[DECISIONS.md](DECISIONS.md) `ADR-F22`.
+
 ---
 
 ## 4. Sync and persistence findings

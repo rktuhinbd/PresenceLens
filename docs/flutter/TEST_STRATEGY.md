@@ -61,9 +61,10 @@ No Flutter binding, no I/O.
 
 | Target | Cases |
 | --- | --- |
-| `ZoomPolicy` | Clamp below min, above max, inside; pinch scale → zoom anchored at gesture start; zero/negative scale rejected. |
-| `ZoomPresetPolicy` | Range `[1,1]` → only `1x`; `[0.5, 8]` → sub-1 preset uses the **reported** minimum, not `0.5` by convention; `[1, 3]` → `2x` but no `5x`; presets never exceed the range; **no preset ever asserts an optical multiplier when `lensType` is `unknown`** (`FLT-CAM-016`). |
-| `FocusPointMapper` | Centre tap → `(0.5, 0.5)`; corners; letterboxed preview taller and wider than its box; tap on a letterbox band → `null`; exact boundary pixels. |
+| `ZoomPolicy` **PASS (23)** | Clamp below min, above max, inside, and against a non-1.0 minimum; `NaN` resolves to the minimum while the infinities land on the ends; pinch anchored at gesture start; zero/negative/non-finite scale holds the baseline; **an explicit assertion that the compounding alternative drifts** — the regression the anchoring exists to prevent. |
+| `ZoomPresetPolicy` **PASS (15)** | Range `[1,1]` → only `1x`; `[0.6, 4]` → the sub-1 preset uses the **reported** minimum, not a rounded `0.5`; `[1,3]` → `2x` but no `5x`; a range entirely above 1 offers its own baseline instead of an unhonourable `1x`; presets never escape the range; **no preset asserts an optical multiplier when `lensType` is `unknown`**, and an unidentified camera's label contains no `x` at all (`FLT-CAM-016`). |
+| `FocusPointMapper` **PASS (19)** | Centre and corners; `contain` letterboxing in both directions with a band tap → `null` and the exact image edges inside; `cover` cropping in both directions, including that a tap at the visible left edge is **a third of the way into the image**; the same tap giving different answers under different aspect ratios; degenerate layouts and non-finite taps rejected. |
+| `CameraSelectionPolicy` **PASS (16)** | Front and external cameras excluded; front-only and empty enumerations; ordinals re-stamped over back cameras only; the platform-identified wide lens wins; with no identity, a *deterministic* first-camera fallback that is explicitly not a claim; cycling wraps. |
 | `BatchPolicy` | Batch opens on first capture; second capture joins the same batch; enqueue closes it; the next capture opens a new one; empty enqueue refused; only one `DRAFT` at a time. |
 | `UploadStateMachine` | Every legal transition accepted; every illegal one rejected — in particular `UPLOADED → PENDING`, and `FAILED_PERMANENT → anything`. |
 | `FailureClassifier` | Timeout, socket error, 5xx → retryable; 4xx → permanent; missing file → permanent; unknown exception → retryable (fails open). |
@@ -97,13 +98,26 @@ The highest-value tier.
 
 ## 5. `BLOC` — Cubit and Bloc transitions
 
-| Target | Cases |
-| --- | --- |
-| `CameraCubit` init | Success → `CameraReady` with capabilities; empty camera list → `CameraUnavailable`; permission denied → the denied state; permanent denial → its own state; other exception → `CameraFailure`. |
-| `CameraCubit` zoom | Pinch, slider and preset all converge on one value; clamped at both ends; **a preset selection is reflected in the slider's state and vice versa** (`FLT-CAM-006`). |
-| `CameraCubit` capture | Sets `isCapturing`; a second capture while in flight is ignored (`FLT-CAM-014`); clears the flag on both success and failure. |
-| `CameraCubit` switch race | Two rapid switches → only the last camera is active; the superseded controller is disposed; no state emitted for the stale generation (`FLT-CAM-013`). |
-| `CameraCubit` lifecycle | `paused` releases; `resumed` re-acquires; `inactive` changes nothing. |
+**Executed at F3 for `CameraCubit`: 109 tests across six suites, all passing.** The
+enabling piece is `test/support/fake_camera.dart`, a camera the test drives
+completely — configurable devices, lens types, zoom ranges and focus/exposure
+support, injectable failures on every operation, and **gates that hold
+initialisation, zoom, capture and disposal open until the test releases them**.
+Every failure that actually costs a camera app is a matter of ordering, and ordering
+cannot be provoked on demand with real hardware. It can here.
+
+| Target | Cases | Status |
+| --- | --- | --- |
+| `CameraCubit` discovery | Success → `CameraReady` with capabilities read from the platform; empty list → `CameraUnavailable(noCameras)`; front-only → `CameraUnavailable(noBackCamera)`; front and external filtered out; enumeration throwing → `CameraFailed`; a non-`CameraException` still classified. | **PASS (20)** |
+| `CameraCubit` identity | A reported `lensType` survives into the state; the identified wide lens is opened rather than merely the first camera; **with all lens types unknown, no preset claims an optical identity** and the fallback choice is deterministic. | **PASS** (in the 20) |
+| `CameraCubit` permission | Refusal → denied state with a working retry; only a *platform* verdict sets `isPermanentPerPlatform`; repeated refusals are counted, never promoted; a restriction cannot be retried; a granted retry resets the counter (`ADR-F22`). | **PASS** (in the 20) |
+| `CameraCubit` zoom | Pinch, slider and preset converge on one value; clamped at both ends and against a non-1.0 minimum; state moves before the platform call resolves; a burst of 20 requests does **not** become 20 platform calls, and the **last requested value is the one finally applied**; a rejected zoom does not tear down the camera. | **PASS (16)** |
+| `CameraCubit` focus | Normalised point reaches the platform; a repeat tap at the same coordinates is still distinguishable; a tap on a letterbox band is ignored; unsupported focus is reported as unsupported, not as a failure; a focus failure leaves the camera usable; **exposure is paired only where supported, and a failed exposure does not erase the successful focus**. | **PASS (16)** |
+| `CameraCubit` capture | `isCapturing` set then cleared; **two — and five — simultaneous presses produce exactly one platform capture and one row**; the temporary path goes through `RecordCapture`; repeated captures join one draft batch and a new batch opens after the previous is finished; a failed photograph writes no file and no row; a storage failure preserves its cause; **no drain is scheduled for a `DRAFT` capture**. | **PASS (22)** |
+| `CameraCubit` switch race | A→B→C ends on C however late B completes; the late session is **disposed**, not attached; no state is ever emitted for a superseded camera; a supersede *before* the open began never acquires that camera at all; eight rapid switches leak nothing; a switch is refused mid-capture. | **PASS (15)** |
+| `CameraCubit` lifecycle | `paused`/`detached` release; `resumed` restores the **selected** camera; `inactive` changes nothing; a failed resume is recoverable; a device with no camera is not re-enumerated on every resume; captures survive a pause; **a pre-pause initialisation cannot overwrite the resumed state**; double dispose is safe and an operation completing after `close()` emits nothing. | **PASS (20)** |
+| `BatchCubit` | Append updates count; enqueue clears the open batch; enqueue with zero images refused. | F4 |
+| `SyncBloc` | `QueueChanged` re-renders; `ConnectivityChanged` to online triggers a reschedule; `AppResumed` reconciles (`FLT-SYNC-012`); `RetryRequested` triggers a drain and nothing else; connectivity chatter is debounced into a single reschedule. | F5 |
 | `BatchCubit` | Append updates count; enqueue clears the open batch; enqueue with zero images refused. |
 | `SyncBloc` | `QueueChanged` re-renders; `ConnectivityChanged` to online triggers a reschedule; `AppResumed` reconciles (`FLT-SYNC-012`); `RetryRequested` triggers a drain and nothing else; connectivity chatter is debounced into a single reschedule. |
 

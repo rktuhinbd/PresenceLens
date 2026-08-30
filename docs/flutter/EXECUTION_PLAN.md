@@ -20,7 +20,7 @@ were delivered in a single pass, which makes off-by-one confusion easy.
 | `F0` | Requirements, architecture, design, visual approval | ✅ complete |
 | `F1` | Data layer and durable queue | ✅ complete |
 | `F2` | Sync engine, worker, scheduler | ✅ complete — shipped with F1 |
-| **`F3`** | **Camera engine — the next milestone** | not started |
+| **`F3`** | **Camera engine** | ✅ **complete 2026-08-30 — engine only; the camera *screen* moved to `F5`** |
 | `F4` | Batch management | not started |
 | `F5` | Upload Manager UI | not started |
 | `F6` | Accepted bonuses | not started |
@@ -170,18 +170,34 @@ Tests went from 188 to **212**.
 
 ---
 
-## F3 — Camera engine ✅ *visual direction approved*
+## F3 — Camera engine ✅ **COMPLETE (2026-08-30)** — engine only
 
-1. `CameraPort` + `CameraXAdapter`.
-2. Pure policies: `ZoomPolicy`, `ZoomPresetPolicy`, `FocusPointMapper`.
-3. `CameraCubit` — all seven states, generation-guarded switching, capture guard.
-4. `CameraPreviewScreen` — preview, lifecycle observer, gestures.
-5. Controls: zoom slider, preset row, focus reticle, shutter, switch.
-6. Capture → `CaptureStore` → `BatchCubit` wiring.
+**Scope was deliberately narrowed to the engine.** Items 4 and 5 below are camera
+*UI*, and building them in the same pass as the mechanics would have meant
+debugging a state machine through a viewfinder. They move to **F5**, alongside the
+Upload Manager, which is where the rest of the approved visual direction is built.
 
-**Exit:** every camera state renders; reticle position asserted; zoom controls
-proven to converge on one value; reduced-motion test proves the reticle still
-appears.
+1. ✅ `CameraEngine`/`CameraSession` ports + `CameraXAdapter` + `CameraXSession`.
+2. ✅ Pure policies: `ZoomPolicy`, `ZoomPresetPolicy`, `FocusPointMapper`,
+   `CameraSelectionPolicy`.
+3. ✅ `CameraCubit` — sealed states, generation-guarded acquisition and switching,
+   capture guard, coalescing zoom pump, lifecycle orchestration.
+4. → **F5** `CameraPreviewScreen` — preview, lifecycle observer, gestures.
+5. → **F5** Controls: zoom slider, preset row, focus reticle, shutter, switch.
+6. ✅ Capture → `CaptureIntoBatch` → `RecordCapture` → `CaptureStore` + queue row.
+7. ✅ `FakeCameraEngine` with completion gates; `CameraDiagnostics` for device QA;
+   an import-confinement test keeping `package:camera/` inside `lib/data/camera/`.
+
+**Exit criteria met:** 445 tests pass (+216), `flutter analyze` clean, debug APK
+builds; zoom controls proven to converge on one value; the switch race, the
+double-shutter guard and the lifecycle races each driven explicitly.
+
+**Exit criteria deferred with the UI:** every camera state *renders*; reticle
+position asserted; the reduced-motion test. Those are `WIDGET` claims and there is
+no widget yet.
+
+**Found and recorded:** `ADR-F22` (Android cannot report permanent permission
+denial — `FR-12`), `ADR-F23` (the preview seam; both preview fits supported).
 
 ---
 
@@ -196,15 +212,26 @@ is deterministic.
 
 ---
 
-## F5 — Upload Manager UI ✅ *visual direction approved*
+## F5 — Camera and Upload Manager UI ✅ *visual direction approved*
 
-1. `SyncBloc` — three event sources, debounced connectivity.
-2. `UploadManagerScreen` — batch sections, item rows, all five states.
-3. Empty state, reassurance line, connectivity chip.
-4. Optional "Try now" accelerator in the overflow.
+Now carries the camera screen inherited from F3.
 
-**Exit:** all five item states render with icon and text; semantics asserted;
-empty state present.
+1. `CameraPreviewScreen` — `buildCameraPreview` over the live session, the
+   lifecycle observer mapping `AppLifecycleState` → `CameraLifecycleSignal`, and
+   the gesture handlers feeding `focusAt` / `beginPinch` / `updatePinch`.
+2. Camera controls: zoom slider, preset row, focus reticle, shutter, switch — all
+   reading the one `currentZoom` and the published `FocusRequest`.
+3. Permission recovery: the `MethodChannel` opening
+   `ACTION_APPLICATION_DETAILS_SETTINGS`, offered on escalation, never worded as a
+   permanence claim (`ADR-F22`).
+4. `SyncBloc` — three event sources, debounced connectivity.
+5. `UploadManagerScreen` — batch sections, item rows, all five states.
+6. Empty state, reassurance line, connectivity chip.
+7. Optional "Try now" accelerator in the overflow.
+
+**Exit:** every camera state renders; the reticle lands on the tap within
+tolerance; the reduced-motion test proves the reticle still appears; all five item
+states render with icon and text; semantics asserted; empty state present.
 
 ---
 
@@ -258,21 +285,35 @@ F0 ──┬──▶ F1 ──▶ F2 ──┬──▶ F4 ──▶ F6 ──�
    (visual gate passed 2026-08-29)
 ```
 
-The visual gate is cleared and the queue is built, so nothing blocks `F3`–`F6`.
-`F7` still cannot start without physical hardware.
+The visual gate is cleared, the queue is built and the camera engine is done, so
+nothing blocks `F4`–`F6`. `F7` still cannot start without physical hardware.
 
 ---
 
 ## Recommended next implementation sequence
 
-`F1` and `F2` are complete. The next gate is **`F3` — Camera engine**, whose
-sequence is listed above. Two things from this pass carry into it:
+`F1`, `F2` and `F3` are complete. The next gate is **`F4` — batch management**.
 
-1. `RecordCapture` already exists and is tested. `F3` supplies it a real temporary
-   file path from `CameraController.takePicture()`; it does not reimplement the
-   persistence.
-2. `BatchPolicy` already owns the open/close rule. `F4`'s `BatchCubit` should call
-   it rather than restating it.
+Both predictions made at F1 held, and are recorded as such:
+
+1. `RecordCapture` was reused, not reimplemented. `CaptureIntoBatch` opens or joins
+   the draft batch and delegates the file-then-row ordering and its compensation
+   entirely to `RecordCapture`.
+2. `BatchPolicy` still owns the open/close rule; `CaptureIntoBatch` executes the
+   *opening* half, and `F4`'s `BatchCubit` should call the policy for the closing
+   half rather than restating it.
+
+Three things from `F3` carry into `F4` and `F5`:
+
+3. `CameraCubit` already publishes `batchImageCount`, read back from the database
+   rather than tallied locally. `F4`'s `BatchCubit` owns the *finish* action and the
+   list; it should not re-derive the live count.
+4. The camera screen is now part of `F5`, not `F4`. `buildCameraPreview(session)` is
+   the whole preview integration; `focusAt` takes a `PreviewLayout` the widget must
+   supply, including which `PreviewFit` it renders with (`ADR-F23`).
+5. `ADR-F22` leaves one concrete task for `F5`: a `MethodChannel` in `MainActivity`
+   for `ACTION_APPLICATION_DETAILS_SETTINGS`. Deliberately not built at `F3` —
+   there was no caller, and an untested recovery path is worse than none.
 
 *(The original F1 ordering advice is preserved below because the prediction it
 made turned out to be correct.)*

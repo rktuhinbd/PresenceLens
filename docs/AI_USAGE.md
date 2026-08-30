@@ -1241,3 +1241,108 @@ engineered away to look tidier. The twenty frozen F1 decisions were left alone;
 the one deviation from the "do not change" list — adding `DrainStop.databaseBusy`
 — is additive, is reported rather than buried, and was forced by a defect the
 audit's own required test uncovered.
+
+---
+
+## Entry 013 — F3 Flutter camera engine
+
+**Date:** 2026-08-30 · **Gate:** F3 · **Scope:** camera mechanics only; no
+production camera UI.
+
+### What the AI was asked for
+
+The camera engine beneath Task 2's mandated camera behaviour: enumeration, a
+capability model, controller lifecycle, safe switching, zoom, tap-to-focus,
+capture concurrency, the handoff into the F1 durable pipeline, error
+classification, `CameraCubit`, and fake-adapter tests. The brief was explicit that
+the approved `CameraPreviewScreen` design was **not** to be built in this pass.
+
+### Representative prompt (abridged)
+
+> Implement the CAMERA ENGINE. Camera mechanics first. Do NOT implement the final
+> approved `CameraPreviewScreen` visual design yet. Verify the actual resolved
+> plugin source before relying on APIs — do not assume list order means 0.5x / 1x
+> / 2x, do not infer focal length from a camera ID, do not fabricate optical
+> multipliers. Protect against: switch A → B, A's initialize completes late, A
+> overwrites state for B. Own an application-level capture guard as well, because
+> asynchronous UI calls can race.
+
+### The two decisions worth recording
+
+**1. A second platform gap, found the same way as the first.**
+
+`ADR-F03` already rested on reading `camera_android_camerax` in the pub cache
+rather than trusting documentation. Mapping permission codes for `FLT-ERR-001`
+began the same way, and turned up something the approved design had not
+anticipated: `CameraPermissionsManager.java` declares exactly two error constants,
+and `CameraAccessDeniedWithoutPrompt` is not one of them. It exists only in
+`camera_avfoundation`.
+
+That made `CAMERA_ENGINE.md` §7's second permission state **unreachable on the one
+platform that must ship** — a specified behaviour that could not be implemented
+truthfully. The resolution (`ADR-F22`) splits the platform's verdict from the
+app's suspicion: `isPermanentPerPlatform` is set only when the platform actually
+said so, and a separate count of consecutive refusals lets the later UI escalate
+what it *offers* without asserting what it was never told. `permission_handler`
+was reconsidered on the strength of the new evidence and rejected again.
+
+**Why this is the entry's centrepiece:** it is the same discipline as `ADR-F03`,
+applied unprompted to a different question, and it produced a *correction to an
+approved document* rather than an implementation that quietly diverged from it.
+
+**2. Two approved documents disagreed, and neither was wrong.**
+
+`CAMERA_ENGINE.md` §5 specified letterboxed preview coordinates; `UX_SPEC.md` §4
+specifies a full-bleed viewfinder. Those are different renderings, and a mapper
+written for one is subtly wrong under the other — wrong in a way that is invisible
+in a screenshot, because the reticle still lands under the finger while the camera
+focuses somewhere else. `FocusPointMapper` takes the fit as an input and implements
+both (`ADR-F23`), so the F5 sprint is not forced to change an approved layout.
+
+### What the AI got right, and what had to be corrected
+
+Two test-authoring mistakes were caught by running the tests, not by review:
+
+* The first switch-race test asserted that a superseded camera opens and must then
+  be disposed. It never opened at all — the generation check fires *before*
+  `openSession`. The correct response was not to weaken the assertion but to test
+  **both** orderings: superseded before the open begins (never acquired) and
+  superseded after (disposed on arrival). The second is the dangerous one and now
+  has to be constructed deliberately, by waiting until the open is genuinely in
+  flight.
+* A cover-crop test asserted a wide image in a square box crops top and bottom. It
+  crops left and right. The arithmetic was right and the test's premise was wrong.
+
+Both are recorded because they are the useful kind of failure: the implementation
+was correct and the test was not, which is only distinguishable by working out
+what *should* happen rather than adjusting the expectation to match the output.
+
+### Human verification
+
+☐ **Pending.** Four checks that need no device:
+
+1. `grep -rn "lensType" $LOCALAPPDATA/Pub/Cache/hosted/pub.dev/camera_android_camerax-0.7.4+7`
+   — zero hits. That single fact is the whole basis of `ADR-F03`.
+2. Read `CameraPermissionsManager.java` in the same package and count the error
+   constants. There are two, and `ADR-F22` follows from it.
+3. Delete the `if (!_isCurrent(generation))` check after `openSession` in
+   `CameraCubit._acquire`. Three switch-race tests fail — and note that on a device
+   this change produces no error message at all, only a preview showing the wrong
+   camera.
+4. `grep -rn "package:camera/" lib` — every hit is under `lib/data/camera/`.
+
+### Not accepted from the AI
+
+No device behaviour is claimed. 445 host tests say nothing about whether a real
+lens focused, and every camera row whose evidence is a device run stays `PARTIAL`.
+The eight rows that moved to `DONE` are rules the engine settles by itself; **no
+`FLT-UX` row moved, and neither did `FLT-CAM-001`, `-002`, `-004`, `-009` or
+`-010`** — an engine API is not a screen, and marking those done because the state
+exists to render would be the exact failure this project's status vocabulary is
+designed to prevent.
+
+The "Open settings" platform channel was scoped, costed and **not built**: it has
+no caller until F5, and shipping an untested recovery path is worse than shipping
+none. The camera backend was not swapped to Camera2 to obtain richer metadata; an
+honest label costs nothing and a platform change made on speculation risks
+everything.

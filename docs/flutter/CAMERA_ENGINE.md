@@ -6,6 +6,16 @@ not allowed to claim about the hardware it found.
 
 Covers `FLT-CAM-001` … `FLT-CAM-018`, `FLT-ERR-001` … `FLT-ERR-005`.
 
+**Updated at gate F3 (2026-08-30).** The engine below is built and host-verified:
+`CameraEngine`/`CameraSession` ports, the `CameraXAdapter`, four pure policies, and
+`CameraCubit` with its generation guard, capture guard and zoom pump. Three things
+in this document changed because the implementation found something the design had
+not: the permission table (§7) lost a state Android cannot reach (`ADR-F22`), the
+coordinate mapper gained a second fit (§5, `ADR-F23`), and the state list gained
+`CameraReleased` (§1). **No production UI exists** — `CameraPreviewScreen` and the
+reticle are still gate F5, and every row whose evidence is `DEVICE` remains
+unverified and unclaimed.
+
 ---
 
 ## 1. Camera states
@@ -21,11 +31,30 @@ can reach, and every one is reachable in a `BLOC` test.
 | `CameraPermissionDenied` | Denied, retryable | Init threw a permission error |
 | `CameraPermissionPermanentlyDenied` | Denied for good; offers app settings | Init threw the permanent variant |
 | `CameraUnavailable` | Device reports no usable camera | `availableCameras()` empty |
-| `CameraFailure` | Initialisation or runtime fault; offers retry | Any other plugin exception |
+| `CameraFailed` | Initialisation or runtime fault; offers retry | Any other plugin exception |
+| `CameraReleased` | Hardware handed back, camera remembered | `release()`, lifecycle `paused`/`detached` |
 
 There is no state for "capturing" — capture is a flag inside `CameraReady`
 (`isCapturing`), because the preview must keep rendering while a shot is taken.
 Making it a separate state would tear down the preview for the duration.
+
+**Two refinements made during implementation.**
+
+`CameraReleased` was added. Without it, a background/foreground cycle would have to
+return to `CameraInitial`, which is indistinguishable from a cold start: the screen
+would lose which camera the user had selected, and nothing could tell "we gave the
+hardware back" apart from "nothing has happened yet". It carries the device so
+resume reopens the same camera, which is asserted by test.
+
+`CameraPreparing` carries a `phase` — `discovering`, `initializing`, `switching`,
+`restoring` — rather than becoming four states. All four render the same thing (a
+viewfinder that is not live yet), so splitting them would force every consumer to
+handle four cases to say one sentence; keeping the fact as a field costs nothing and
+stays assertable.
+
+The class is named `CameraFailed` rather than `CameraFailure`, because
+`CameraFailure` is the *error value* it carries. Two types one letter apart, one a
+state and one an exception, is a naming trap.
 
 ---
 
@@ -195,15 +224,32 @@ through the *displayed* preview rect, not the widget rect:
 
 ```
 FocusPointMapper.toNormalized(
-  tap: Offset,            // local to the preview widget
-  widgetSize: Size,
-  previewAspectRatio: double,
-) -> Offset?              // null when the tap lands on a letterbox band
+  tapX: double, tapY: double,   // local to the preview widget
+  layout: PreviewLayout,        // box size + preview aspect ratio + fit
+) -> NormalizedPoint?           // null when the tap lands on no image
 ```
 
-Returning `null` for a tap outside the image is the correct behaviour — focusing
-on a black bar is meaningless. This is pure arithmetic, so it is unit-tested at
-the aspect-ratio boundaries with no camera present.
+**Both fits are implemented** (`ADR-F23`). This document originally specified
+letterboxing only, while `UX_SPEC.md` §4 specifies a full-bleed viewfinder; both
+are approved and they are different renderings, so the mapper takes the fit as an
+input rather than assuming one:
+
+* `PreviewFit.contain` — the image is letterboxed. A tap on a band returns `null`,
+  because focusing on a black bar is meaningless, and clamping it to the image edge
+  instead would silently move the reticle away from the finger.
+* `PreviewFit.cover` — the image fills the box and overflows it. Every tap is on
+  image, but part of the image is off-screen, so the visible window has to be
+  re-expressed against the whole frame. A tap at the visible left edge of a 4:3
+  sensor in a tall box is **a third of the way into the image**, not at its edge.
+
+The types are the app's own (`NormalizedPoint`, `PreviewLayout`), not `dart:ui`'s
+`Offset` and `Size` — partly because the domain layer may not import `dart:ui`
+(`FLT-GEN-007`), and partly because an `Offset` here would be ambiguous about
+whether it holds pixels or a fraction, which is exactly the confusion that puts
+the focus point in the wrong place.
+
+This is pure arithmetic, unit-tested at the aspect-ratio boundaries with no camera
+present. No prototype geometry is hard-coded anywhere; the UI supplies the box.
 
 Exposure point is set alongside focus where supported (`FLT-CAM-018`, bonus): on
 most hardware, tapping a subject and having it stay dark is a worse experience
@@ -257,35 +303,114 @@ No `permission_handler` dependency. The `camera` plugin already surfaces denial 
 a `CameraException`, and adding a second permission library for a single
 permission is not justified.
 
+**Corrected at F3.** This table previously listed a separate
+`CameraPermissionPermanentlyDenied` state, taken from the plugin's example app.
+Reading the resolved plugin sources showed that state is **unreachable on
+Android**: `camera_android_camerax` 0.7.4+7 emits only `CameraAccessDenied`, and
+the `...WithoutPrompt` and `...Restricted` codes exist solely in
+`camera_avfoundation` (`RESEARCH.md` `FR-12`). One state now carries the platform's
+verdict as a *field*, so the app cannot assert something it was never told
+(`ADR-F22`):
+
 | Situation | State | Offered action |
 | --- | --- | --- |
 | Not yet asked | `CameraPreparing` → OS dialog | — |
-| Denied once | `CameraPermissionDenied` | "Allow camera access" (retries `initialize()`) |
-| Denied permanently | `CameraPermissionPermanentlyDenied` | "Open settings" (`FLT-ERR-002`) |
+| Denied, first time | `CameraPermissionDenied(isPermanentPerPlatform: false, consecutiveDenials: 1)` | "Allow camera access" (retries) |
+| Denied again | same state, `consecutiveDenials: n` | Retry **plus** "Open settings" — an escalated *offer*, never a claim (`FLT-ERR-002`) |
+| iOS, denied without prompt | `isPermanentPerPlatform: true` | "Open settings" — the platform actually said so |
+| iOS, restricted by policy | `isRestricted: true` | Explain; `canRetry` is false |
 | Granted later, app resumed | `CameraPreparing` → `CameraReady` | Automatic on resume |
 
 Re-acquisition on resume is what makes the settings round-trip work without the
-user having to find a retry button.
+user having to find a retry button — and it is the reason the counter is enough:
+a user who grants permission in Settings comes back to a live camera regardless of
+what the app had guessed. The counter resets on any successful acquisition.
+
+"Open settings" itself needs a `MethodChannel` in this app's `MainActivity` firing
+`Settings.ACTION_APPLICATION_DETAILS_SETTINGS`. Route chosen and recorded at F3;
+**built at F5**, with the screen that calls it (`ADR-F22`).
 
 ---
 
-## 8. Device verification checklist
+## 8. Ownership, and the one seam
 
-`FLT-TEST-009`. Cannot be satisfied on an emulator alone — emulator cameras are
-synthetic and report capabilities unlike real hardware.
+**Exactly one object owns the platform controller.** `CameraXSession` creates it,
+holds it, and destroys it; `CameraCubit` holds at most one session at a time and is
+the only thing that calls `dispose()`. No widget constructs a controller, and none
+can dispose one.
 
-| # | Check |
-| --- | --- |
-| 1 | Preview renders at the correct aspect ratio with no stretch |
-| 2 | `availableCameras()` — record how many back cameras are actually returned (`FQ-01`) |
-| 3 | Record each camera's reported min/max zoom |
-| 4 | Pinch tracks fingers; no drift; clamps at both ends |
-| 5 | Slider and pinch stay synchronised in both directions |
-| 6 | Presets set the exact value and reflect the active state |
-| 7 | Tap focus visibly changes focus; reticle lands exactly on the tap |
-| 8 | Tap on a letterbox band is ignored |
-| 9 | Capture produces a file; double-tap produces exactly one |
-| 10 | Camera switch under rapid tapping never crashes or shows a dead preview |
-| 11 | Background/foreground releases and restores the preview |
-| 12 | Permission denied and permanently-denied paths both render correctly |
-| 13 | Reduced-motion enabled: reticle still appears |
+```
+CameraCubit ──owns──▶ CameraSession (domain port, pure Dart)
+                          ▲
+                          │ implements
+                    CameraXSession ──owns──▶ CameraController
+                          │
+                          │ also implements
+                          ▼
+                  CameraPreviewSource      ── previewController (read-only)
+                          │
+                          ▼
+              buildCameraPreview(session)  ── the only caller
+```
+
+`CameraPreviewSource` is a single getter. `CameraPreview` needs a real
+`CameraController` and there is no pure substitute; an abstraction whose only
+implementation hands the controller back anyway would be theatre that makes the
+integration worse rather than safer (`ADR-F23`). A session that does not implement
+it — a fake in a test — renders a placeholder, which is what makes the production
+screen widget-testable without a camera.
+
+An automated test confines `package:camera/` imports to `lib/data/camera/`, with a
+companion assertion that the adapter still imports it — so the rule cannot pass
+vacuously if the adapter moves.
+
+**Stale-async protection.** One `_generation` counter, bumped by every acquire,
+switch and release. Each asynchronous step captures the value it began with and
+must prove it is still current before publishing state or keeping a session. Two
+distinct outcomes, both tested:
+
+* superseded **before** its open began — the camera is never acquired at all;
+* superseded **after** its open began — the session that arrives late is disposed
+  and no state is emitted for it.
+
+**Zoom pump.** One `setZoomLevel` in flight at a time; a newer request replaces a
+pending one rather than queueing behind it, and the last value the user asked for is
+always the one finally applied. State moves immediately on every request, so the
+slider tracks the finger while the device is not flooded.
+
+---
+
+## 9. Device verification checklist
+
+`FLT-TEST-009`. **Not executed. Nothing in this repository claims any of it has
+passed.** Cannot be satisfied on an emulator alone — emulator cameras are synthetic
+and report capabilities unlike real hardware (`RF-03`).
+
+`CameraDiagnostics.report()` produces checks 2–4 as one copyable block; paste its
+output into the evidence column rather than paraphrasing it.
+
+| # | Check | Records |
+| --- | --- | --- |
+| 1 | Preview renders at the correct aspect ratio with no stretch | — |
+| 2 | `availableCameras()` — exact output: `name`, `lensDirection`, `lensType`, `sensorOrientation` for **every** camera | `FQ-01`; confirms or overturns `FR-04` |
+| 3 | Exact count of **back** cameras | `FQ-01` |
+| 4 | `getMinZoomLevel()` / `getMaxZoomLevel()` per rear camera | `FQ-01`; validates `ZoomPresetPolicy` against real hardware |
+| 5 | `focusPointSupported` and `exposurePointSupported` per rear camera | `FLT-CAM-008`, `FLT-CAM-018` |
+| 6 | Pinch tracks fingers; no drift; clamps at both ends | `FLT-CAM-003` |
+| 7 | Slider and pinch stay synchronised in both directions | `FLT-CAM-006` |
+| 8 | Presets set the exact value and reflect the active state | `FLT-CAM-005` |
+| 9 | Tap focus visibly changes focus; reticle lands exactly on the tap | `FLT-CAM-008/009` |
+| 10 | Tap outside the active preview area behaves per the chosen fit | `FLT-CAM-008` |
+| 11 | Capture produces a file; double-tap produces exactly one | `FLT-CAM-014` |
+| 12 | A real plugin `XFile` reaches durable storage and survives | `FLT-CAM-015` |
+| 13 | Camera switching works, and rapid tapping never crashes or shows a dead preview | `FLT-CAM-013` |
+| 14 | Background/foreground releases and restores the preview; captures survive | `FLT-CAM-012` |
+| 15 | Camera permission **denied** renders correctly and retry works | `FLT-ERR-001` |
+| 16 | Permission denied twice, then granted in Settings, then return to the app — camera comes back with no retry tap | `FLT-ERR-002`, `ADR-F22` |
+| 17 | Reduced-motion enabled: reticle still appears | `FLT-UX-004` |
+
+**Check 2 is the one that matters most.** It is the only thing that can confirm or
+overturn `FR-04`, and the honest-label policy (`ADR-F03`) — the most visible design
+decision in this task — rests on it. If a real device *does* report `lensType`, the
+preset policy already upgrades its labels; nothing needs rewriting, but the README's
+limitation note would need correcting.

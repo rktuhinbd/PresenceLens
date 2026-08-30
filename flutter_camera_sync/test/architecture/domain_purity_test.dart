@@ -121,6 +121,64 @@ void main() {
     expect(violations, isEmpty, reason: 'domain stays pure Dart\n$violations');
   });
 
+  test('the camera plugin is confined to the camera adapter', () {
+    // `ARCHITECTURE.md` §5 says the plugin stops at `data/camera`. The purity
+    // test above already keeps it out of `domain`; this keeps it out of
+    // `presentation` too, which is the boundary that actually decays — a widget
+    // reaching for `CameraController` is the shortest path to a disposed
+    // controller being rendered (`FLT-CAM-013`).
+    //
+    // `data/camera` is the whole allowance, and the preview seam inside it is
+    // deliberate and documented (`CAMERA_ENGINE.md` §9).
+    const String cameraImport = 'package:camera/';
+    final Map<String, List<String>> violations = <String, List<String>>{};
+
+    final List<File> sources = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File f) => f.path.endsWith('.dart'))
+        .toList(growable: false);
+    expect(sources.length, greaterThanOrEqualTo(20));
+
+    for (final File file in sources) {
+      final String relative = p.relative(file.path).replaceAll(r'\', '/');
+      if (relative.startsWith('lib/data/camera/')) {
+        continue;
+      }
+      final List<String> offending = file
+          .readAsLinesSync()
+          .where((String line) => line.trimLeft().startsWith('import '))
+          .where((String line) => line.contains(cameraImport))
+          .toList(growable: false);
+      if (offending.isNotEmpty) {
+        violations[relative] = offending;
+      }
+    }
+
+    expect(
+      violations,
+      isEmpty,
+      reason: 'the camera plugin belongs to lib/data/camera only:\n$violations',
+    );
+  });
+
+  test('the camera adapter really is where the plugin lives', () {
+    // The complement of the rule above: a scan that matched nothing because the
+    // adapter moved would pass vacuously, which is the same defect the
+    // empty-scan guard exists to prevent.
+    final Directory adapter = Directory('lib/data/camera');
+    expect(adapter.existsSync(), isTrue);
+
+    final bool importsPlugin = adapter
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File f) => f.path.endsWith('.dart'))
+        .any(
+          (File f) => f.readAsStringSync().contains("import 'package:camera/"),
+        );
+    expect(importsPlugin, isTrue);
+  });
+
   test('the ports directory declares interfaces, not implementations', () {
     // A spot-check that the seam is real: if `domain/ports` filled up with
     // concrete classes, the layering would be nominal.

@@ -4,7 +4,7 @@ Resumption document. Read this first, then the active gate in
 [EXECUTION_PLAN.md](EXECUTION_PLAN.md), then only the relevant rows of
 [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md).
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 Overall status: **G3.8 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
 implemented end to end, passes all automated verification, and has been driven through
 every state on an emulator. G3.8 was the final substantive engineering pass: location
@@ -15,7 +15,27 @@ orchestration moved into `domain`, and a recorded attendance became an event rat
 live condition ([ADR-015](DECISIONS.md#adr-015), [ADR-016](DECISIONS.md#adr-016),
 [ADR-017](DECISIONS.md#adr-017)). The rows whose stated verification method is a Compose UI
 test remain `PARTIAL`; a manual walkthrough is not that method.**
-Flutter Task 2 status: **F1 + F2 COMPLETE — DURABLE SYNC FOUNDATION BUILT, 2026-08-29.**
+Flutter Task 2 status: **F3 COMPLETE — CAMERA ENGINE BUILT, 2026-08-30.** The camera
+mechanics are implemented and host-verified beneath a UI that does not exist yet:
+enumeration with truthful back-camera filtering, a `CameraEngine`/`CameraSession` port
+pair over `camera` 0.12.0+2, capabilities read back from the controller rather than
+assumed, **one generation counter guarding every asynchronous publish**, safe camera
+switching, an application-level capture guard, a single `currentZoom` written by pinch,
+slider and presets alike with a coalescing platform pump, tap-to-focus coordinate
+mapping for both preview fits, an optional exposure pairing that cannot damage the
+focus beside it, and the plugin's temporary `XFile` handed into the F1 durable
+pipeline through a new `CaptureIntoBatch` use case. **445 tests pass** (229 at F1,
++216 this gate), `flutter analyze` 0 issues, `flutter build apk --debug` PASS.
+Two new ADRs record what implementation forced rather than confirmed: **`ADR-F22`** —
+`camera_android_camerax` emits only `CameraAccessDenied`, so Android *cannot* report
+permanent permission denial and the specified "permanently denied" state was
+unreachable there; and **`ADR-F23`** — the approved documents disagreed about the
+preview fit, so the coordinate mapper supports both rather than forcing a redesign.
+**No production camera UI exists and none is claimed**: `CameraPreviewScreen`, the
+zoom slider, the preset row and the focus reticle moved to gate F5 with the rest of
+the approved visual direction. **No device QA has been performed.**
+
+Flutter Task 2 status at F1/F2: **DURABLE SYNC FOUNDATION BUILT, 2026-08-29.**
 The invisible half of Task 2 is implemented and evidenced: a SQLite queue with an
 **atomic conditional-`UPDATE` claim** that two isolates cannot both win, a ten-minute lease
 that recovers work stranded by process death without any startup sweep, durable
@@ -35,8 +55,9 @@ yet** — `CameraPreviewScreen` and the Pending Uploads manager are still unimpl
 approved visual direction was neither redesigned nor built. **No device QA has been performed
 and none is claimed.**
 
-Current gate: **F3 — Flutter camera engine (next).** F0, F1 and F2 are complete; the visual
-gate is **APPROVED / UNLOCKED**. Android Task 1 is **FROZEN** at G3.8.
+Current gate: **F4 — batch management (next).** F0 through F3 are complete; the visual
+gate is **APPROVED / UNLOCKED**. Android Task 1 is **FROZEN** at G3.8 and was not
+touched at F3.
 
 ## Progress
 
@@ -46,7 +67,8 @@ gate is **APPROVED / UNLOCKED**. Android Task 1 is **FROZEN** at G3.8.
 | Architecture defined | Complete (both apps) |
 | ADRs | 17 recorded — 16 `ACCEPTED`, 1 `PROPOSED` (ADR-009, a technical revisit; ADR-010 was resolved and accepted at G3.6). ADR-013's two open interpretive calls were **ruled on and accepted** at G3.6; its §7 confirmation-lifetime rule is **superseded by [ADR-016](DECISIONS.md#adr-016)** and ADR-014 §6's office-capture bound by **[ADR-015](DECISIONS.md#adr-015)**, both on explicit human ruling at G3.8. |
 | **Android feature implementation** | **Complete, stabilised, polished, and hardened.** Domain rule, persistence, Fused Location layer, ViewModel + single UI state, permission/service UX, and a state-driven `AttendanceScreen` with every AND-13…AND-21 element ([ADR-013](DECISIONS.md#adr-013)). Location is a retained value bounded by **age and accuracy** ([ADR-014](DECISIONS.md#adr-014), [ADR-015](DECISIONS.md#adr-015)), the office anchor is derived fresh and refused if too coarse, a provider fault retries on a capped backoff, `LocationKnowledge`/`LocationReading` and `SetOfficeLocationUseCase` live in `domain` ([ADR-017](DECISIONS.md#adr-017)), and a recorded mark survives a stale fix and the user walking away ([ADR-016](DECISIONS.md#adr-016)). 158 unit tests pass; emulator walkthrough executed. |
-| **Flutter application** | **Data, domain and sync layers complete; presentation 0%.** `domain` (entities, five pure policies, eight ports, one use case) and `data` (SQLite database + DAO, filesystem capture store, mock upload API, connectivity adapter, queue processor, WorkManager scheduler, UUID generator, shared composition root) are implemented, plus the `vm:entry-point` worker. **188 tests pass**; `analyze` 0 issues; debug APK builds. **No production camera or upload UI is implemented yet** — that is gates F3/F5 ([EXECUTION_PLAN](flutter/EXECUTION_PLAN.md)). 84 Flutter requirements specified; **24 `DONE`, 9 `PARTIAL`, 51 `TODO`**. |
+| **Flutter application** | **Data, domain, sync and camera engine complete; screens 0%.** `CameraCubit` is the first presentation component — 109 state-transition tests, no widget. `domain` gained camera entities, four pure policies and the `CameraEngine`/`CameraSession` ports while staying plugin-free; `data/camera` holds the CameraX adapter, error translation, the one-getter preview seam and a device-QA diagnostic, and an automated test confines `package:camera/` to that directory. **445 tests pass**; `analyze` 0 issues; debug APK builds. **No camera or upload screen exists** — F4/F5. |
+| **Flutter application (F1 baseline)** | **Data, domain and sync layers complete; presentation 0%.** `domain` (entities, five pure policies, eight ports, one use case) and `data` (SQLite database + DAO, filesystem capture store, mock upload API, connectivity adapter, queue processor, WorkManager scheduler, UUID generator, shared composition root) are implemented, plus the `vm:entry-point` worker. **188 tests pass**; `analyze` 0 issues; debug APK builds. **No production camera or upload UI is implemented yet** — that is gates F3/F5 ([EXECUTION_PLAN](flutter/EXECUTION_PLAN.md)). 84 Flutter requirements specified; **24 `DONE`, 9 `PARTIAL`, 51 `TODO`**. |
 | README / submission artefacts | Not started |
 
 ## Verification status
@@ -74,7 +96,15 @@ gate is **APPROVED / UNLOCKED**. Android Task 1 is **FROZEN** at G3.8.
 | Flutter project | **CREATED and building.** Flutter 3.47.2 / Dart 3.13.2 / JDK 21.0.12.1 / Gradle 8.14 / AGP 8.11.1 |
 | Flutter `pub get` | PASS — 92 packages resolved, 2026-08-29 |
 | Flutter `analyze` | PASS — **0 issues**, with `strict-casts`, `strict-inference`, `strict-raw-types` and `unawaited_futures: error` enabled |
-| Flutter `test` | PASS — **229/229**, 2026-08-30 (F1/F2 including both audit rounds). Breakdown in [TEST_STRATEGY.md](flutter/TEST_STRATEGY.md) §11 |
+| Flutter `test` | PASS — **445/445**, 2026-08-30 (F3). Was 229 at F1/F2; the camera engine added **216**: 73 pure camera-policy, 109 `CameraCubit` state-transition, 22 adapter/diagnostic, 10 `CaptureIntoBatch`, 2 architecture. Breakdown in [TEST_STRATEGY.md](flutter/TEST_STRATEGY.md) §5 and §11 |
+| Flutter `build apk --debug` | PASS — re-verified 2026-08-30 with the camera engine compiled in |
+| Flutter **camera plugin confinement** | **PASS** — an automated test rejects any `package:camera/` import outside `lib/data/camera/`, with a companion assertion that the adapter still imports it so the rule cannot pass vacuously |
+| Flutter **camera switch race** (`FLT-CAM-013`) | **PASS** — A→B→C ends on C however late B completes; the superseded session is disposed and no state is ever emitted for it; a supersede before the open began never acquires that camera at all; eight rapid switches leave exactly one live session |
+| Flutter **double-shutter guard** (`FLT-CAM-014`) | **PASS** — two, then five, simultaneous presses produce exactly **one** platform capture and one image row |
+| Flutter **zoom coalescing** (`§19`) | **PASS** — 20 requests against a held platform call produce far fewer than 20 calls, and the **last** value requested is the one finally applied |
+| Flutter **camera lifecycle** (`FLT-CAM-012`) | **PASS** — `paused`/`detached` release, `resumed` restores the *selected* camera, `inactive` deliberately does nothing, captures survive a pause, and a pre-pause initialisation completing after a resume publishes nothing |
+| Flutter **honest lens labelling** (`ADR-F03`) | **PASS** — no preset claims an optical identity across every range tested; an unidentified camera's label contains no `x` at all. Re-verified in the resolved plugin source this gate: `camera_android_camerax` 0.7.4+7 contains zero occurrences of `lensType` |
+| Flutter **camera device QA** | **NOT PERFORMED — NOT CLAIMED.** 17-check list in [CAMERA_ENGINE.md](flutter/CAMERA_ENGINE.md) §9. Check 2 is the one that confirms or overturns `FR-04` |
 | Flutter **scheduling liveness** (`ADR-F21`) | **PASS** — every drain request uses `append` (→ Android `APPEND_OR_REPLACE`), so a request made while a worker is running becomes its successor instead of being discarded. The exact `ExistingWorkPolicy` is asserted, so it cannot regress to `keep` unnoticed |
 | Flutter **healthy-continuation semantics** (`ADR-F19`) | **PASS** — a bound-limited slice that uploaded 25 of 30 returns *success* and enqueues a WorkManager continuation; only a slice that made **no** progress returns retry. 60 items drain across three slices with every item uploaded exactly once |
 | Flutter `build apk --debug` | PASS — `app-debug.apk` produced with the queue and sync engine compiled in, 2026-08-29 |

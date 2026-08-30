@@ -776,3 +776,104 @@ design. It now ends the pass with `DrainStop.databaseBusy` and whatever the pass
 achieved. Nothing is stranded: a claim that lost never happened, and an item
 already claimed is released by its lease. Deliberately not retried in a loop —
 that would be an app-side retry schedule, which is `RS-04`.
+
+---
+
+## ADR-F22 — Permanent camera denial is reported only where the platform reports it; elsewhere the app counts refusals instead
+
+**Status:** ACCEPTED · **Requirements:** FLT-ERR-001, FLT-ERR-002, FLT-GEN-004 ·
+**Closes:** the `FLT-ERR-002` platform question raised at F3
+
+**Context.** `CAMERA_ENGINE.md` §7 specifies two permission states — denied, and
+permanently denied with an "Open settings" route. That table was written from the
+`camera` plugin's example app, which branches on `CameraAccessDenied` and
+`CameraAccessDeniedWithoutPrompt`.
+
+**Evidence.** Verified in the resolved plugin sources this gate
+(`RESEARCH.md` `FR-12`): `camera_android_camerax` 0.7.4+7 emits **only**
+`CameraAccessDenied`. `CameraPermissionsManager.java` declares two error
+constants, and every refusal — including an interrupted request with empty
+`grantResults` — produces the same one. `CameraAccessDeniedWithoutPrompt` and
+`CameraAccessRestricted` exist solely in `camera_avfoundation`.
+
+So on Android, the mandated platform, the second state of that table is
+**unreachable**. The design as specified could not be implemented truthfully.
+
+**Decision.** Split the two facts that were conflated:
+
+* `CameraPermissionDenied.isPermanentPerPlatform` — true **only** when the
+  platform actually said so. Always `false` on Android. Nothing else may set it.
+* `CameraPermissionDenied.consecutiveDenials` — how many times in a row this
+  session has been refused. A count, not a verdict.
+
+The later UI (gate F5) offers "Try again" on the first refusal and *adds* "Open
+settings" once refusals repeat. That is an escalation of what is **offered**, and
+it is never worded as a claim about what the OS decided.
+
+**Reasoning.** This is the same rule as `ADR-F03`, applied to a second platform
+gap found the same way. The app may act on a suspicion; it may not state one as
+fact. Offering a settings shortcut after two refusals is helpful and true —
+"Camera access is permanently denied" would be neither, since the user may simply
+have dismissed the dialog twice.
+
+**Rejected.**
+
+* *Adding `permission_handler`* to reach Android's
+  `shouldShowRequestPermissionRationale`. A second permission library for one
+  permission, rejected at `RESEARCH.md` §2 and no more justified now. Its signal
+  is also only meaningful immediately after a request, which is not where the app
+  needs it.
+* *Treating the second `CameraAccessDenied` as permanent.* Indistinguishable from
+  a user who dismissed the dialog twice, and it would put a dead-end screen in
+  front of someone one tap from granting.
+* *Timing the refusal* — a permanently-denied request returns without showing a
+  dialog, so it comes back faster. Inferring permission state from a stopwatch is
+  exactly the kind of undocumented heuristic `ADR-F03` refused for lens identity.
+
+**Consequence for the UI sprint.** "Open settings" needs a platform call Flutter
+does not provide. The cheapest correct route is a `MethodChannel` in this app's
+own `MainActivity` firing
+`Settings.ACTION_APPLICATION_DETAILS_SETTINGS` with a `package:` URI — no new
+dependency, about fifteen lines, and it is Android-only, which matches the
+declared scope. **Not built at F3**: it is UI recovery plumbing with no engine
+caller yet, and building it now would ship an untested code path. Recorded here
+so F5 does not have to rediscover it.
+
+---
+
+## ADR-F23 — The preview seam is one getter, and the coordinate mapper supports both fits
+
+**Status:** ACCEPTED · **Requirements:** FLT-CAM-002, FLT-CAM-008, FLT-GEN-007
+
+**Context.** Two questions the camera engine had to answer before any UI exists:
+how a widget reaches a live `CameraController` without dragging the plugin into
+the domain, and which preview fit the tap-to-focus mapping is written against.
+
+**Decision, part one — the preview.** `CameraSession` (domain) stays pure Dart.
+`CameraPreviewSource` — a single `CameraController get previewController` — is
+declared in `data/camera`, implemented by `CameraXSession`, and consumed by one
+top-level function, `buildCameraPreview(session)`. A session that does not
+implement it renders a placeholder.
+
+*Reasoning.* `CameraPreview` needs a controller and there is no pure substitute.
+An abstraction whose only implementation hands the controller back regardless
+would be theatre that makes the real integration worse. One getter and one type
+test is the smallest thing that keeps the domain clean, keeps every cubit test
+binding-free, and lets a fake session render as a placeholder in a widget test.
+An automated test now confines `package:camera/` imports to `lib/data/camera/`,
+so the seam cannot quietly widen.
+
+**Decision, part two — the fit.** `FocusPointMapper` takes a `PreviewLayout`
+carrying the widget box, the preview aspect ratio, and a `PreviewFit` of
+`contain` or `cover`, and implements both.
+
+*Reasoning.* `CAMERA_ENGINE.md` §5 described letterboxing (`contain`, where a tap
+on a band correctly returns `null`); `UX_SPEC.md` §4 specifies a **full-bleed**
+viewfinder (`cover`, where every tap is on image but part of the image is
+cropped away). Both documents are approved and neither is wrong — they describe
+different renderings. Implementing only one would force the UI sprint to either
+change an approved layout or ship a mapping that is subtly wrong everywhere the
+sensor and the screen disagree, which is most devices. Supporting both costs one
+branch and is unit-tested at the aspect-ratio boundaries either way. The UI
+supplies the fit; the engine never guesses it, and no prototype geometry is
+hard-coded.

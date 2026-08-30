@@ -57,15 +57,22 @@ lib/
 │
 ├── domain/
 │   ├── entities/                   CaptureBatch, QueuedImage, UploadOutcome,
-│   │                               BatchStatus, ImageStatus, FailureCategory
+│   │                               BatchStatus, ImageStatus, FailureCategory,
+│   │                               CameraDevice, CameraCapabilities/ZoomRange,
+│   │                               CameraGeometry, CameraError, ZoomPreset,
+│   │                               FocusRequest, CameraLifecycleSignal
 │   ├── policies/                   pure decision functions (see §4)
-│   ├── ports/                      CameraPort, CaptureStore, UploadQueue,
-│   │                               UploadApi, SyncScheduler, ConnectivityPort,
-│   │                               Clock, IdGenerator
-│   └── usecases/                   RecordCapture — see the note below
+│   ├── ports/                      CameraEngine/CameraSession, CaptureStore,
+│   │                               UploadQueue, UploadApi, SyncScheduler,
+│   │                               ConnectivityPort, Clock, IdGenerator
+│   └── usecases/                   RecordCapture, FinishBatch, CaptureIntoBatch
 │
 ├── data/
-│   ├── camera/                     CameraXAdapter over the `camera` plugin
+│   ├── camera/                     CameraXAdapter + CameraXSession over the
+│   │                               `camera` plugin, error translation, the
+│   │                               preview seam, device diagnostics.
+│   │                               **The only place `package:camera` may be
+│   │                               imported — asserted by test.**
 │   ├── storage/                    FileSystemCaptureStore (injected root dir)
 │   ├── database/                   AppDatabase, migrations, UploadQueueDao
 │   ├── api/                        MockUploadApi behind UploadApi
@@ -87,14 +94,25 @@ lib/
 *orchestrates* ports and performs I/O. The decisions it makes are delegated to the
 pure policies in `domain/policies`, which is where the testable behaviour lives.
 
-**`domain/usecases/` was added during F1, and it holds exactly one thing.** §9
+**`domain/usecases/` holds three things, and the bar for a fourth is unchanged.** §9
 sets the bar — a use case is justified only when it orchestrates more than one
 port — and `RecordCapture` is the operation that clears it: it spans `CaptureStore`
 and `UploadQueue`, and the rule it enforces is what must happen when the *second*
 of them fails after the first succeeded (file, then row; compensate the file if
 the row cannot be written). That rule belongs somewhere pure and testable, not
-inlined into whichever Cubit happens to call it. Nothing else has earned a place
-beside it, and the directory should stay that small.
+inlined into whichever Cubit happens to call it.
+
+`FinishBatch` joined it in the same gate, for the mirror-image reason: the durable
+transaction must commit before anything is scheduled, and never the reverse.
+
+`CaptureIntoBatch` joined at F3 and clears the same bar. It spans `UploadQueue`,
+`IdGenerator` and `Clock` around a delegated `RecordCapture`, and the rule it holds
+is the **batch boundary** — `FLT-BAT-004`'s "a batch opens on the first capture
+after the previous batch was enqueued". Without it, that sentence would be executed
+inside `CameraCubit`, and again inside `BatchCubit` at F4. It notably does *not*
+reimplement the file-then-row ordering; it delegates, which is the point.
+
+Three is where it stops unless a fourth clears the same bar.
 
 `FileSystemCaptureStore` takes its root `Directory` by injection rather than
 calling `path_provider` itself. Resolving the directory is the composition root's
@@ -131,9 +149,10 @@ see tested, and they are the reason the test suite can be fast and device-free.
 
 | Policy | Decides | Requirement |
 | --- | --- | --- |
-| `ZoomPolicy` | Clamping a requested zoom to the reported `[min, max]`; mapping a pinch scale factor onto a zoom delta. | FLT-CAM-003, FLT-CAM-007 |
-| `ZoomPresetPolicy` | Which preset stops to offer, given a reported zoom range and the set of back cameras. Never invents an optical multiplier. | FLT-CAM-005, FLT-CAM-016 |
-| `FocusPointMapper` | Preview-local tap pixels → normalised `Offset` in 0–1, correcting for aspect-ratio letterboxing. | FLT-CAM-008 |
+| `ZoomPolicy` | Clamping a requested zoom to the reported `[min, max]`; the pinch anchored at gesture start; the zoom a camera opens at. | FLT-CAM-003, FLT-CAM-007 |
+| `ZoomPresetPolicy` | Which preset stops to offer, given a reported zoom range. Never invents an optical multiplier, and stamps every preset with its provenance. | FLT-CAM-005, FLT-CAM-016 |
+| `FocusPointMapper` | Preview-local tap pixels → `NormalizedPoint` in 0–1, through the *displayed image* rect under either `contain` or `cover`. | FLT-CAM-008 |
+| `CameraSelectionPolicy` | Which cameras are offered (back-facing only), which one opens first, and whether the platform's lens identity can be trusted at all. | FLT-CAM-011 |
 | `BatchPolicy` | When a batch opens and closes; refusing to enqueue an empty batch. | FLT-BAT-004, FLT-BAT-006 |
 | `UploadStateMachine` | Which state transitions are legal. | FLT-SYNC-001 |
 | `FailureClassifier` | Whether an outcome is retryable, permanent, or success. | FLT-SYNC-006, FLT-ERR-008 |
@@ -148,10 +167,21 @@ see tested, and they are the reason the test suite can be fast and device-free.
 
 | Component | Owns | Explicitly does not own |
 | --- | --- | --- |
-| `CameraPort` (domain interface) | The vocabulary: available cameras, zoom range, set zoom, set focus, capture. | Anything `CameraController`-shaped. |
-| `CameraXAdapter` (data) | The `camera` plugin: `availableCameras()`, controller construction, `initialize`, `dispose`, plugin exceptions → domain failures. | Deciding *when* to dispose. |
-| `CameraCubit` (presentation) | Sequencing: init, switch, capture-in-flight guard, shared zoom value, focus reticle state. | Widget layout. |
-| `CameraPreviewScreen` | Rendering state; forwarding gestures; **observing `didChangeAppLifecycleState`** and telling the Cubit to release/reacquire. | Any decision. |
+| `CameraEngine` (domain interface) | Enumerating cameras and opening a session on one. | Anything `CameraController`-shaped. |
+| `CameraSession` (domain interface) | One live camera: its identity, its read-back capabilities, zoom, focus, exposure, capture, dispose. | Deciding *when* it should exist. |
+| `CameraXAdapter` (data) | The `camera` plugin: `availableCameras()`, controller construction with `enableAudio: false`, `initialize`, capability read-back, plugin exceptions → classified domain failures. | Deciding *when* to dispose. |
+| `CameraXSession` (data) | **Sole ownership of one `CameraController`.** Also exposes it, read-only, through `CameraPreviewSource`. | Anything about which camera should be open. |
+| `CameraCubit` (presentation) | Sequencing: acquire, switch, lifecycle, the generation guard, the capture guard, the one shared zoom value and its coalescing pump, focus requests and their outcomes. | Widget layout; filesystem or database access; animation state. |
+| `CameraPreviewScreen` (**F5**) | Rendering state; forwarding gestures with the `PreviewLayout` only it knows; **observing `didChangeAppLifecycleState`** and mapping it to a `CameraLifecycleSignal`. | Any decision. |
+
+**Two interfaces rather than one**, because a camera app has two lifetimes that do
+not coincide: the *list of cameras* is a property of the device, while a *session*
+is acquired, replaced on a switch, and released on every background. Modelling both
+as one long-lived object is what leads to a disposed controller still attached to a
+preview.
+
+`CameraCubit` takes `CaptureIntoBatch`, not a queue or a store. It is a sequencer;
+it does not know what SQLite is.
 
 Lifecycle ownership sits in the widget because that is where Flutter delivers the
 signal (`FR-02`), but the *action* is a Cubit method, so it is testable.
@@ -268,7 +298,10 @@ Falsely unifying these would hide real behaviour.
 | --- | --- |
 | A use case per repository method | They would forward a single call. Use cases appear only where they orchestrate more than one port. |
 | A DI container | Two composition roots, one shared factory. |
-| A repository over the camera | The camera is a device, not a data source. `CameraPort` is an adapter interface, and naming it a repository would misdescribe it. |
+| A repository over the camera | The camera is a device, not a data source. `CameraEngine` is an adapter interface, and naming it a repository would misdescribe it. |
+| A pure-Dart preview abstraction | `CameraPreview` needs a real `CameraController`; an interface whose only implementation returns one anyway is theatre that makes the integration worse. The seam is one read-only getter, confined by an automated import test to `lib/data/camera/` (`ADR-F23`). |
+| A wrapper per plugin method | The plugin exposes flash, video, image streaming, exposure-offset stepping and orientation locking. None is in scope, and mirroring them would make the port harder to fake than the thing it wraps. |
+| `permission_handler` | Reconsidered at F3 when Android turned out not to report permanent denial, and rejected again: a second permission library for one permission, whose signal is only meaningful immediately after a request (`ADR-F22`). |
 | A custom navigation stack | Two routes. `Navigator` suffices. |
 | An app-side retry timer | WorkManager already provides backoff (`FR-06`); a second scheduler would fight it. |
 | A real HTTP client | No API exists (p3 Note). The seam is real so a client can be dropped in; the transport is not fabricated. |

@@ -33,6 +33,19 @@ Identical to the root matrix. `TODO` / `PARTIAL` / `DONE` / `BLOCKED`. Nothing i
 `DONE` until its own verification method has been executed and its evidence
 recorded.
 
+**Status as of gate F3 (2026-08-30).** The camera engine is implemented and
+host-verified: camera enumeration and back-camera filtering, a generation-guarded
+controller lifecycle, safe switching, one shared zoom value with a coalescing
+platform pump, tap-to-focus coordinate mapping for both preview fits, an optional
+exposure pairing, an application-level capture guard, and the handoff of the
+plugin's temporary `XFile` into the F1 durable pipeline. **445 tests pass**
+(229 at F1, +216 this gate), `flutter analyze` reports no issues, and the debug APK
+builds. Two new ADRs record what the implementation forced: `ADR-F22` (Android
+cannot report permanent permission denial) and `ADR-F23` (the preview seam and both
+preview fits). **No production camera UI exists** — `CameraPreviewScreen`, the
+reticle and the zoom controls are gate F5, and no row is marked `DONE` on the
+strength of an engine API alone.
+
 **Status as of gate F1 (2026-08-29).** The durable queue, the sync engine and the
 background-worker plumbing are implemented and verified on the host: 188 tests
 pass, `flutter analyze` reports no issues, and the debug APK builds. A row is
@@ -61,12 +74,12 @@ they are gates F3–F5.
 
 | ID | Requirement | Source | Priority | Component | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| FLT-GEN-001 | Flutter state management shall use BLoC/Cubit. | p1 GR-1 | MANDATORY | `presentation/**/cubit` | `BLOC`, `REVIEW` | TODO |
+| FLT-GEN-001 | Flutter state management shall use BLoC/Cubit. | p1 GR-1 | MANDATORY | `presentation/**/cubit` | `BLOC`, `REVIEW` | PARTIAL — `CameraCubit` implemented with 109 `BLOC` tests across six suites; `BatchCubit`/`SyncBloc` are gates F4/F5. |
 | FLT-GEN-002 | The app shall use a layered architecture with unidirectional data flow. | p1 GR-2 | MANDATORY | whole app | `REVIEW` (import-direction check) | **DONE** — `presentation`/`domain`/`data` in place for the data and sync half; the import-direction rule is asserted by `domain_purity_test` (5 cases), not by inspection. |
 | FLT-GEN-003 | The app shall persist data locally following best practice. | p1 GR-3 | MANDATORY | `data/local` | `DATA`, `DEVICE` | PARTIAL — `DATA` **executed**: schema, transactions, reopen-and-survive, 58 DAO/schema tests pass against real SQLite. `DEVICE` kill-and-relaunch outstanding. |
-| FLT-GEN-004 | The app shall handle permission and hardware failures gracefully. | p1 GR-4 | MANDATORY | `CameraCubit`, `CameraAdapter` | `BLOC`, `WIDGET`, `DEVICE` | TODO |
-| FLT-GEN-005 | Task 2 shall be implemented in Flutter. | p2 heading | MANDATORY | project | `BUILD` | PARTIAL — `flutter build apk --debug` **PASS** with the durable queue and sync engine compiled in. Held short of `DONE` until the camera task itself builds (F3). |
-| FLT-GEN-006 | No business rule shall be evaluated inside a widget; widgets render state and emit intent only. | derived from GR-1/GR-2 | QUALITY | `presentation` | `REVIEW` | TODO |
+| FLT-GEN-004 | The app shall handle permission and hardware failures gracefully. | p1 GR-4 | MANDATORY | `CameraCubit`, `CameraAdapter` | `BLOC`, `WIDGET`, `DEVICE` | PARTIAL — every permission and hardware failure state is implemented, classified and `BLOC`-driven (enumeration throw, no cameras, no back camera, refusal, restricted, init failure, capture/focus/zoom failure). `WIDGET` needs the F5 screen; `DEVICE` outstanding. |
+| FLT-GEN-005 | Task 2 shall be implemented in Flutter. | p2 heading | MANDATORY | project | `BUILD` | PARTIAL — `flutter build apk --debug` **PASS** with the camera engine compiled in. Held short of `DONE` until the camera *screen* builds (F5). |
+| FLT-GEN-006 | No business rule shall be evaluated inside a widget; widgets render state and emit intent only. | derived from GR-1/GR-2 | QUALITY | `presentation` | `REVIEW` | PARTIAL — no widget exists yet to violate it; every camera rule lives in a pure policy or the cubit. Re-checked at F5. |
 | FLT-GEN-007 | The `domain` layer shall import no Flutter plugin package (`camera`, `sqflite`, `workmanager`, `connectivity_plus`, `path_provider`). | derived from GR-2 | QUALITY | `domain` | `UNIT` (automated purity test, mirroring the Android `DomainLayerPurityTest`) | **DONE** — `domain_purity_test` scans `lib/domain`, rejects Flutter, all five plugins, `dart:io`, `dart:ui` and any `data`/`presentation` import, and fails if the scan finds no sources. |
 
 ---
@@ -77,22 +90,22 @@ they are gates F3–F5.
 | --- | --- | --- | --- | --- | --- | --- |
 | FLT-CAM-001 | A widget named exactly `CameraPreviewScreen` shall exist. | p2 Custom Camera UI | MANDATORY | `presentation/camera` | `REVIEW`, `WIDGET` | TODO |
 | FLT-CAM-002 | The screen shall render a live in-app camera preview (not a system camera intent). | p2 Custom Camera UI | MANDATORY | `CameraPreviewScreen` | `DEVICE` | TODO |
-| FLT-CAM-003 | Zoom shall be adjustable by pinch gesture. | p2 Zoom | MANDATORY | `CameraPreviewScreen`, `ZoomPolicy` | `UNIT` (gesture→zoom mapping), `DEVICE` | TODO |
+| FLT-CAM-003 | Zoom shall be adjustable by pinch gesture. | p2 Zoom | MANDATORY | `CameraPreviewScreen`, `ZoomPolicy` | `UNIT` (gesture→zoom mapping), `DEVICE` | PARTIAL — `UNIT` **executed**: `ZoomPolicy.forPinch` is anchored to the gesture start, and the compounding-drift alternative is asserted to be wrong. Cubit-level pinch proven too. `DEVICE` check 6 outstanding. |
 | FLT-CAM-004 | Zoom shall be adjustable by an on-screen slider. | p2 Zoom | MANDATORY | `ZoomSlider` | `WIDGET`, `DEVICE` | TODO |
-| FLT-CAM-005 | Zoom shall offer rounded preset buttons derived from the device's reported capabilities. | p2 Zoom (**text truncated — root AMB-01**) | MANDATORY | `ZoomPresetPolicy` | `UNIT`, `DEVICE` | TODO |
-| FLT-CAM-006 | Pinch, slider and presets shall read and write one shared zoom value; no two controls may disagree. | derived from 003–005 | QUALITY | `CameraCubit` | `BLOC` | TODO |
-| FLT-CAM-007 | Zoom shall be clamped to the active camera's reported min/max; no hard-coded bounds. | derived from 003–005 | QUALITY | `ZoomPolicy` | `UNIT` | TODO |
-| FLT-CAM-008 | Tapping the preview shall set the camera focus point. | p3 Manual Focus | MANDATORY | `CameraCubit`, `FocusPointMapper` | `UNIT` (coordinate normalisation), `DEVICE` | TODO |
+| FLT-CAM-005 | Zoom shall offer rounded preset buttons derived from the device's reported capabilities. | p2 Zoom (**text truncated — root AMB-01**) | MANDATORY | `ZoomPresetPolicy` | `UNIT`, `DEVICE` | PARTIAL — `UNIT` **executed**: `ZoomPresetPolicy`, 15 cases. Presets derive from the reported range; the row is offered only when the camera can zoom. `DEVICE` checks 2–4, 8 outstanding. |
+| FLT-CAM-006 | Pinch, slider and presets shall read and write one shared zoom value; no two controls may disagree. | derived from 003–005 | QUALITY | `CameraCubit` | `BLOC` | **DONE** — `BLOC` executed: pinch, slider and preset all write one `currentZoom`; a preset is visible to the next pinch and vice versa. There is one field, so they cannot disagree. |
+| FLT-CAM-007 | Zoom shall be clamped to the active camera's reported min/max; no hard-coded bounds. | derived from 003–005 | QUALITY | `ZoomPolicy` | `UNIT` | **DONE** — `UNIT` executed: clamped at both ends, against a non-1.0 minimum, and with a max below the min; no bound is hard-coded and every value is read from the controller. |
+| FLT-CAM-008 | Tapping the preview shall set the camera focus point. | p3 Manual Focus | MANDATORY | `CameraCubit`, `FocusPointMapper` | `UNIT` (coordinate normalisation), `DEVICE` | PARTIAL — `UNIT` **executed**: 19 mapping cases over both fits, both aspect-ratio directions, and the exact edges. `DEVICE` checks 9–10 outstanding. |
 | FLT-CAM-009 | A visual indicator shall appear at the tapped point. | p3 Manual Focus | MANDATORY | `FocusReticle` | `WIDGET` (asserts position), `DEVICE` | TODO |
 | FLT-CAM-010 | The focus indicator shall have a defined lifecycle: appear at the tap, show acquisition, then dismiss. | derived from 009 | QUALITY | `FocusReticle` | `WIDGET` | TODO |
-| FLT-CAM-011 | The app shall enumerate cameras and present only back-facing cameras for selection. | derived from p2 "available back cameras" | MANDATORY | `CameraAdapter` | `UNIT`, `DEVICE` | TODO |
-| FLT-CAM-012 | The app shall own the controller lifecycle: dispose on `paused`/`inactive`, reinitialise on `resumed`. | RESEARCH `FR-02`; GR-4 | MANDATORY | `CameraPreviewScreen` | `WIDGET`, `DEVICE` | TODO |
-| FLT-CAM-013 | Camera switching shall be race-protected: a switch begun while another is in flight shall not leave a disposed controller attached. | derived from 012 | QUALITY | `CameraCubit` | `BLOC` | TODO |
-| FLT-CAM-014 | A capture in flight shall block a second capture (no double-shutter). | derived from GR-4 | QUALITY | `CameraCubit` | `BLOC` | TODO |
-| FLT-CAM-015 | Each capture shall be copied from the plugin's temporary `XFile` into app-owned durable storage before it is considered captured. | entailed by FLT-SYNC-003 | MANDATORY | `CaptureStorage` | `DATA`, `UNIT` | PARTIAL — `CaptureStore` + `RecordCapture` implemented and verified (`UNIT`/`DATA`): bytes durable before any row, compensation on a failed insert. The camera has no caller yet (F3). |
-| FLT-CAM-016 | Preset labels shall never assert an optical multiplier the platform did not report. | RESEARCH `FR-04` | QUALITY | `ZoomPresetPolicy` | `UNIT`, `REVIEW` | TODO |
-| FLT-CAM-017 | Audio capture shall be disabled, so no microphone permission is requested. | derived from scope | QUALITY | `CameraAdapter` | `REVIEW` | TODO |
-| FLT-CAM-018 | Tap-to-focus shall also set the exposure point where the platform supports it. | — | BONUS | `CameraAdapter` | `DEVICE` | TODO |
+| FLT-CAM-011 | The app shall enumerate cameras and present only back-facing cameras for selection. | derived from p2 "available back cameras" | MANDATORY | `CameraAdapter` | `UNIT`, `DEVICE` | PARTIAL — `UNIT` **executed**: front and external cameras filtered, front-only and empty devices produce named states, ordinals re-stamped over back cameras only. `DEVICE` check 3 outstanding. |
+| FLT-CAM-012 | The app shall own the controller lifecycle: dispose on `paused`/`inactive`, reinitialise on `resumed`. | RESEARCH `FR-02`; GR-4 | MANDATORY | `CameraPreviewScreen` | `WIDGET`, `DEVICE` | PARTIAL — `BLOC` **executed**: `paused`/`detached` release, `resumed` restores the *selected* camera, `inactive` deliberately does nothing, a failed resume is recoverable, and a pre-pause initialisation cannot overwrite the resumed state. `WIDGET` observer is F5; `DEVICE` check 14 outstanding. |
+| FLT-CAM-013 | Camera switching shall be race-protected: a switch begun while another is in flight shall not leave a disposed controller attached. | derived from 012 | QUALITY | `CameraCubit` | `BLOC` | **DONE** — `BLOC` executed: A→B→C ends on C however late B completes, the late session is disposed, no state is ever emitted for a superseded camera, eight rapid switches leak nothing, and a switch landing after a release does not resurrect the camera. |
+| FLT-CAM-014 | A capture in flight shall block a second capture (no double-shutter). | derived from GR-4 | QUALITY | `CameraCubit` | `BLOC` | **DONE** — `BLOC` executed: two and then five simultaneous presses produce exactly **one** platform capture and one image row; the guard releases so the next press works. Owned in the app, not read off `isTakingPicture`. |
+| FLT-CAM-015 | Each capture shall be copied from the plugin's temporary `XFile` into app-owned durable storage before it is considered captured. | entailed by FLT-SYNC-003 | MANDATORY | `CaptureStorage` | `DATA`, `UNIT` | PARTIAL — the camera now has a caller: `CameraSession.takePicture()` returns a temporary path which `CaptureIntoBatch` hands to `RecordCapture`. `UNIT`/`DATA` executed end to end. `DEVICE` check 12 — a *real* plugin `XFile` — outstanding. |
+| FLT-CAM-016 | Preset labels shall never assert an optical multiplier the platform did not report. | RESEARCH `FR-04` | QUALITY | `ZoomPresetPolicy` | `UNIT`, `REVIEW` | **DONE** — `UNIT` + `REVIEW` executed. No preset claims an optical identity across every range tested; an unidentified camera is labelled by ordinal and its label contains no `x`; provenance is carried on every preset so the claim is checkable rather than assumed (`ADR-F03`). |
+| FLT-CAM-017 | Audio capture shall be disabled, so no microphone permission is requested. | derived from scope | QUALITY | `CameraAdapter` | `REVIEW` | **DONE** — `REVIEW`: `enableAudio: false` at the single controller construction site, so no microphone permission is ever requested. |
+| FLT-CAM-018 | Tap-to-focus shall also set the exposure point where the platform supports it. | — | BONUS | `CameraAdapter` | `DEVICE` | PARTIAL — implemented and `BLOC`-tested: exposure is paired only where the platform reports support, and a failed exposure does **not** erase the successful focus. `DEVICE` check 5 outstanding. |
 
 ---
 
@@ -100,10 +113,10 @@ they are gates F3–F5.
 
 | ID | Requirement | Source | Priority | Component | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| FLT-BAT-001 | The user shall be able to capture multiple images into one batch. | p3 Batch Management | MANDATORY | `BatchCubit` | `BLOC`, `DATA` | TODO |
+| FLT-BAT-001 | The user shall be able to capture multiple images into one batch. | p3 Batch Management | MANDATORY | `BatchCubit` | `BLOC`, `DATA` | PARTIAL — `BLOC` + `DATA` **executed**: repeated captures join one draft batch and the count is read back from the database. The batch *UI* is gate F4. |
 | FLT-BAT-002 | The app shall support multiple batches. | p3 Batch Management | MANDATORY | `BatchRepository` | `DATA` | **DONE** — multiple independent batches persist, list and drain separately; ordering across them is deterministic. |
 | FLT-BAT-003 | The app shall show a list of "Pending Uploads". | p3 Batch Management | MANDATORY | `UploadManagerScreen` | `WIDGET`, `DEVICE` | TODO |
-| FLT-BAT-004 | A batch's open/close rule shall be explicit: a batch opens on the first capture after the previous batch was enqueued, and closes when the user enqueues it. | root AMB-10 | QUALITY | `BatchPolicy` | `UNIT`, `DOC` | PARTIAL — `BatchPolicy` and the one-draft guard implemented and unit-tested; `DOC` recorded. The capture-side wiring that opens the next batch is F4. |
+| FLT-BAT-004 | A batch's open/close rule shall be explicit: a batch opens on the first capture after the previous batch was enqueued, and closes when the user enqueues it. | root AMB-10 | QUALITY | `BatchPolicy` | `UNIT`, `DOC` | PARTIAL — both halves now execute: `CaptureIntoBatch` opens the batch on the first capture and a new one after the previous is finished. The user-facing finish control is F4. |
 | FLT-BAT-005 | Enqueuing a batch shall transition every image in it to `pending` in one transaction. | derived from FLT-SYNC-001 | QUALITY | `BatchRepository` | `DATA` | **DONE** — one transaction moves batch and every image together; a forced mid-transaction failure moves nothing. |
 | FLT-BAT-006 | Enqueuing an empty batch shall be refused. | derived from 005 | QUALITY | `BatchPolicy` | `UNIT` | **DONE** — refused by `BatchPolicy` and by the DAO; the batch stays `DRAFT`. |
 | FLT-BAT-007 | `[screenshot]` The camera screen shall show the current batch's image count. | p3 left | QUALITY | `CameraPreviewScreen` | `WIDGET` | TODO |
@@ -140,10 +153,10 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 
 | ID | Requirement | Source | Priority | Component | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| FLT-ERR-001 | Camera permission denial shall produce an explanatory state with a retry action, not a crash or blank preview. | GR-4 | MANDATORY | `CameraCubit` | `BLOC`, `WIDGET` | TODO |
+| FLT-ERR-001 | Camera permission denial shall produce an explanatory state with a retry action, not a crash or blank preview. | GR-4 | MANDATORY | `CameraCubit` | `BLOC`, `WIDGET` | PARTIAL — `BLOC` **executed**: a refusal produces `CameraPermissionDenied` with a working retry, never a crash or blank preview. `WIDGET` needs the F5 screen. |
 | FLT-ERR-002 | Permanent denial shall route the user to the OS app settings. | GR-4 | MANDATORY | `CameraPreviewScreen` | `DEVICE` | TODO |
-| FLT-ERR-003 | A device reporting no usable camera shall produce a named state, not an exception. | GR-4 | MANDATORY | `CameraCubit` | `BLOC` | TODO |
-| FLT-ERR-004 | Camera initialisation failure shall be recoverable without leaving the screen. | GR-4 | MANDATORY | `CameraCubit` | `BLOC` | TODO |
+| FLT-ERR-003 | A device reporting no usable camera shall produce a named state, not an exception. | GR-4 | MANDATORY | `CameraCubit` | `BLOC` | **DONE** — `BLOC` executed: no cameras and no *back* camera produce two distinct named states, and neither throws. |
+| FLT-ERR-004 | Camera initialisation failure shall be recoverable without leaving the screen. | GR-4 | MANDATORY | `CameraCubit` | `BLOC` | **DONE** — `BLOC` executed: an initialisation failure becomes `CameraFailed` and `retry()` recovers to `CameraReady` without leaving the screen; the same holds for a failed switch and a failed resume. |
 | FLT-ERR-005 | A failure to write a captured image to durable storage shall abort that capture and surface it; no queue row shall be created for a file that does not exist. | GR-4 | MANDATORY | `CaptureStorage` | `UNIT`, `DATA` | **DONE** — a storage failure aborts the capture and writes no row; a failed insert removes the file it just wrote, and only that file. |
 | FLT-ERR-006 | A database write failure shall leave the queue in its prior consistent state. | GR-4 | QUALITY | `UploadQueueDao` | `DATA` | **DONE** — a forced failure inside the enqueue transaction leaves batch and images in their prior state. |
 | FLT-ERR-007 | An item whose local file is missing at upload time shall be resolved deterministically to a permanent failure and shall not be retried forever. | derived from 005 | QUALITY | `QueueProcessor` | `UNIT`, `DATA` | **DONE** — a missing file is classified permanent without the transport being called; unrelated batches still drain and a second pass finds nothing to do. |
@@ -179,7 +192,7 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 | FLT-TEST-002 | Queue persistence, transactions and ordering shall be tested against the real SQLite engine on the host. | QUALITY | `DATA` | **DONE** — 58 tests against the real SQLite engine on the host. |
 | FLT-TEST-003 | The claim/lease mechanism shall be tested for the concurrent case: two claimants, one winner. | QUALITY | `DATA` | **DONE** — four contention cases over independent connections. |
 | FLT-TEST-004 | Stale-`uploading` recovery shall be tested by simulating an expired lease. | QUALITY | `DATA` | **DONE** — fresh, expired, and contended-stale cases. |
-| FLT-TEST-005 | Camera, batch and sync Cubits shall have state-transition tests including every failure state. | MANDATORY (evidences FLT-GEN-001) | `BLOC` | TODO |
+| FLT-TEST-005 | Camera, batch and sync Cubits shall have state-transition tests including every failure state. | MANDATORY (evidences FLT-GEN-001) | `BLOC` | PARTIAL — `CameraCubit` covered by 109 `BLOC` tests including every failure state. `BatchCubit` and `SyncBloc` are gates F4/F5. |
 | FLT-TEST-006 | A retryable failure followed by a later success shall be tested end to end through the processor. | QUALITY | `UNIT`, `DATA` | **DONE** — proven through `QueueProcessor` and again across two worker invocations. |
 | FLT-TEST-007 | Widget tests shall assert semantics and the rendering of every Upload Manager item state. | QUALITY | `WIDGET` | TODO |
 | FLT-TEST-008 | The domain-layer purity rule (FLT-GEN-007) shall be asserted by an automated test, not by inspection. | QUALITY | `UNIT` | **DONE** — `domain_purity_test`, including the empty-scan guard. |
@@ -215,16 +228,27 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 | FLT-DEL | 5 | 0 | 0 | 5 |
 | **Total** | **37** | **44** | **3** | **84** |
 
-### Counts by status, after F1
+### Counts by status, after F3
 
 | Status | Count | Notes |
 | --- | --- | --- |
-| `DONE` | 24 | Own verification method executed and evidenced |
-| `PARTIAL` | 9 | Implemented and host-verified; a `DEVICE` or later-gate step remains |
-| `TODO` | 51 | Camera (F3), batch UI (F4), Upload Manager (F5), bonuses (F6), device QA (F7), submission (F8) |
+| `DONE` | 32 | Own verification method executed and evidenced |
+| `PARTIAL` | 21 | Implemented and host-verified; a `DEVICE` or later-gate step remains |
+| `TODO` | 31 | Batch UI (F4), camera + Upload Manager screens (F5), bonuses (F6), device QA (F7), submission (F8) |
 | **Total** | **84** | |
 
-The `DONE` rows are the queue's correctness core: `FLT-GEN-002`, `-007`;
+Eight rows moved to `DONE` at F3 — `FLT-CAM-006`, `-007`, `-013`, `-014`, `-016`,
+`-017`, `FLT-ERR-003` and `-004`. Every one is a rule the engine owns completely,
+with no rendering left to do. **Nothing that needs a screen or a device moved.**
+
+Twelve more became `PARTIAL`: implemented and host-verified, waiting on the F5
+screen, on hardware, or on both. `FLT-CAM-005` and `-008` are the two where the code
+is finished and only `DEVICE` evidence is missing.
+
+Per category after F3: GEN 2/5/0, CAM 6/7/5, BAT 3/2/3, SYNC 9/5/2, ERR 6/1/1,
+UX 0/0/13, TEST 6/1/2, DEL 0/0/5 (`DONE`/`PARTIAL`/`TODO`).
+
+The F1 `DONE` rows are the queue's correctness core: `FLT-GEN-002`, `-007`;
 `FLT-BAT-002`, `-005`, `-006`; `FLT-SYNC-003`, `-005`, `-006`, `-008`, `-009`,
 `-010`, `-011`, `-013`, `-015`; `FLT-ERR-005`, `-006`, `-007`, `-008`;
 `FLT-TEST-001`, `-002`, `-003`, `-004`, `-006`, `-008`. Twenty-three of them moved

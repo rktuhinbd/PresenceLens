@@ -11,6 +11,7 @@ import '../../domain/ports/id_generator.dart';
 import '../../domain/ports/sync_scheduler.dart';
 import '../../domain/ports/upload_api.dart';
 import '../../domain/ports/upload_queue.dart';
+import '../../domain/usecases/capture_into_batch.dart';
 import '../../domain/usecases/finish_batch.dart';
 import '../../domain/usecases/record_capture.dart';
 import '../api/mock_upload_api.dart';
@@ -40,6 +41,7 @@ class DataLayer {
     required this.queueProcessor,
     required this.scheduler,
     required this.recordCapture,
+    required this.captureIntoBatch,
     required this.finishBatch,
     required this.clock,
     required this.idGenerator,
@@ -74,6 +76,12 @@ class DataLayer {
   /// Capture ingestion: file first, then row. Schedules nothing — a `DRAFT`
   /// image is not uploadable (`ADR-F21`).
   final RecordCapture recordCapture;
+
+  /// The camera's entry point: open-or-join the draft batch, then record.
+  ///
+  /// Assembled here rather than inside `CameraCubit` so the cubit stays a
+  /// sequencer and never learns what a database is (`ARCHITECTURE.md` §5).
+  final CaptureIntoBatch captureIntoBatch;
 
   /// Closing a batch: durable transaction first, then the drain request.
   ///
@@ -159,6 +167,15 @@ DataLayer assembleDataLayer({
     latency: uploadLatency,
   );
 
+  // Shared by both capture use cases: `CaptureIntoBatch` delegates to it rather
+  // than reimplementing the file-then-row ordering and its compensation.
+  final RecordCapture recordCapture = RecordCapture(
+    queue: queue,
+    store: store,
+    ids: ids,
+    clock: clock,
+  );
+
   // The worker may ask for a *continuation* but never for entry work — see
   // `BackgroundSyncScheduler`. Injectable so a host test can drive the
   // scheduling decisions without reaching the plugin.
@@ -181,9 +198,10 @@ DataLayer assembleDataLayer({
       clock: clock,
     ),
     scheduler: resolvedScheduler,
-    recordCapture: RecordCapture(
+    recordCapture: recordCapture,
+    captureIntoBatch: CaptureIntoBatch(
       queue: queue,
-      store: store,
+      recordCapture: recordCapture,
       ids: ids,
       clock: clock,
     ),
