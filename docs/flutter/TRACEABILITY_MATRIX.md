@@ -10,11 +10,21 @@ automated test → device evidence → submission evidence.**
 `TBC` means "planned, not yet produced". A row is only allowed to leave `TBC`
 when the artefact actually exists.
 
-**Updated at gate F3 (2026-08-30).** The camera **engine** is now built and
-evidenced; the two screens are not started. The rule about device evidence is
-unchanged and now applies to the camera as well: **445 host tests say nothing about
-whether a real lens focused**, so every row whose evidence is a device run stays
-`TBC` however complete the code is.
+**Updated at gates F4 and F5 (2026-08-30).** Both screens are now built and
+evidenced: `CameraPreviewScreen` and `UploadManagerScreen`, with `BatchCubit` and
+`SyncBloc` between them and the durable queue. The rule about device evidence is
+unchanged, and it is the reason so many rows below still read `TBC` in the Device
+column: **516 host tests say nothing about whether a real lens focused, whether a
+pinch felt attached to the fingers, or whether Android ran a worker.** A row whose
+evidence is a device run stays `TBC` however complete its code is.
+
+What *is* newly evidenced by automated test at these gates: the screens render
+every designed state including the failure ones; the Pending Uploads route is
+reachable from all of them; the reticle lands within 2 dp of the tap; the capture
+guard is visible as well as enforced; “Finish batch” works with no link; startup
+and resume reconciliation request a drain and a `DRAFT` capture does not; a
+refused schedule leaves the durable queue untouched; and no zoom preset or camera
+label asserts an optical identity the platform never reported.
 
 ---
 
@@ -24,23 +34,23 @@ Every MANDATORY row traced from its literal source sentence.
 
 | Assessment statement (source) | Req ID | Component | Impl | Auto test | Device | Submission |
 | --- | --- | --- | --- | --- | --- | --- |
-| "Use a robust solution (BLoC/Cubit)" (p1) | FLT-GEN-001 | `CameraCubit`, `BatchCubit`, `SyncBloc` | **CameraCubit BUILT** — sealed state, generation guard, capture guard, zoom pump; `BatchCubit`/`SyncBloc` are F4/F5 | `BLOC` **PASS** (109) | — | README §2 names them (`DOC-04`) |
+| "Use a robust solution (BLoC/Cubit)" (p1) | FLT-GEN-001 | `CameraCubit`, `BatchCubit`, `SyncBloc` | **ALL THREE BUILT** — `CameraCubit` (sequencer, sealed state, generation guard), `BatchCubit` (the open batch and the finish action), `SyncBloc` (four fan-in sources, sealed events). Cubit vs Bloc decided per feature, not applied uniformly (`ARCHITECTURE.md` §3) | `BLOC` **PASS** (109 + 7) and 14 integration cases over real SQLite | — | README §2 names them (`DOC-04`) |
 | "Any Layered Architecture for Flutter (MVVM/MVI)" (p1) | FLT-GEN-002 | `presentation`/`domain`/`data` | **BUILT** — `domain` (entities, policies, ports, one use case), `data` (database, storage, api, sync, identity, composition) | `domain_purity_test` **PASS** (5) | — | README §2 + ARCHITECTURE.md |
 | "Any local data persistence" (p1) | FLT-GEN-003 | `AppDatabase`, `FileSystemCaptureStore` | **BUILT** — schema v1, two tables, two indices, FK cascade, migration hook | `DATA` suite **PASS** (58) | kill-and-relaunch `TBC` | README §2 |
-| "Graceful handling of permissions and hardware failures" (p1) | FLT-GEN-004 | `CameraCubit` states | **BUILT** — 12 classified error kinds; enumeration throw, no camera, no back camera, refusal, restriction, init failure, and capture/focus/zoom failures each reach their own state | `BLOC` **PASS**; `WIDGET` needs the F5 screen | failure-injection matrix `TBC` | Screenshots of error states |
+| "Graceful handling of permissions and hardware failures" (p1) | FLT-GEN-004 | `CameraCubit` states | **BUILT** — 12 classified error kinds; enumeration throw, no camera, no back camera, refusal, restriction, init failure, and capture/focus/zoom failures each reach their own state | `BLOC` **PASS**; `WIDGET` **PASS** (8) — every failure state renders its panel and keeps the Pending Uploads route | failure-injection matrix `TBC` | Screenshots of error states |
 | "Task 2 … (Flutter)" (p2) | FLT-GEN-005 | project | **DONE** — builds | `flutter build apk --debug` **PASS** | — | APK link (`FLT-DEL-003`) |
-| "Build a camera preview screen `CameraPreviewScreen`" (p2) | FLT-CAM-001 | `CameraPreviewScreen` | **TBC — gate F5.** The engine beneath it is complete; no screen exists and none is claimed | `WIDGET` | preview renders | Screenshot |
-| *(same)* — live custom preview | FLT-CAM-002 | `CameraXAdapter`, `buildCameraPreview` | **ADAPTER BUILT** — `enableAudio: false`, capabilities read back from the controller, preview seam is one getter (`ADR-F23`) | import-confinement test **PASS** | device check 1 `TBC` | Screenshot |
+| "Build a camera preview screen `CameraPreviewScreen`" (p2) | FLT-CAM-001 | `CameraPreviewScreen` | **BUILT** — `CameraPreviewScreen`, the app’s home route, full-bleed over `buildCameraPreview`, with no close control (`ADR-F13`) | `WIDGET` **PASS** (33 cases mount it) | preview renders | Screenshot |
+| *(same)* — live custom preview | FLT-CAM-002 | `CameraXAdapter`, `buildCameraPreview` | **ADAPTER BUILT AND NOW RENDERED** — `enableAudio: false`, capabilities read back from the controller, preview seam is one getter, and the screen renders it edge-to-edge | `WIDGET` **PASS** — the fake session degrades to the placeholder by design, which is *not* evidence a preview works | device check 1 `TBC` | Screenshot |
 | "Implement pinch-to-zoom" (p2) | FLT-CAM-003 | `ZoomPolicy` | **BUILT** — anchored to the zoom at gesture start, not accumulated per frame | `UNIT` **PASS** (23), including an assertion that the compounding alternative drifts | device check 6 `TBC` | GIF |
-| "…a slider…" (p2) | FLT-CAM-004 | `ZoomSlider` | **TBC — gate F5.** The single `currentZoom` it will write to exists and is proven shared | `WIDGET` | device check 7 | Screenshot |
+| "…a slider…" (p2) | FLT-CAM-004 | `ZoomSlider` | **BUILT** — `ZoomSlider`, vertical on the trailing edge, bounded by the reported min/max, writing the one shared `currentZoom` | `WIDGET` **PASS** — bounds, shared value, and the accessible read-out | device check 7 | Screenshot |
 | "…and rounded buttons (0.5x, 1x, .. available back cameras)" (p2/p3, **truncated**) | FLT-CAM-005, FLT-CAM-016 | `ZoomPresetPolicy` | **BUILT** — presets derived from the reported range; every preset carries its provenance | `UNIT` **PASS** (15) — *no* preset claims an optical identity the platform did not report | device checks 2–4, 8 `TBC` | README limitation note + `ADR-F03` |
 | "Tap-to-focus functionality" (p3) | FLT-CAM-008 | `FocusPointMapper`, `CameraCubit` | **BUILT** — both `contain` and `cover` fits, mapped through the displayed image rect, never the widget rect (`ADR-F23`) | `UNIT` **PASS** (19) + `BLOC` (16) | device checks 9–10 `TBC` | GIF |
-| "…with a visual indicator at the tap point" (p3) | FLT-CAM-009 | `FocusReticle` | **TBC — gate F5.** The engine publishes the tap point, a sequence number so a repeat tap is distinguishable, and the outcome; it owns no animation | `WIDGET` (position) | device check 9 | GIF |
+| "…with a visual indicator at the tap point" (p3) | FLT-CAM-009 | `FocusReticle` | **BUILT** — `FocusReticle` at the tap, in widget coordinates, with an appear/hold/dismiss lifecycle keyed on the request sequence | `WIDGET` **PASS** — rendered centre within 2 dp of the tap; still appears under reduced motion | device check 9 | GIF |
 | *(entailed by queue durability)* | FLT-CAM-015 | `CaptureStore`, `CaptureIntoBatch` | **BUILT, AND NOW CALLED** — the camera's temporary `XFile` path goes `takePicture()` → `CaptureIntoBatch` → `RecordCapture` → durable file → row | `file_system_capture_store_test` (14) + `record_capture_test` (7) + `capture_into_batch_test` (10) + `camera_cubit_capture_test` (22) **PASS** | device check 12 — a *real* plugin `XFile` — `TBC` | — |
 | *(entailed by "available back cameras")* | FLT-CAM-011 | `CameraSelectionPolicy`, `CameraXAdapter` | **BUILT** — front and external filtered out; ordinals re-stamped over back cameras only | `UNIT` **PASS** (16) + `BLOC` | device check 3 `TBC` | — |
 | *(entailed by GR-4; plugin owns no lifecycle)* | FLT-CAM-012 | `CameraCubit.handleLifecycle` | **BUILT** — release on `paused`/`detached`, restore the *selected* camera on `resumed`, `inactive` deliberately ignored | `BLOC` **PASS** (20), including a pre-pause init that must not overwrite the resumed state | device check 14 `TBC` | — |
-| "Capture multiple batches of images" (p3) | FLT-BAT-001, FLT-BAT-002 | `CaptureIntoBatch`, `BatchCubit` (F4), `UploadQueueDao` | **CAPTURE PATH BUILT** — the first shutter press opens a draft batch, later presses join it, and a new batch opens once the previous is finished; the Cubit and its UI are F4 | `DATA` + `BLOC` **PASS** — repeated captures join one batch, counts read back from the database | multi-batch run `TBC` | Screenshot |
-| "Show a list of 'Pending Uploads.'" (p3) | FLT-BAT-003 | `UploadManagerScreen` | TBC | `WIDGET` | visual check | Screenshot |
+| "Capture multiple batches of images" (p3) | FLT-BAT-001, FLT-BAT-002 | `CaptureIntoBatch`, `BatchCubit` (F4), `UploadQueueDao` | **BUILT END TO END** — the first shutter press opens a draft batch, later presses join it, `BatchCubit` closes it, and a new batch opens on the next press; the camera shows the count and “Finish batch (n)” | `DATA` + `BLOC` + `WIDGET` **PASS** — repeated captures join one batch, and the count on screen is read back from the queue rather than tallied in the widget | multi-batch run `TBC` | Screenshot |
+| "Show a list of 'Pending Uploads.'" (p3) | FLT-BAT-003 | `UploadManagerScreen` | **BUILT** — `UploadManagerScreen`: batch sections, count-based `n of m` progress, six item states, connectivity hint, reassurance line, empty state | `WIDGET` **PASS** (8) + `UNIT` **PASS** (9) over the pure status vocabulary | visual check | Screenshot |
 | "Implement a background worker (e.g., workmanager)" (p3) | FLT-SYNC-002 | `sync_worker_entrypoint.dart`, `WorkManagerSyncScheduler` | **BUILT** — entry-point dispatcher, isolate-local composition root, **one serial unique chain with `append` for every request** (`ADR-F21`), connected constraint, exponential backoff (15 s initial; Android floor 10 s) | `work_manager_sync_scheduler_test` (17) + `sync_worker_entrypoint_test` (14) + `finish_batch_test` (10) **PASS** — *policy, call sites and result mapping only* | **sync check 2 `TBC` — whether Android runs it is not claimed** | README §2 |
 | "…the images must remain in the local queue" (p3) | FLT-SYNC-003 | `QueueProcessor` | **BUILT** — a retryable failure returns the row to `PENDING`, attempt + 1, row and file untouched | `UNIT` + `DATA` (I6) **PASS**; seven consecutive failures discard nothing | sync checks 1, 6 `TBC` | GIF |
 | "Automatically retry … without user intervention" (p3) | FLT-SYNC-004, FLT-SYNC-014 | `SyncScheduler`, `QueueProcessor`, `FinishBatch`, `ConnectivityDrainTrigger` | **BUILT** for `-004` — including that a request made while a worker is running cannot be discarded (`ADR-F21`); `-014` needs the UI (F5) | `UNIT` **PASS** — fail-then-succeed proven through the processor and again across two worker invocations, no user action in the path | **sync check 2 `TBC`** | GIF (offline→online) |
@@ -114,30 +124,30 @@ justification for its existence.
 
 ## 5. Gate status
 
-After gate **F3** (2026-08-30):
+After gates **F4** and **F5** (2026-08-30):
 
 | Category | Total | DONE | PARTIAL | TODO |
 | --- | --- | --- | --- | --- |
-| FLT-GEN | 7 | 2 | 5 | 0 |
-| FLT-CAM | 18 | 6 | 7 | 5 |
-| FLT-BAT | 8 | 3 | 2 | 3 |
-| FLT-SYNC | 16 | 9 | 5 | 2 |
-| FLT-ERR | 8 | 6 | 1 | 1 |
-| FLT-UX | 13 | 0 | 0 | 13 |
-| FLT-TEST | 9 | 6 | 1 | 2 |
+| FLT-GEN | 7 | 5 | 2 | 0 |
+| FLT-CAM | 18 | 8 | 10 | 0 |
+| FLT-BAT | 8 | 7 | 1 | 0 |
+| FLT-SYNC | 16 | 11 | 5 | 0 |
+| FLT-ERR | 8 | 7 | 1 | 0 |
+| FLT-UX | 13 | 11 | 2 | 0 |
+| FLT-TEST | 9 | 8 | 0 | 1 |
 | FLT-DEL | 5 | 0 | 0 | 5 |
-| **Total** | **84** | **32** | **21** | **31** |
+| **Total** | **84** | **57** | **21** | **6** |
 
-At F1 this table read 24 / 9 / 51. The eight rows that moved to `DONE` are
-`FLT-CAM-006`, `-007`, `-013`, `-014`, `-016`, `-017`, `FLT-ERR-003` and `-004` —
-every one a rule the engine settles by itself. **The thirteen `FLT-UX` rows and
-`FLT-CAM-001`/`-002`/`-004`/`-009`/`-010` did not move**, because an engine API is
-not a screen and this gate built no UI.
+At F1 this table read 24 / 9 / 51 and at F3 it read 32 / 21 / 31. Every remaining
+`TODO` is either the submission package itself (`FLT-DEL`, five rows produced at
+`F8`) or `FLT-TEST-009`, the device checklist — which is `TODO` because no device
+run has happened, not because the checklist is unwritten.
 
-`FLT-GEN-005` (the app is a Flutter app that builds) is now `PARTIAL`: the debug
-APK builds with the whole durable queue and sync engine compiled in, which is real
-evidence, but the row is held short of `DONE` until the camera task itself builds
-at F3.
+**The twenty-one `PARTIAL` rows are almost all one thing: hardware.** They are
+implemented, host-verified, and waiting on a physical device to satisfy the
+`DEVICE` half of their own stated verification method. That is the rule this
+document has applied since F1 and it has not been relaxed to make the table look
+better: an engine API is not a screen, and a screen is not a device.
 
 ### Still pending device QA
 

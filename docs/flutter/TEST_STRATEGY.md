@@ -135,6 +135,59 @@ cannot be provoked on demand with real hardware. It can here.
 | Semantics | Shutter, presets, slider and queue rows expose the labels specified in `UX_SPEC.md` §6; touch targets ≥ 48 dp. |
 | Reduced motion | With `disableAnimations: true`, the reticle **still appears** (`FLT-UX-004`) — the regression this guards is "we disabled the animation and disabled the feedback with it". The same test covers the signature sequence (`UX_SPEC.md` §7.1): shutter haptic retained, batch count still increments, travel animation omitted. |
 
+### What this tier cannot do, and what was done about it — `ADR-F24`
+
+The intention was that widget tests would drive the **real** DAO, so that "the
+count came from the database" was a claim about the database. It does not work,
+and the failure is a hang rather than a wrong answer: `testWidgets` runs its body
+inside a fake-async zone with a controlled clock, and the FFI SQLite engine's
+genuine file I/O is never completed by anything that clock advances. The first
+attempt sat at `pumpAndSettle` for its full ten-minute timeout — measured, not
+assumed.
+
+So the tiers were split rather than blurred:
+
+| Tier | Runner | Queue | What it may claim |
+| --- | --- | --- | --- |
+| `WIDGET` | `testWidgets` | `InMemoryUploadQueue` | Rendering, wiring, semantics, layout, motion branches |
+| `INTEGRATION` | plain `test()` | the real DAO over real SQLite | Reconciliation, durability, drain outcomes reaching the screen state |
+
+`InMemoryUploadQueue` reimplements the port's *observable* contract — one draft
+batch, count advanced with the insert, enqueue moving a batch in one step, a
+change announcement per mutation — plus fault switches for a refused read and a
+refused transaction. It is not a stub that answers whatever the test wanted.
+
+The cost is stated rather than hidden: **no widget test in this repository proves
+a persistence rule.** That is exactly why the integration tier exists.
+
+---
+
+## 6B. `INTEGRATION` — the presentation layer over real SQLite
+
+Plain `test()` cases in `test/integration/`, wiring `SyncBloc`, `BatchCubit`,
+`FinishBatch`, `CaptureIntoBatch` and a real `QueueProcessor` to a real database
+file. Fourteen cases, and the claims they carry:
+
+| Case | What it proves |
+| --- | --- |
+| Durable pending work at launch requests a drain | The startup half of `FLT-SYNC-012`, closing `RS-11` |
+| An empty queue at launch requests nothing | No worker is woken for nothing |
+| A `DRAFT` capture requests nothing | `ADR-F21` still holds with a UI attached |
+| A resume with pending work requests a drain | The resume half of `FLT-SYNC-012` |
+| Regaining a link requests a drain — **exactly once** | The `ADR-F25` split: the F1 trigger asks the platform, the bloc does not also ask |
+| Losing a link requests nothing and changes no row | Connectivity is advisory, never a gate (`FLT-SYNC-011`) |
+| A refused schedule leaves three pending rows untouched, and is visible in state | A lost wake-up costs a delay, never a photograph |
+| A later resume asks again | The refusal is recoverable without user action |
+| Finish batch → two `PENDING` rows → visible on the screen state | `FLT-BAT-005` through to the UI, offline |
+| An empty batch is refused and schedules nothing | `FLT-BAT-006` at the call site |
+| A successful foreground pass leaves nothing pending and the batch synced | `ADR-F25`'s foreground drain |
+| A completed batch collapses out after its hold | The screen ends in the empty *success* state |
+| A retryable failure keeps row, file and attempt count | `FLT-SYNC-003` end to end |
+| A cleanup failure never shows a synced item as pending again | Housekeeping is not delivery (`SYNC_ENGINE.md` §5) |
+
+**None of these claims anything about Android's scheduler.** Every scheduling
+assertion is about what the app *asked* for.
+
 ---
 
 ## 7. `DEVICE` — deferred

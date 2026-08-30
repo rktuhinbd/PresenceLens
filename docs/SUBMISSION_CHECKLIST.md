@@ -119,22 +119,22 @@ The assessment specifies five sections. All five, in order, none a placeholder.
 
 | # | Check | Req |
 | --- | --- | --- |
-| 8.1 | [ ] Screen is named `CameraPreviewScreen`. | FLT-02 |
+| 8.1 | [x] Screen is named `CameraPreviewScreen`, and it is the app's home route. **2026-08-30 (F5)**, 33 widget cases mount it. | FLT-02 |
 | 8.2 | [ ] Pinch-to-zoom works on a physical device. | FLT-03 |
 | 8.3 | [ ] Zoom slider works. | FLT-04 |
 | 8.4 | [ ] Rounded zoom preset buttons work. | FLT-05 |
 | 8.5 | [ ] Tap-to-focus works. | FLT-06 |
 | 8.6 | [ ] A visual focus indicator appears **at the tap point**. | FLT-07 |
 | 8.7 | [ ] Multiple batches can be captured. | FLT-08 |
-| 8.8 | [ ] A "Pending Uploads" list is shown. | FLT-09 |
+| 8.8 | [x] A "Pending Uploads" list is shown — batch sections, count-based progress, six item states, connectivity hint, reassurance line, empty state. **2026-08-30 (F5)**, 8 widget cases. | FLT-09 |
 | 8.9 | [ ] A background worker monitors connectivity. | FLT-10 |
 | 8.10 | [ ] On no-internet failure, **row and file both remain** in the queue. | FLT-11 |
 | 8.11 | [ ] On low-bandwidth failure, **row and file both remain** in the queue. | FLT-11 |
 | 8.12 | [ ] Upload retries automatically on reconnect with **zero user interaction**. | FLT-12 |
 | 8.13 | [ ] Queue survives app kill and device reboot. | FLT-16 |
 | 8.14 | [ ] Mock API returns deterministic Success and Failed, toggleable at runtime. | FLT-13 |
-| 8.15 | [ ] All five per-item upload states render. | FLT-18 |
-| 8.16 | [ ] Camera-permission-denied and camera-unavailable handled gracefully. | GEN-04 |
+| 8.15 | [x] All per-item upload states render — six of them, each with an icon **and** words. **2026-08-30 (F5)**, asserted in the pure mapping and again in the rendered list. | FLT-18 |
+| 8.16 | [x] Camera-permission-denied and camera-unavailable handled gracefully, each as a designed panel that **keeps the Pending Uploads route reachable**. **2026-08-30 (F5)**, 8 widget cases. | GEN-04 |
 
 ## 8B. Flutter planning gate (F0) — design approval
 
@@ -232,6 +232,55 @@ no row below is checked on the strength of an engine API alone.
 | 8C.31 | [x] The one-`DRAFT` rule is documented as an application policy, not as database enforcement, with a test asserting the limit. | FLT-08 |
 | 8C.32 | [x] Raising the schema version without a registered migration is refused; a downgrade is refused rather than deleting the queue. | FLT-16 |
 | 8C.33 | [x] iOS retry semantics documented and recorded as a residual risk; **no iOS behaviour claimed**. | AMB-12 |
+
+## 8E. Flutter production experience (F4/F5)
+
+The assessment-facing application. Rows here are checked on **executed automated
+verification**; anything needing hardware is 8F and is not checked.
+
+| # | Item | Requirement |
+| --- | --- | --- |
+| 8E.1 | [x] `CameraPreviewScreen` is the app's home route, full-bleed over the live session; the placeholder shell is gone. | FLT-CAM-001, FLT-CAM-002 |
+| 8E.2 | [x] **No close control on the camera** — asserted by test, not left to review (`ADR-F13`). | FLT-UX-001 |
+| 8E.3 | [x] Zoom slider and preset row both present, both writing the one shared `currentZoom`; zoom is fully operable without a pinch. | FLT-CAM-004, FLT-UX-013 |
+| 8E.4 | [x] Slider bounds and preset set come from the **reported** range; a fixed-zoom camera gets neither control rather than an inert one. | FLT-CAM-005, FLT-CAM-007 |
+| 8E.5 | [x] **No rendered zoom preset or camera label claims an optical identity the platform did not report**; the multi-camera selector labels by ordinal. | FLT-CAM-016 |
+| 8E.6 | [x] Tap-to-focus reticle renders within 2 dp of the tap, in widget coordinates. | FLT-CAM-009 |
+| 8E.7 | [x] A rejected focus point leaves the preview live rather than tearing it down. | FLT-ERR-004 |
+| 8E.8 | [x] Capture guard visible as well as enforced: the shutter reports `isEnabled: false` mid-capture and a second tap produces no second capture. | FLT-CAM-014 |
+| 8E.9 | [x] Batch thumbnail and count appear only when the batch holds something, and the count is read back from the queue. | FLT-BAT-007, FLT-BAT-008 |
+| 8E.10 | [x] **"Finish batch (n)", not "Upload batch"** — and it works, and is offered, with no connection (`ADR-F14`). | FLT-BAT-005, FLT-UX-012 |
+| 8E.11 | [x] Navigating to Pending Uploads and back **does not discard the open batch**. | FLT-BAT-004 |
+| 8E.12 | [x] The Pending Uploads route is reachable from the ready state **and every failure state**; the queued count is named on the failure panel. | FLT-UX-012, GEN-04 |
+| 8E.13 | [x] Attempt count shown **without a denominator**, because no cap exists (`ADR-F12`); the absence is asserted. | FLT-UX-009 |
+| 8E.14 | [x] Connectivity worded as a hint — "Connected · uploading automatically" / "Offline · captures are safe" — with "Uploading now" and any "stable" wording asserted absent. | FLT-UX-010 |
+| 8E.15 | [x] Persistent reassurance line while anything is pending; designed empty state that reads as success rather than error. | FLT-UX-006, FLT-UX-007 |
+| 8E.16 | [x] "Try now" exists only in the overflow and only while work is pending; every automatic path is proven without it. | FLT-SYNC-014 |
+| 8E.17 | [x] **Startup and resume reconciliation** request a drain when durable work exists, and request nothing when it does not — closing the `RS-11` residual. | FLT-SYNC-012 |
+| 8E.18 | [x] A `DRAFT` capture still schedules nothing, with the UI attached. | ADR-F21 |
+| 8E.19 | [x] A refused schedule leaves the durable queue untouched and is visible in state; a later resume asks again. | FLT-11, RS-11 |
+| 8E.20 | [x] Regaining a link requests a drain **exactly once** — the F1 trigger asks the platform, the bloc does not also ask (`ADR-F25`). | FLT-12 |
+| 8E.21 | [x] A cleanup failure after a confirmed upload never shows the item as pending again. | FLT-SYNC-016 |
+| 8E.22 | [x] Reduced motion removes movement, never feedback: the reticle still appears, the count still increments. | FLT-UX-004 |
+| 8E.23 | [x] Interactive targets measured at or above 48 dp; shutter, switch, uploads, batch, presets and slider all carry labels and values. | FLT-UX-002, FLT-UX-003 |
+| 8E.24 | [x] "Open settings" offered only after refusals repeat, reaching a `MethodChannel` in this app's own `MainActivity`; the word "permanently" is asserted **absent** from the copy. | FLT-ERR-002, ADR-F22 |
+| 8E.25 | [x] 516 tests pass; `flutter analyze` 0 issues; debug APK builds. | GEN-08 |
+| 8E.26 | [x] `android-attendance/` unchanged — `git diff -- android-attendance` empty. | RT-03 |
+
+## 8F. Flutter device QA (F7) — not performed
+
+Nothing below is checked, and nothing in this repository claims any of it.
+
+| # | Item | Requirement |
+| --- | --- | --- |
+| 8F.1 | [ ] A real preview renders on a physical device. | FLT-CAM-002 |
+| 8F.2 | [ ] Pinch tracks the fingers and clamps at the device's own limits. | FLT-03 |
+| 8F.3 | [ ] The reticle lands where the user tapped, and the lens visibly refocuses. | FLT-06, FLT-07 |
+| 8F.4 | [ ] Enumerated back cameras and their zoom ranges match what the preset policy assumed (`FQ-01`). | FLT-05 |
+| 8F.5 | [ ] Camera released and reacquired cleanly across background and resume. | FLT-CAM-012 |
+| 8F.6 | [ ] **Airplane mode → capture → finish batch → restore network with the app backgrounded → the queue drains with no user action.** | FLT-12 |
+| 8F.7 | [ ] Queue survives force-stop and reboot with items pending. | FLT-16 |
+| 8F.8 | [ ] Camera controls legible over a bright outdoor scene. | RU-02 |
 
 ## 9. Release APK
 

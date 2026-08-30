@@ -877,3 +877,108 @@ sensor and the screen disagree, which is most devices. Supporting both costs one
 branch and is unit-tested at the aspect-ratio boundaries either way. The UI
 supplies the fit; the engine never guesses it, and no prototype geometry is
 hard-coded.
+
+---
+
+## ADR-F24 — Widget tests run over an in-memory queue; the real database is proven in a separate integration tier
+
+**Status:** ACCEPTED · **Requirements:** FLT-GEN-003, FLT-BAT-003, FLT-SYNC-012 ·
+**Supersedes:** nothing; it records a constraint discovered at F4/F5
+
+**Context.** The intention going into the UI gates was that widget tests would
+drive the **real** DAO over `sqflite_common_ffi`, exactly as the F1 `DATA` tier
+does, so that a claim like "the batch count came from the database" was a claim
+about the database rather than about a stub.
+
+**Evidence.** It does not work, and the failure mode is not a wrong answer — it is
+a hang. `testWidgets` executes its body inside `AutomatedTestWidgetsFlutterBinding`,
+which runs the test in a **fake-async zone with a controlled clock**. The FFI
+engine performs genuine file I/O off the main isolate, so its futures are never
+completed by anything the fake clock advances. The first attempt sat at
+`pumpAndSettle` for its full ten-minute timeout and reported nothing — measured,
+not assumed.
+
+**Decision.** Split the tiers rather than blur them.
+
+* **`WIDGET`** — `testWidgets`, over `InMemoryUploadQueue`: a faithful
+  reimplementation of the port's *observable* contract (one draft batch, count
+  advanced with the insert, enqueue moving a batch in one step, a change
+  announcement after every mutation, fault switches for a refused read and a
+  refused transaction). These tests prove **rendering and wiring**.
+* **`INTEGRATION`** — plain `test()`, over the real DAO, the real
+  `QueueProcessor` and the real use cases, in `test/integration/`. These prove
+  **reconciliation and durability**.
+
+Each tier's file header states which of the two it is making claims about.
+
+**Reasoning.** The alternative was to wrap every database-touching pump in
+`tester.runAsync()`, which would have meant the widget under test running against
+a *different* async model from the one it runs against in production — and would
+have made every subsequent test author responsible for remembering it. A stated
+boundary between two tiers is cheaper to keep honest than a rule that must be
+re-applied at every call site.
+
+The cost is real and is not hidden: **no widget test in this repository proves a
+persistence rule.** That is why the integration tier exists and why its
+assertions — startup reconciliation, a refused schedule leaving the queue intact,
+a cleanup failure not resurrecting a synced item — are made against real SQLite.
+
+**Rejected.**
+
+* *`tester.runAsync()` everywhere.* Above.
+* *Dropping the widget tier and testing only through blocs.* It would leave every
+  rendering claim — the reticle landing on the tap, the absent close control, the
+  48 dp targets, the reduced-motion branch — unverified.
+* *Using the in-memory queue for the integration tier too.* Then nothing would
+  test the DAO from the presentation side at all, and the two implementations
+  could drift with no test to notice.
+
+---
+
+## ADR-F25 — The foreground drains the queue itself while visible, and connectivity keeps its two jobs separate
+
+**Status:** ACCEPTED · **Requirements:** FLT-SYNC-004, FLT-SYNC-011, FLT-SYNC-012
+
+**Context.** `SYNC_ENGINE.md` §8 anticipated that the foreground *may* run
+`QueueProcessor.drain()` directly. F5 had to decide whether it does, and had to
+resolve an overlap the UI created: `ConnectivityDrainTrigger` (F1) already asks
+the platform for a drain when a link returns, and `SyncBloc` needs the same
+signal to render its chip.
+
+**Decision, part one — the foreground drains.** `SyncBloc` runs **one** drain
+pass per reconciliation trigger (startup, resume, finished batch, "Try now",
+regained link) when a `QueueProcessor` is supplied. One pass, never a loop: the
+pass is already bounded internally by an item and a time budget, and chaining
+passes here would be an app-side schedule competing with WorkManager's (`RS-04`).
+
+This is safe **only** because the claim is atomic. The foreground pass and the
+worker are two claimants of one queue, not a primary and a fallback; whichever
+loses a claim simply finds nothing to do (`RD-02`).
+
+**Reasoning.** Without it, a reviewer watching the Upload Manager sees a correct
+but motionless screen until Android decides to run a worker — which Doze and OEM
+battery managers can defer substantially (`RS-02`). The queue would be working;
+it would just be unobservable. Draining while visible makes the mandated
+behaviour demonstrable without weakening the background path, which still exists
+and is still what runs when the app is not.
+
+**Decision, part two — connectivity's two jobs stay in two places.**
+
+| Job | Owner |
+| --- | --- |
+| Ask the *platform* for a drain when a link returns | `ConnectivityDrainTrigger` (F1, unchanged) |
+| Run the *foreground* pass, and render the chip | `SyncBloc` |
+
+`SyncBloc` owns the trigger's lifecycle — it starts it on `SyncStarted` and stops
+it on close — but does not duplicate its scheduling call.
+
+**Reasoning.** Having both ask the scheduler would put two nodes on the WorkManager
+chain for one physical event. Having only the bloc ask would leave the tested F1
+component unused, and re-implementing its "only the transition into *has link*
+counts" rule inside the bloc would be the same logic in a second place. The split
+is asserted by an integration test: regaining a link increments the scheduling
+count by exactly **one**.
+
+**What did not change.** Connectivity is still advisory and still gates nothing
+(`ADR-F05`, `FLT-SYNC-011`): the drain runs on its own outcome, and a link signal
+only changes *when the app bothers trying* and *what the screen says*.

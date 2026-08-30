@@ -15,7 +15,31 @@ orchestration moved into `domain`, and a recorded attendance became an event rat
 live condition ([ADR-015](DECISIONS.md#adr-015), [ADR-016](DECISIONS.md#adr-016),
 [ADR-017](DECISIONS.md#adr-017)). The rows whose stated verification method is a Compose UI
 test remain `PARTIAL`; a manual walkthrough is not that method.**
-Flutter Task 2 status: **F3 COMPLETE — CAMERA ENGINE BUILT, 2026-08-30.** The camera
+Flutter Task 2 status: **F4 AND F5 COMPLETE — PRODUCTION EXPERIENCE BUILT,
+2026-08-30.** The assessment-facing Flutter application now exists. `CameraPreviewScreen`
+is the app's home route: a full-bleed viewfinder over the live session, with pinch and a
+right-edge slider and capability-derived presets all writing one `currentZoom`,
+tap-to-focus landing an emerald reticle within 2 dp of the finger, a contextual batch
+stack, and a **"Finish batch (n)"** action that is a purely local durable act and works
+with no connection at all. `UploadManagerScreen` renders the queue honestly: count-based
+`n of m` progress rather than a fabricated percentage, six item states each carrying an
+icon *and* words, an attempt count with **no** denominator because no cap exists, the
+approved connectivity hints, and a persistent reassurance line. `BatchCubit` and
+`SyncBloc` join `CameraCubit`, and **`FLT-SYNC-012` closes the `RS-11` residual**: durable
+work found at startup or on resume asks for a drain again, and the app also runs one
+foreground drain pass while visible so the queue is observable rather than merely correct
+(`ADR-F25`). Permission recovery reaches a `MethodChannel` in this app's own
+`MainActivity`, offered only after refusals repeat and never worded as a permanence claim
+(`ADR-F22`). **516 tests pass** (445 at F3, +71 this gate: 42 `WIDGET`, 14 integration
+over real SQLite, 9 `UNIT`, 7 `BLOC`), `flutter analyze` 0 issues,
+`flutter build apk --debug` PASS. Two new ADRs record what implementation forced:
+**`ADR-F24`** — `testWidgets` runs in a fake-async zone where the real SQLite engine never
+completes, so the widget tier runs over an in-memory queue and every persistence claim
+moved to a separate integration tier over the real DAO; and **`ADR-F25`** — the foreground
+drain, and the split that keeps connectivity's platform request with the tested F1
+trigger. **No device QA has been performed and none is claimed.**
+
+Flutter Task 2 status at F3: **CAMERA ENGINE BUILT, 2026-08-30.** The camera
 mechanics are implemented and host-verified beneath a UI that does not exist yet:
 enumeration with truthful back-camera filtering, a `CameraEngine`/`CameraSession` port
 pair over `camera` 0.12.0+2, capabilities read back from the controller rather than
@@ -55,9 +79,19 @@ yet** — `CameraPreviewScreen` and the Pending Uploads manager are still unimpl
 approved visual direction was neither redesigned nor built. **No device QA has been performed
 and none is claimed.**
 
-Current gate: **F4 — batch management (next).** F0 through F3 are complete; the visual
-gate is **APPROVED / UNLOCKED**. Android Task 1 is **FROZEN** at G3.8 and was not
-touched at F3.
+Current gate: **F7 — device QA (blocked on hardware).** F0 through F5 are complete;
+the visual gate is **APPROVED / UNLOCKED**. F6 (accepted bonuses) is optional and
+sequenced last by `ADR-F09`. Android Task 1 is **FROZEN** at G3.8 and was not touched at
+F3, F4 or F5 — `git diff -- android-attendance` is empty at this commit.
+
+**What a device session must now establish**, and what nothing in this repository claims:
+a real preview renders; pinch tracks the fingers and clamps at the device's own limits;
+the reticle lands where the user tapped on real hardware; the enumerated back cameras and
+their zoom ranges match what the preset policy assumed (`FQ-01`); the app releases and
+reacquires the camera cleanly across background and resume; and — the single most
+important one — **airplane mode → capture → finish batch → restore network with the app
+backgrounded → the queue drains without the user touching anything.** The checklists are
+already written: `CAMERA_ENGINE.md` §8 and `SYNC_ENGINE.md` §10.
 
 ## Progress
 

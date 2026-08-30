@@ -1346,3 +1346,79 @@ no caller until F5, and shipping an untested recovery path is worse than shippin
 none. The camera backend was not swapped to Camera2 to obtain richer metadata; an
 honest label costs nothing and a platform change made on speculation risks
 everything.
+
+---
+
+## F4/F5 — the production Flutter experience (2026-08-30)
+
+**Prompt intent.** Build the assessment-facing Flutter application: the camera
+screen, the Upload Manager, the batch and sync presentation state, startup and
+resume reconciliation, the approved failure states, accessibility and restrained
+motion — implementing the frozen visual direction faithfully rather than
+redesigning it, and with tests that are high-value rather than count-padding.
+
+### What the AI contributed, and what it got wrong
+
+**1. It found a real constraint by measurement, not by reasoning — `ADR-F24`.**
+The plan was for widget tests to drive the real DAO, exactly as the F1 `DATA`
+tier does, so that "the count came from the database" would be a claim about the
+database. The first run did not fail; it **hung**, sitting at `pumpAndSettle` for
+its full ten-minute timeout with no output. The cause is that `testWidgets` runs
+its body inside a fake-async zone with a controlled clock, and the FFI SQLite
+engine's real file I/O is never completed by anything that clock advances.
+
+The instructive part is the diagnosis. The first hypothesis — an indeterminate
+`CircularProgressIndicator` preventing `pumpAndSettle` from settling — was
+plausible and wrong. It was discarded by a throwaway test that printed the cubit's
+state after each frame and produced **no output at all**, which located the hang
+*before* the first pump rather than during it. The fix that followed (split the
+tiers, state in each file header which of the two it may claim) is a design
+decision the constraint forced, and it is recorded as such rather than presented
+as foresight.
+
+**2. It made a scoping decision that needed a stated reason — `ADR-F25`.**
+`SYNC_ENGINE.md` §8 said the foreground *may* drain the queue directly. It now
+does, one bounded pass per reconciliation trigger. The argument is not "more is
+better": Android can defer a worker substantially under Doze, and a correct queue
+nobody can observe working is a poor demonstration of the one requirement the
+assessment cares most about. The same ADR resolves an overlap the UI created —
+`ConnectivityDrainTrigger` (F1) and `SyncBloc` both see the link signal — by
+giving the platform request to the tested F1 component and the foreground pass to
+the bloc, with an integration test asserting that regaining a link increments the
+scheduling count by exactly **one**.
+
+**3. It wrote a circular test and had to be caught.** A first draft of the
+rewritten `app_shell_test.dart` asserted that a probe widget it had just mounted
+was present — a test that could not fail and proved nothing. It was replaced with
+two assertions that can fail: the themes derive from one seed in both
+brightnesses, and the storage-failure shell renders its message. The "camera is
+the primary route" claim moved to the navigation test, where it is asserted
+against a real navigator that genuinely cannot pop.
+
+**4. Where it was held to the honesty rules already in the register.** Three
+places where the obvious implementation would have overstated what the app knows,
+and each is now asserted by a test rather than left to review:
+
+* the camera selector labels by **ordinal** ("Camera 1, 1 of 2"), never by a
+  fabricated multiplier, because Android reports no lens identity (`ADR-F03`);
+* the retry row shows "attempt 3" with **no denominator**, because no cap exists
+  (`ADR-F12`) — the reference screenshot's "3/5" is deliberately not reproduced;
+* the permission panel widens its **offer** after repeated refusals without ever
+  using the word "permanently", because Android never issues that verdict
+  (`ADR-F22`).
+
+**5. Deliberate departures from the advisory p3 screenshots.** "PAUSE ALL" and
+the flash/settings camera controls were not built. Pausing an automatic queue
+invites a state where uploads stop and nobody remembers why, against a mandate
+that is explicitly recovery *without user intervention*; flash and settings carry
+no mandated behaviour. Both are recorded in the matrix rows rather than quietly
+omitted.
+
+### Verification actually executed
+
+`dart format lib test`, `flutter analyze` (0 issues), `flutter test`
+(**516 pass**, +71 this gate), `flutter build apk --debug` (PASS),
+`git diff --check` clean, `git diff -- android-attendance` empty.
+
+**No device QA was performed and none is claimed.** 516 host tests say nothing
+about whether a real lens focused or whether Android ran a worker.

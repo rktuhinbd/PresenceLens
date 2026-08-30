@@ -240,7 +240,7 @@ rather than two parallel ones.
 | --- | --- |
 | `CameraCubit` | Preview lifecycle, zoom (pinch, slider, presets — FLT-03 to FLT-05), tap-to-focus with reticle (FLT-06, FLT-07), capture. |
 | `BatchCubit` | Open batch contents, capture count badge, enqueue on upload (FLT-08). |
-| `SyncCubit` | Observes the queue and connectivity; exposes per-item and aggregate progress for the Upload Manager (FLT-09, FLT-18). |
+| `SyncBloc` | Observes the queue and connectivity; exposes per-item and aggregate progress for the Upload Manager (FLT-09, FLT-18). |
 
 These are the classes DOC-04 requires the README to name.
 
@@ -283,7 +283,7 @@ authority; this list exists so the divergence is visible from the root document.
 
 Class names also settled differently: `CapturedImage` → `QueuedImage`, `Batch` →
 `CaptureBatch`, `ImageFileStore` → `FileSystemCaptureStore`, `ConnectivityMonitor`
-→ `ConnectivityPlusAdapter`, and `SyncCubit` is planned as a **Bloc** because it
+→ `ConnectivityPlusAdapter`, and `SyncBloc` is a **Bloc** because it
 merges three asynchronous sources ([ADR-F08](flutter/DECISIONS.md)). `UploadQueueDao`
 and `MockUploadApi` kept their names.
 

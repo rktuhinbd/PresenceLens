@@ -84,7 +84,7 @@ Connectivity is advisory. It is allowed to influence *when we bother trying* and
 | --- | --- | --- |
 | **Scheduling constraint** | `Constraints(networkType: NetworkType.connected)` on the work request | Asks the OS not to wake the worker with no link at all. Saves wake-ups; proves nothing. |
 | **Opportunistic reschedule** | `onConnectivityChanged` transition from "none" to anything, while the app is foreground → re-register the drain task | Turns a likely-useful moment into an attempt sooner. If the link is unusable, the attempt fails and re-queues; nothing breaks. |
-| **UX copy** | `SyncCubit` state → the Upload Manager's status chip | Worded as a hint ("Connected · uploading automatically", "Offline · captures are safe"), never as a promise, and never *immediate* or *continuous* — the OS owns the schedule. Exact strings and forbidden phrasings in [UX_SPEC.md](UX_SPEC.md) §4.1. `FLT-UX-010`, `ADR-F14`. |
+| **UX copy** | `SyncBloc` state → the Upload Manager's status chip | Worded as a hint ("Connected · uploading automatically", "Offline · captures are safe"), never as a promise, and never *immediate* or *continuous* — the OS owns the schedule. Exact strings and forbidden phrasings in [UX_SPEC.md](UX_SPEC.md) §4.1. `FLT-UX-010`, `ADR-F14`. |
 
 **The upload attempt and its outcome are the only authority** (`FLT-SYNC-011`).
 
@@ -277,12 +277,20 @@ all, so a twenty-photo session produces **one** drain request rather than twenty
 idle nodes on the chain. This matters more under `append` than it did under
 `keep`, because requests no longer collapse (`ADR-F21`).
 
-Still to come, and not claimed as existing: reconciliation on **startup and
-resume** (`FLT-SYNC-012`, gate F5). Until it lands, an app killed between
-finishing a batch and the worker running relies on WorkManager's own persistence
-of the enqueued chain, which survives process death and reboot — but a
-*scheduling request that failed* is not retried until the next trigger
-(`RS-11`).
+**Added at F5, closing `RS-11`: reconciliation on startup and resume**
+(`FLT-SYNC-012`). `SyncBloc` reads the queue when the app launches and on every
+resume; if durable uploadable work exists, it asks for a drain again. So a
+scheduling request the platform refused is retried at the next launch, resume,
+regained link or finished batch, rather than waiting on chance. It is idempotent
+and non-throwing, and it asks for nothing when the queue is empty — waking a
+worker for no work is a battery cost with no benefit.
+
+The same trigger also runs **one foreground drain pass** while the app is visible
+(`ADR-F25`), so a user watching the Upload Manager sees progress instead of
+waiting on OS scheduling. One pass, never a loop: the pass is already bounded by
+an item and a time budget, and chaining passes would be an app-side schedule
+competing with WorkManager's (`RS-04`). It is safe only because the claim is
+atomic — the foreground and the worker are two claimants of one queue.
 
 ### Ordering rule at the call site
 
@@ -439,7 +447,7 @@ bug.
 
 The foreground is not a second sync engine. It:
 
-1. Renders queue state by watching the database (`SyncCubit`, `FLT-BAT-003`).
+1. Renders queue state by watching the database (`SyncBloc`, `FLT-BAT-003`).
 2. Re-registers the drain task on resume and on a connectivity improvement
    (`FLT-SYNC-012`) — cheap and idempotent.
 3. May run `QueueProcessor.drain()` directly while visible, so a user watching the

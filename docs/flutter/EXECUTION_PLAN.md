@@ -21,8 +21,8 @@ were delivered in a single pass, which makes off-by-one confusion easy.
 | `F1` | Data layer and durable queue | ✅ complete |
 | `F2` | Sync engine, worker, scheduler | ✅ complete — shipped with F1 |
 | **`F3`** | **Camera engine** | ✅ **complete 2026-08-30 — engine only; the camera *screen* moved to `F5`** |
-| `F4` | Batch management | not started |
-| `F5` | Upload Manager UI | not started |
+| `F4` | Batch management | ✅ complete 2026-08-30 — shipped with F5 |
+| **`F5`** | **Camera screen and Upload Manager UI** | ✅ **complete 2026-08-30** |
 | `F6` | Accepted bonuses | not started |
 | `F7` | Device QA | blocked on hardware |
 | `F8` | Submission | not started |

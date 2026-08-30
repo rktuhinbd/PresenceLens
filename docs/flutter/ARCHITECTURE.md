@@ -87,7 +87,7 @@ lib/
     ├── theme/                      tokens, Material 3 schemes, camera palette
     ├── camera/                     CameraPreviewScreen + CameraCubit + widgets
     ├── batch/                      BatchCubit
-    └── uploads/                    UploadManagerScreen + SyncCubit + widgets
+    └── uploads/                    UploadManagerScreen + SyncBloc + widgets
 ```
 
 `QueueProcessor` sits in `data/sync` rather than `domain` deliberately: it
@@ -131,7 +131,7 @@ is decided per feature by whether events carry meaning beyond "do this now".
 | --- | --- | --- |
 | **`CameraCubit`** | **Cubit** | Every camera interaction is a direct imperative command — initialise, set zoom, focus here, capture, switch camera. There is no event stream worth replaying, no debouncing across event types, and no benefit to a sealed event hierarchy. A `Bloc` here would add an event class per method call for nothing. The hard part of the camera is *lifecycle and races* (`FLT-CAM-013`), which is solved by sequencing inside the Cubit, not by event modelling. |
 | **`BatchCubit`** | **Cubit** | Two operations: append a capture, enqueue the batch. Modelling that as events would be pure ceremony. |
-| **`SyncCubit`** | **Bloc** | This one genuinely earns it. It merges **three independent asynchronous sources** — the queue's own change stream, connectivity transitions, and app-lifecycle resume — and must react differently depending on which arrived. A sealed event type (`QueueChanged`, `ConnectivityChanged`, `AppResumed`, `RetryRequested`) makes that fan-in explicit and lets each be tested in isolation. `Bloc`'s transformers also allow connectivity chatter to be debounced without hand-rolled timers. |
+| **`SyncBloc`** | **Bloc** | This one genuinely earns it. It merges **three independent asynchronous sources** — the queue's own change stream, connectivity transitions, and app-lifecycle resume — and must react differently depending on which arrived. A sealed event type (`QueueChanged`, `ConnectivityChanged`, `AppResumed`, `RetryRequested`) makes that fan-in explicit and lets each be tested in isolation. `Bloc`'s transformers also allow connectivity chatter to be debounced without hand-rolled timers. |
 
 The mixed choice is itself the argument: the codebase shows that the distinction
 is understood rather than applied uniformly.
@@ -203,7 +203,7 @@ never before, so no row can ever reference a file that does not exist
 | `UploadApi` / `MockUploadApi` | The network seam. Deterministic Success/Failed (`FLT-SYNC-005`). |
 | `QueueProcessor` | The drain loop: claim → attempt → classify → transition. Runs identically in both isolates. |
 | `SyncScheduler` / `WorkManagerSyncScheduler` | Registering the one-off drain task with its constraints and backoff. |
-| `SyncCubit` | Presenting queue state; reacting to connectivity and resume. |
+| `SyncBloc` | Presenting queue state; reacting to connectivity, resume and local actions; requesting a drain when durable work exists. |
 
 `QueueProcessor` being isolate-agnostic is the key simplification: there is one
 implementation of "drain the queue", used by the worker and by the foreground.
