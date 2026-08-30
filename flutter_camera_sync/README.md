@@ -85,12 +85,12 @@ v1.0.0 APK.
 
 | Camera ready | Focus + zoom | Offline queue |
 | --- | --- | --- |
-| ![Camera ready](../docs/assets/flutter/camera-ready.png) | ![Focus and zoom](../docs/assets/flutter/focus-zoom.png) | ![Offline pending uploads](../docs/assets/flutter/uploads-offline.png) |
+| <img src="../docs/assets/flutter/camera-ready.png" alt="Camera ready" width="250"> | <img src="../docs/assets/flutter/focus-zoom.png" alt="Focus and zoom" width="250"> | <img src="../docs/assets/flutter/uploads-offline.png" alt="Offline pending uploads" width="250"> |
 | Live preview with capability-derived zoom presets and slider. | Focus reticle at the tap point, held at 2x zoom. | Batch finished offline — five images waiting, retained on device. |
 
 | Active batch | Synced |
 | --- | --- |
-| ![Active batch](../docs/assets/flutter/camera-active-batch.png) | ![Uploads synced](../docs/assets/flutter/uploads-success.png) |
+| <img src="../docs/assets/flutter/camera-active-batch.png" alt="Active batch" width="250"> | <img src="../docs/assets/flutter/uploads-success.png" alt="Uploads synced" width="250"> |
 | A live draft batch of three captures, with thumbnail and count. | The same five images after connectivity returned — drained automatically, no manual retry. |
 
 ## Release APK

@@ -57,7 +57,7 @@ No mock-location or spoofing detection is implemented, and none is claimed.
 
 ## Screenshot
 
-![Attendance ready](../docs/assets/android/attendance-ready.png)
+<img src="../docs/assets/android/attendance-ready.png" alt="Attendance ready" width="250">
 
 Office anchor saved, live distance to the office, and eligibility inside the 50 m radius.
 Captured on a physical HONOR DNP-NX9 against a live GPS fix.
