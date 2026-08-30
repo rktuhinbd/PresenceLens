@@ -122,6 +122,13 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
         listenWhen: (CameraState previous, CameraState current) =>
             current is CameraReady,
         listener: _onCameraState,
+        buildWhen: (CameraState previous, CameraState current) {
+          if (previous is CameraReady && current is CameraReady) {
+            return previous.copyWith(currentZoom: current.currentZoom) !=
+                current;
+          }
+          return previous != current;
+        },
         builder: (BuildContext context, CameraState state) {
           return Stack(
             fit: StackFit.expand,
@@ -564,10 +571,16 @@ class _BottomChrome extends StatelessWidget {
           Positioned(
             right: 4,
             bottom: 260,
-            child: ZoomSlider(
-              range: state.zoomRange,
-              value: state.currentZoom,
-              onChanged: onZoom,
+            child: BlocSelector<CameraCubit, CameraState, double>(
+              selector: (CameraState s) =>
+                  s is CameraReady ? s.currentZoom : state.currentZoom,
+              builder: (BuildContext context, double currentZoom) {
+                return ZoomSlider(
+                  range: state.zoomRange,
+                  value: currentZoom,
+                  onChanged: onZoom,
+                );
+              },
             ),
           ),
         Positioned(
@@ -591,10 +604,17 @@ class _BottomChrome extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       if (adjustable)
-                        ZoomPresetRow(
-                          presets: state.presets,
-                          currentZoom: state.currentZoom,
-                          onSelected: onPreset,
+                        BlocSelector<CameraCubit, CameraState, double>(
+                          selector: (CameraState s) => s is CameraReady
+                              ? s.currentZoom
+                              : state.currentZoom,
+                          builder: (BuildContext context, double currentZoom) {
+                            return ZoomPresetRow(
+                              presets: state.presets,
+                              currentZoom: currentZoom,
+                              onSelected: onPreset,
+                            );
+                          },
                         ),
                       if (batch.hasCaptures) ...<Widget>[
                         const SizedBox(height: 12),
