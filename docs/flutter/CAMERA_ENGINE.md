@@ -382,35 +382,45 @@ slider tracks the finger while the device is not flooded.
 
 ## 9. Device verification checklist
 
-`FLT-TEST-009`. **Not executed. Nothing in this repository claims any of it has
-passed.** Cannot be satisfied on an emulator alone — emulator cameras are synthetic
-and report capabilities unlike real hardware (`RF-03`).
+`FLT-TEST-009`. **Executed at gate F7 (2026-08-30) on a physical HONOR DNP-NX9
+(Android 16), with two checks additionally corroborated on a Samsung Galaxy S25.**
+The original checklist is preserved below with a **Result** column added; nothing
+is marked `PASS` that was not actually run. Emulator cameras cannot satisfy this
+checklist alone — they are synthetic and report capabilities unlike real hardware
+(`RF-03`) — which is why this pass required physical devices.
 
-`CameraDiagnostics.report()` produces checks 2–4 as one copyable block; paste its
-output into the evidence column rather than paraphrasing it.
+Result vocabulary: **PASS** (physically confirmed) · **HOST VERIFIED** (proven by
+an automated test; not separately re-confirmed live) · **MANUAL PHYSICAL** (a human
+performed the physical gesture — `adb shell input` cannot produce trustworthy
+multi-touch, so pinch is never claimed as ADB-automated) · **NOT SEPARATELY
+EXECUTED** (genuinely not run this pass, stated rather than assumed).
 
-| # | Check | Records |
-| --- | --- | --- |
-| 1 | Preview renders at the correct aspect ratio with no stretch | — |
-| 2 | `availableCameras()` — exact output: `name`, `lensDirection`, `lensType`, `sensorOrientation` for **every** camera | `FQ-01`; confirms or overturns `FR-04` |
-| 3 | Exact count of **back** cameras | `FQ-01` |
-| 4 | `getMinZoomLevel()` / `getMaxZoomLevel()` per rear camera | `FQ-01`; validates `ZoomPresetPolicy` against real hardware |
-| 5 | `focusPointSupported` and `exposurePointSupported` per rear camera | `FLT-CAM-008`, `FLT-CAM-018` |
-| 6 | Pinch tracks fingers; no drift; clamps at both ends | `FLT-CAM-003` |
-| 7 | Slider and pinch stay synchronised in both directions | `FLT-CAM-006` |
-| 8 | Presets set the exact value and reflect the active state | `FLT-CAM-005` |
-| 9 | Tap focus visibly changes focus; reticle lands exactly on the tap | `FLT-CAM-008/009` |
-| 10 | Tap outside the active preview area behaves per the chosen fit | `FLT-CAM-008` |
-| 11 | Capture produces a file; double-tap produces exactly one | `FLT-CAM-014` |
-| 12 | A real plugin `XFile` reaches durable storage and survives | `FLT-CAM-015` |
-| 13 | Camera switching works, and rapid tapping never crashes or shows a dead preview | `FLT-CAM-013` |
-| 14 | Background/foreground releases and restores the preview; captures survive | `FLT-CAM-012` |
-| 15 | Camera permission **denied** renders correctly and retry works | `FLT-ERR-001` |
-| 16 | Permission denied twice, then granted in Settings, then return to the app — camera comes back with no retry tap | `FLT-ERR-002`, `ADR-F22` |
-| 17 | Reduced-motion enabled: reticle still appears | `FLT-UX-004` |
+`CameraDiagnostics.report()` produced checks 2–4 as one copyable block from the
+real device; its output is summarised in the Result column below.
 
-**Check 2 is the one that matters most.** It is the only thing that can confirm or
-overturn `FR-04`, and the honest-label policy (`ADR-F03`) — the most visible design
-decision in this task — rests on it. If a real device *does* report `lensType`, the
-preset policy already upgrades its labels; nothing needs rewriting, but the README's
-limitation note would need correcting.
+| # | Check | Records | Result |
+| --- | --- | --- | --- |
+| 1 | Preview renders at the correct aspect ratio with no stretch | — | **PASS** — full-bleed live preview confirmed live and in the submission screenshots (`docs/assets/flutter/camera-ready.png`), no visible stretch |
+| 2 | `availableCameras()` — exact output: `name`, `lensDirection`, `lensType`, `sensorOrientation` for **every** camera | `FQ-01`; confirms or overturns `FR-04` | **PASS — `FR-04` confirmed.** One back camera; `lensType` unreported (Android/CameraX, as predicted); no fabricated optical label produced |
+| 3 | Exact count of **back** cameras | `FQ-01` | **PASS** — one |
+| 4 | `getMinZoomLevel()` / `getMaxZoomLevel()` per rear camera | `FQ-01`; validates `ZoomPresetPolicy` against real hardware | **PASS** — 1x–8x; slider and presets (1x, 2x, 5x) matched the reported range |
+| 5 | `focusPointSupported` and `exposurePointSupported` per rear camera | `FLT-CAM-008`, `FLT-CAM-018` | **PASS** — both supported; exposure paired without disturbing focus |
+| 6 | Pinch tracks fingers; no drift; clamps at both ends | `FLT-CAM-003` | **MANUAL PHYSICAL** — confirmed by direct two-finger pinch on the HONOR device and independently user-confirmed on a Samsung Galaxy S25; not ADB-automated |
+| 7 | Slider and pinch stay synchronised in both directions | `FLT-CAM-006` | **PASS** |
+| 8 | Presets set the exact value and reflect the active state | `FLT-CAM-005` | **PASS** |
+| 9 | Tap focus visibly changes focus; reticle lands exactly on the tap | `FLT-CAM-008/009` | **PASS** — centre, both far corners, and at 8x zoom |
+| 10 | Tap outside the active preview area behaves per the chosen fit | `FLT-CAM-008` | **NOT SEPARATELY EXECUTED** — this specific edge case (a tap outside the live preview bounds) was not itemised in the F7 session; the coordinate mapping itself is `UNIT`-tested for both preview fits |
+| 11 | Capture produces a file; double-tap produces exactly one | `FLT-CAM-014` | **PASS** — two rapid taps produced exactly one new row, confirmed against the live SQLite file |
+| 12 | A real plugin `XFile` reaches durable storage and survives | `FLT-CAM-015` | **PASS** |
+| 13 | Camera switching works, and rapid tapping never crashes or shows a dead preview | `FLT-CAM-013` | **NOT SEPARATELY EXECUTED — hardware-limited.** The test device reports exactly one back camera (check 3), so the switch control is correctly absent and the switching behaviour itself could not be exercised on this hardware; it remains proven only at `BLOC` level (eight rapid switches, one live session) |
+| 14 | Background/foreground releases and restores the preview; captures survive | `FLT-CAM-012` | **PASS** |
+| 15 | Camera permission **denied** renders correctly and retry works | `FLT-ERR-001` | **PASS** — "Camera access is off" shown honestly, Pending Uploads stayed reachable, recovered on re-grant with no restart |
+| 16 | Permission denied twice, then granted in Settings, then return to the app — camera comes back with no retry tap | `FLT-ERR-002`, `ADR-F22` | **PARTIAL — a simpler cycle was confirmed, not this exact sequence.** F7 confirmed single revoke → re-grant → automatic recovery; the specific "denied twice, then Settings" escalation path was not separately walked. The escalation logic itself (offer only after repeated refusal) is `WIDGET`-tested |
+| 17 | Reduced-motion enabled: reticle still appears | `FLT-UX-004` | **HOST VERIFIED** — proven by `WIDGET` test with animations disabled; the OS-level "Remove animations" accessibility toggle was not separately exercised on the physical device this pass |
+
+**Check 2 was the one that mattered most, and it is now closed.** It was the only
+thing that could confirm or overturn `FR-04`, and the honest-label policy
+(`ADR-F03`) — the most visible design decision in this task — rested on it. The
+real device reports no `lensType`, exactly as `FR-04` predicted from reading the
+plugin source; the preset policy's honest-ordinal fallback is what actually shipped
+to a user, not a hypothetical.

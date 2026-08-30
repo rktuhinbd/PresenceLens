@@ -488,8 +488,15 @@ carry over.
 
 Android does not guarantee *when* a constrained one-off task runs. Doze, App
 Standby buckets, and OEM battery managers all defer work, sometimes for a long
-time. The design depends only on **eventual** execution, and the README will say
-so plainly rather than implying instant background sync.
+time. The design depends only on **eventual** execution, and the root
+[README.md](../../README.md) states this plainly ("WorkManager schedules
+constrained background drains; connectivity regain and lifecycle reconciliation
+opportunistically schedule further work") rather than implying instant background
+sync. F7 produced a concrete instance of exactly this class of deferral: a
+Honor-proprietary `HN_USER_EXPERIENCE` job constraint withheld execution
+indefinitely until a device Settings toggle was changed — documented as a
+device-specific platform condition, not a code defect, in
+[PROJECT_STATE.md](../PROJECT_STATE.md) and [AI_USAGE.md §F7](../AI_USAGE.md).
 
 On iOS, `BGTaskScheduler` is more restrictive still and may not run for extended
 periods. The identifier and background modes are configured
@@ -500,15 +507,30 @@ claimed as verified** — it cannot be tested from a Windows host (`FQ-03`).
 
 ## 10. Failure-injection matrix
 
-The `DEVICE` verification plan for this engine (`FLT-TEST-009`).
+The `DEVICE` verification plan for this engine (`FLT-TEST-009`). **Executed at
+gate F7 (2026-08-30) on a physical HONOR DNP-NX9 (Android 16)**, and the critical
+scenario (#1 + #2 combined) was **re-executed at the documentation-reconciliation
+session** with a fresh install of the published v1.0.0 APK, so the evidence below
+comes from the exact binary a reviewer downloads.
 
-| # | Inject | Expected |
-| --- | --- | --- |
-| 1 | Airplane mode on, enqueue a batch | Items rest `PENDING`, list says waiting; no data loss |
-| 2 | Airplane mode off, app **backgrounded** | Queue drains with no user action — the core requirement |
-| 3 | Force-stop mid-upload, relaunch | Item recovers after the lease and completes |
-| 4 | Enqueue two batches while offline, then restore | Both drain, oldest capture first |
-| 5 | Delete an image file externally, then drain | That item → `FAILED_PERMANENT`; others unaffected |
-| 6 | `alwaysFailRetryable`, leave running | Attempt count rises; file and row persist; nothing is dropped |
-| 7 | Reboot with items pending | WorkManager re-registers; queue drains |
-| 8 | Fill storage, then capture | Capture fails cleanly with a message; no phantom row (`FLT-ERR-005`) |
+**The critical physical path — offline → capture → finish batch offline → app
+backgrounded → connectivity restored → automatic drain with no retry press — is
+`PASS` on HONOR.** It required first clearing the Honor-specific
+`HN_USER_EXPERIENCE` OEM background-launch restriction in device Settings
+(App launch → "Manage manually", all three sub-toggles on); this is documented as
+a **device-specific platform condition**, not a code defect — no manifest or
+code-level fix exists, and `adb shell am force-stop` reverts the manual grant back
+to "automatic," so it has to be reapplied after every force-stop during a testing
+session (see [PROJECT_STATE.md](../PROJECT_STATE.md) and
+[AI_USAGE.md §F7](../AI_USAGE.md)).
+
+| # | Inject | Expected | Final evidence / Result |
+| --- | --- | --- | --- |
+| 1 | Airplane mode on, enqueue a batch | Items rest `PENDING`, list says waiting; no data loss | **PASS** — five images captured offline, finished into a batch, and shown "Waiting for connection" per item with no fabricated progress |
+| 2 | Airplane mode off, app **backgrounded** | Queue drains with no user action — the core requirement | **PASS** — all five items drained to `Synced` automatically once the HONOR OEM constraint above was cleared; re-confirmed at the documentation-reconciliation session |
+| 3 | Force-stop mid-upload, relaunch | Item recovers after the lease and completes | **PASS** — force-stop/relaunch preserved correct durable state, confirmed against the live SQLite file |
+| 4 | Enqueue two batches while offline, then restore | Both drain, oldest capture first | **Not separately executed this pass.** Multiple batches were captured and enqueued independently and confirmed to drain (scenario 2), but the specific two-batch, oldest-first ordering claim was not itemised on device this gate; ordering determinism is `DATA`/`UNIT`-tested on the host |
+| 5 | Delete an image file externally, then drain | That item → `FAILED_PERMANENT`; others unaffected | **Not separately executed this pass** — a supplemental fault-injection scenario beyond the critical path; the transition itself is `UNIT`/`DATA`-tested on the host |
+| 6 | `alwaysFailRetryable`, leave running | Attempt count rises; file and row persist; nothing is dropped | **HOST VERIFIED only** — proven by `UNIT`/`DATA` tests (seven consecutive failures discard nothing); not separately re-run against the deterministic mock API on device this pass |
+| 7 | Reboot with items pending | WorkManager re-registers; queue drains | **PASS** — queue survived force-stop and reboot with items pending, confirmed on the physical device |
+| 8 | Fill storage, then capture | Capture fails cleanly with a message; no phantom row (`FLT-ERR-005`) | **Not separately executed this pass** — a supplemental fault-injection scenario; the no-phantom-row invariant is `UNIT`/`DATA`-tested on the host |

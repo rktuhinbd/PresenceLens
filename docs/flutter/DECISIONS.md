@@ -468,8 +468,13 @@ file is deleted the moment an upload is confirmed, those rows have nothing to sh
 
 **Decision.** `RetentionPolicy` is implemented, the processor honours it, and the
 ordering it depends on is tested — but `deleteAfterUpload` defaults to **`false`**.
-The bonus row stays `PARTIAL`: the mechanism exists and is verified; the app does
-not switch it on.
+At F1 this left the bonus row `PARTIAL` in the letter of the matrix's own
+vocabulary. **Final disposition (submission):** the requirements documents record
+this row `OPTIONAL — NOT DELIVERED` — the mechanism is fully implemented and
+tested, but the described behaviour (a file actually gets deleted) does not occur
+in the shipped app, because leaving deletion off by default is this ADR's
+decision. A reviewer running the app will not observe deletion; that is
+deliberate, not an unfinished state.
 
 **Reasoning.** The ordering rule is the part with real engineering content, and it
 is delivered and tested: `UPLOADED` is persisted **first**, deletion is attempted

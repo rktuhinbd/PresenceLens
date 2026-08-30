@@ -7,10 +7,15 @@ assistance, not authority: nothing is retained that the author cannot explain.
 
 ## At a glance
 
-**How AI was used.** Claude (via Claude Code) assisted with requirements extraction from
-the assessment PDF, architectural options and ADR drafting, SQLite concurrency and
-edge-case analysis, test planning, and documentation review. It did not make final
-engineering decisions.
+**How AI was used.** Claude, via the Claude Code CLI, assisted throughout — **Claude
+Opus 5** for the majority of gates (requirements extraction, architecture and ADR
+drafting, SQLite concurrency and edge-case analysis, implementation, and this final
+documentation reconciliation) and **Claude Sonnet 5** for three specific gates: G1 (Android foundation dependency
+research and the Hilt evaluation, Entry 003), G2 (Android attendance domain and
+office-location persistence, Entry 004), and the Android release-signing gate
+(Entry 007). It did not make
+final engineering decisions; every retained artefact was reviewed against the
+verification named in its own entry.
 
 **Representative real prompts** are recorded verbatim-in-summary in each entry below —
 see Entry 001 (requirements extraction), and the later entries covering the camera
@@ -213,6 +218,10 @@ to license the availability caption to gate anything, so a later session cannot 
 **Human verification.** PENDING — the author should confirm the ADR-012 wording
 matches their design intent, and that no mandated requirement shifted during the pass.
 
+**Resolved.** ADR-012 was accepted at the G0.1 human review (2026-08-28), recorded in
+[PROJECT_STATE.md](../PROJECT_STATE.md) Completed milestones §5; no requirement
+shifted — the matrix's GEN/AND rows trace unchanged to this pass.
+
 **Not done, deliberately.** ADR-010 (release signing) remains `PROPOSED` and unchosen
 per the human's instruction; blocker B-01 is retained so it resurfaces at G8.
 
@@ -274,6 +283,11 @@ were pinned.
 **Human verification.** PENDING — the author should confirm the dependency
 versions and the Hilt rejection reasoning before G2 begins building on top of them.
 
+**Resolved.** G1 closed (PROJECT_STATE.md Completed milestones §6) and G2–G3.8 built
+directly on these dependency choices and the ADR-009 Hilt rejection without reversal;
+ADR-009 remains the only `PROPOSED` (not `ACCEPTED`) ADR in the set, by deliberate
+design — a manual object graph, revisited only if it stopped being small.
+
 ---
 
 ## Entry 004 — G2 Android attendance domain & office-location persistence
@@ -329,6 +343,10 @@ construct one with `PreferenceDataStoreFactory.create` against a JUnit
 justification is acceptable and that `OfficeLocationRepository` living in
 `domain.model` (rather than a separate `domain.office` package) reads as the right
 call before G3 wires it into the ViewModel.
+
+**Resolved.** Both stand unchanged through to submission: `OfficeLocationRepository`
+remains in `domain/model/` in the shipped source, and G3 wired it into the ViewModel
+without restructuring the package.
 
 ---
 
@@ -408,6 +426,15 @@ steps in PROJECT_STATE.md, (b) confirm the accuracy-warns-never-blocks reading o
 AMB-14 is the intended one, and (c) confirm the restructured DataStore tests are an
 acceptable response to the Windows rename limitation rather than something to solve by
 changing the persistence layer.
+
+**Resolved, with one revision.** (a) The emulator walkthrough was run repeatedly
+(G3.5, G3.6, G3.8) and again as a physical-device screenshot session at submission.
+(c) The DataStore test restructuring stands unchanged in the shipped suite.
+(b) **Superseded, not simply confirmed:** the original "warns, never blocks" reading
+of AMB-14 was later revised by [ADR-015](../DECISIONS.md#adr-015) at G3.8 — a fix
+wider than the 50 m radius now fails closed rather than only warning, because a fix
+that coarse cannot measure the boundary at all. AMB-14's resolution note in
+[REQUIREMENTS_MATRIX.md](../REQUIREMENTS_MATRIX.md) reflects the final, revised rule.
 
 ---
 
@@ -491,6 +518,12 @@ padding: `Arrangement.spacedBy` leaves a gap behind when a section collapses.
 ADR-013 is the intended one, since it is the single interpretive change in this pass,
 (b) confirm the office-hours relabel is acceptable against the prescriptive screenshot,
 and (c) sanity-check the haptic on a physical device, which an emulator cannot show.
+
+**Resolved for (a) and (b); (c) remains an accepted residual.** Both ADR-013
+interpretive calls were "ruled on and accepted" at G3.6 (PROJECT_STATE.md). The haptic
+on the mark-attendance path was never separately confirmed on physical hardware —
+it is recorded honestly as an accepted residual in
+[PROJECT_STATE.md §Next gate](../PROJECT_STATE.md), not claimed.
 
 ---
 
@@ -585,6 +618,12 @@ both halves are pinned.
 **Human verification.** PENDING — the author should re-run the eight manual checks on their own
 device, and confirm the haptic on physical hardware, which an emulator cannot show.
 
+**Resolved for the manual checks; haptic remains an accepted residual.** The
+emulator walkthrough was re-executed at G3.8 after further changes, and the app was
+subsequently confirmed live on physical HONOR hardware at submission. Haptic
+confirmation on physical hardware was never separately performed — same accepted
+residual noted above, not silently dropped.
+
 ---
 
 ## Entry 007 — Android release signing (ADR-010 resolved)
@@ -655,9 +694,15 @@ preferred option ADR-010 already named. Recorded in DECISIONS.md.
 
 **Human verification.** Build, lint, test, `assembleRelease`, `apksigner verify`, and
 the install/launch smoke test were all executed and their output inspected in this
-session — not asserted from memory. **Still pending from the human:** confirming the
-`key.properties` and `.jks` backups were made, and the final side-by-side install check
-on the device intended for actual submission upload.
+session — not asserted from memory. **Partially resolved.** The final side-by-side
+install check ran at submission: both `PresenceLens-Attendance-v1.0.0.apk` and
+`PresenceLens-Capture-v1.0.0.apk` were downloaded fresh from the published v1.0.0
+GitHub release and installed side by side on a physical HONOR DNP-NX9 with no ID
+collision (`io.github.rktuhinbd.presencelens.attendance` /
+`io.github.rktuhinbd.presencelens.capture`). **Still not independently confirmable
+from an AI session:** whether the author personally made an off-repository backup of
+`key.properties` and the `.jks` file — that fact lives outside anything a session can
+observe, and is not claimed here.
 
 ## Entry 008 — G3.7 Android success-state refinement
 
@@ -880,11 +925,16 @@ documents.
    invisible. Both the prototype and the spec were corrected. This is the prototype
    gate doing its job.
 
-**Human verification.** ☐ **Pending.** The four findings above are the ones to check
-first: each is independently verifiable in a few minutes — (1) `grep -ri lensType` in
-the `camera_android_camerax` package, (2) the sqflite documentation on transaction
-exclusivity plus the fact that the worker runs in its own isolate, (3) reading
-`android/app/src/{debug,profile}/AndroidManifest.xml`, (4) opening
+**Human verification.** ☐ **Pending at F0; resolved by later gates, not by this
+checklist being independently walked.** (1) `lensType`'s absence was re-confirmed live
+at F7 (`FQ-01`, physical HONOR DNP-NX9) — the strongest form of this check, a real
+device rather than a package grep. (2) The sqflite exclusion claim was proven twice
+over: `upload_queue_claim_test` races real independent connections, and F7 confirmed
+no duplicate upload occurred with the real worker running. (3) Manifest permissions
+were confirmed on the installed release APK via `dumpsys package` at F7 — CAMERA,
+INTERNET, ACCESS_NETWORK_STATE present; RECORD_AUDIO, READ/WRITE_EXTERNAL_STORAGE,
+POST_NOTIFICATIONS, MANAGE_EXTERNAL_STORAGE absent — stronger evidence than reading
+the manifest source. (4) opening
 `docs/flutter/design/03-camera-active-batch.html`.
 
 **Not accepted from the AI.** Nothing in this gate was retained on the AI's assertion
@@ -959,7 +1009,12 @@ radius 999 px, icon present, `currentColor` inherited), and confirmed as a
 preview-pane snapshot artefact on re-render. It was not "fixed", because there was
 nothing wrong.
 
-**Human verification.** ☐ **Pending re-review.** The four things to look at:
+**Human verification.** ☐ **Pending re-review at F0; not separately re-litigated
+later.** The design direction these questions were raised against is the one that
+shipped unchanged through F5 and was visually confirmed at F7 on physical hardware —
+no later gate reopened the close-control removal, the "Finish batch" wording
+(`ADR-F14`), or the Upload Manager layout. Treated as settled by continuation rather
+than by a second explicit sign-off. The four things to look at:
 the camera top bar now that the X is gone (does its absence read as confident or
 as missing?), whether "Finish batch" reads as completing capture rather than
 starting a transfer, whether the Upload Manager is easier to scan without feeling
@@ -1056,7 +1111,12 @@ ADRs; and the reconciliation edits to eleven living documents.
    conflict is recorded as an F6 decision instead of being resolved by silently
    degrading a frozen screen.
 
-**Human verification.** ☐ **Pending.** Four checks, in descending order of value:
+**Human verification.** ☐ **Pending at F1; corroborated, not re-walked, by F7.**
+The claim path this checklist audits ran for real at F7 — two consumers (the
+foreground drain and the WorkManager worker) against one live database on a physical
+device, with no duplicate upload. That is stronger field evidence than the
+tampering steps below would produce, though the steps themselves were not
+separately re-executed by a human this pass. Four checks, in descending order of value:
 
 1. Read `UploadQueueDao.claimNext` and `upload_queue_claim_test.dart` together, and
    satisfy yourself that no Dart-level construct is doing the excluding. Delete the
@@ -1157,7 +1217,11 @@ inherited documentation error:
    asserts the *limit* of the guarantee so nobody later reads it as cross-isolate
    protection (`ADR-F20`).
 
-**Human verification.** ☐ **Pending.** Three checks, in descending order of value:
+**Human verification.** ☐ **Pending at F1; corroborated, not re-walked, by F7.**
+The continuation-vs-retry distinction this checklist audits is exactly what let a
+healthy 5-image offline batch drain in one pass at F7 rather than being throttled by
+backoff — real-world behaviour consistent with the tested design. The tampering step
+itself was not separately re-run by a human this pass. Three checks, in descending order of value:
 
 1. In `sync_worker_entrypoint.dart`, change the `continuationRequired` branch to
    `return false`. Four tests in "healthy backlog continues instead of failing"
@@ -1246,7 +1310,12 @@ along with the `enqueueUniqueWork` call that applies it. `APPEND → APPEND_OR_R
    and backoff takes over the moment healthy work runs out — so it is recorded as
    `RS-12` with the bound asserted by test, not suppressed with a second scheduler.
 
-**Human verification.** ☐ **Pending.** Three checks:
+**Human verification.** ☐ **Pending at F1; corroborated, not re-walked, by F7.**
+This is the exact defect class F7's critical path would have silently exhibited had
+it still been present: a drain requested while a worker is running getting discarded.
+It did not happen — the offline-built queue drained cleanly once connectivity
+returned. The tampering step itself was not separately re-run by a human this pass.
+Three checks:
 
 1. Change `WorkManagerSyncScheduler.conflictPolicy` back to
    `ExistingWorkPolicy.keep`. Three tests fail immediately — and note that on a
@@ -1342,7 +1411,11 @@ what *should* happen rather than adjusting the expectation to match the output.
 
 ### Human verification
 
-☐ **Pending.** Four checks that need no device:
+☐ **Pending at F3; the device check this list explicitly deferred was executed at
+F7.** `FQ-01` confirmed live: the physical HONOR DNP-NX9 reports one back camera with
+no `lensType`, exactly as the package-source grep below predicted — the
+honest-ordinal fallback (`ADR-F03`) is what a real user actually sees, not a
+hypothetical. Four checks that need no device:
 
 1. `grep -rn "lensType" $LOCALAPPDATA/Pub/Cache/hosted/pub.dev/camera_android_camerax-0.7.4+7`
    — zero hits. That single fact is the whole basis of `ADR-F03`.

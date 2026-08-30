@@ -267,14 +267,17 @@ verification**; anything needing hardware is 8F and is not checked.
 | 8E.25 | [x] 516 tests pass; `flutter analyze` 0 issues; debug APK builds. | GEN-08 |
 | 8E.26 | [x] `android-attendance/` unchanged — `git diff -- android-attendance` empty. | RT-03 |
 
-## 8F. Flutter device QA (F7) — not performed
+## 8F. Flutter device QA (F7) — performed 2026-08-30
 
-Nothing below is checked, and nothing in this repository claims any of it.
+Executed on a physical HONOR DNP-NX9 (Android 16); item 8F.2 additionally
+corroborated by a physical pinch-to-zoom user acceptance on a Samsung Galaxy S25.
+Nothing below is checked without the corresponding evidence recorded in
+[PROJECT_STATE.md](../PROJECT_STATE.md) and [AI_USAGE.md §F7](../AI_USAGE.md).
 
 | # | Item | Requirement |
 | --- | --- | --- |
 | 8F.1 | [x] A real preview renders on a physical device. | FLT-CAM-002 |
-| 8F.2 | [x] Pinch tracks the fingers and clamps at the device's own limits. | FLT-03 |
+| 8F.2 | [x] Pinch tracks the fingers and clamps at the device's own limits. **Manual-user check on HONOR, corroborated on Samsung Galaxy S25** — not ADB-automated (`adb shell input` cannot produce trustworthy multi-touch). | FLT-03 |
 | 8F.3 | [x] The reticle lands where the user tapped, and the lens visibly refocuses. | FLT-06, FLT-07 |
 | 8F.4 | [x] Enumerated back cameras and their zoom ranges match what the preset policy assumed (`FQ-01`). | FLT-05 |
 | 8F.5 | [x] Camera released and reacquired cleanly across background and resume. | FLT-CAM-012 |
@@ -294,7 +297,7 @@ Nothing below is checked, and nothing in this repository claims any of it.
 | 9.6 | [x] Links included in the README. | SUB-03 |
 | 9.7 | [x] Both APKs install on a device that has never had them. | SUB-03, DA-08 |
 | 9.8 | [x] Both apps launch and run from the installed release build. | SUB-03 |
-| 9.9 | [x] Application IDs do not collide; both install side by side. **IDs confirmed distinct 2026-08-29** — `io.github.rktuhinbd.presencelens.attendance` and `io.github.rktuhinbd.presencelens.capture` ([ADR-F10](flutter/DECISIONS.md#adr-f10-dart-package-renamed-to-presence_lens_capture)); side-by-side install still needs a device. | DA-09 |
+| 9.9 | [x] Application IDs do not collide; both install side by side. **IDs confirmed distinct 2026-08-29** — `io.github.rktuhinbd.presencelens.attendance` and `io.github.rktuhinbd.presencelens.capture` ([ADR-F10](flutter/DECISIONS.md#adr-f10-dart-package-renamed-to-presence_lens_capture)); **Side-by-side install confirmed** — both v1.0.0 APKs installed and ran together on a physical HONOR DNP-NX9 with no ID collision. | DA-09 |
 | 9.10 | [x] APK filenames identify which app each is. | AMB-09, EXP-04 |
 
 ## 10. Final audit (G9)

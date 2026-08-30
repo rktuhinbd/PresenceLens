@@ -11,6 +11,36 @@ Covers `FLT-TEST-001` … `FLT-TEST-009`.
 
 ---
 
+## 0. FINAL EXECUTION SUMMARY (submission, F7 complete, 2026-08-30)
+
+**521 automated tests pass; `flutter analyze` reports 0 issues; `flutter build apk
+--debug` and `--release` both succeed.** Every tier described in §2 below was
+executed, not just planned:
+
+| Tier | Executed | Headline |
+| --- | --- | --- |
+| `UNIT` | Yes | Pure policy: zoom, focus mapping, batch rules, lease boundaries, failure classification |
+| `DATA` | Yes | Real SQLite via `sqflite_common_ffi` — the atomic claim, transactions, migrations |
+| `BLOC` | Yes | `CameraCubit`, `BatchCubit` state-transition coverage, including lifecycle and switch races |
+| `WIDGET` | Yes | Every screen and every failure state rendered and asserted, including reduced-motion |
+| `INTEGRATION` | Yes | `SyncBloc` over real SQLite, 14 cases |
+| `DEVICE` | **Yes — F7, 2026-08-30** | Physical HONOR DNP-NX9 (Android 16): live preview, zoom, tap-to-focus with reticle, capture, the double-shutter guard, camera lifecycle, multi-batch, Pending Uploads, and the critical offline → capture → finish batch → background → restore connectivity → automatic drain path with no retry press. Physical pinch-to-zoom additionally user-confirmed on a Samsung Galaxy S25. |
+
+The `DEVICE` tier — planned in §7 below as "deferred" while no hardware was
+available — is the one this summary exists to close out: it is no longer
+deferred, and every headline it enumerated was executed and evidenced (full
+account: [PROJECT_STATE.md](../PROJECT_STATE.md), [AI_USAGE.md
+§F7](../AI_USAGE.md), and the per-check tables in
+[CAMERA_ENGINE.md](CAMERA_ENGINE.md) §9 and [SYNC_ENGINE.md](SYNC_ENGINE.md) §10).
+
+**Historical planning language below this summary is preserved as written.** It
+was the pre-implementation risk-based strategy that shaped what got tested, and
+the gate-by-gate counts in §11 (188 → 229 → 445 → 516 → 521) are the dated record
+of how that plan executed. None of it should be read as describing an open or
+deferred state today.
+
+---
+
 ## 1. Principle
 
 **Test count is not the goal.** The Android task has 158 tests because it has 158
@@ -42,7 +72,7 @@ Effort is allocated top-down that table.
 | `DATA` | Dart VM + **real SQLite** (`sqflite_common_ffi`) | ms | Nothing |
 | `BLOC` | Dart VM | ms | Nothing |
 | `WIDGET` | `flutter_test` | ms | Nothing |
-| `DEVICE` | Physical device | minutes | Hardware — **deferred** |
+| `DEVICE` | Physical device | minutes | Hardware — **executed at F7, 2026-08-30 (see §0)** |
 
 The first four run in CI and on a Windows host with no emulator. That is
 deliberate: it means the whole logical core of the sync engine — the part most
@@ -190,22 +220,24 @@ assertion is about what the app *asked* for.
 
 ---
 
-## 7. `DEVICE` — deferred
+## 7. `DEVICE` — executed at F7 (2026-08-30)
 
-Cannot be run from this host. Enumerated so the hardware session is a checklist,
-not an exploration. Full lists: [CAMERA_ENGINE.md](CAMERA_ENGINE.md) §8 and
+**HISTORICAL PLANNING NOTE, superseded by §0 above.** This section was written
+when hardware was not yet available; it enumerated the headlines so the eventual
+session would be a checklist, not an exploration. That session happened at F7.
+Full per-check results: [CAMERA_ENGINE.md](CAMERA_ENGINE.md) §9 and
 [SYNC_ENGINE.md](SYNC_ENGINE.md) §10.
 
-Headlines:
+Headlines, and their final disposition:
 
-1. Real preview, real zoom limits, real pinch and tap-focus.
+1. Real preview, real zoom limits, real pinch and tap-focus. **PASS**, pinch as a manual-user check (not ADB-automated), corroborated on a Samsung Galaxy S25.
 2. `availableCameras()` output on a genuine multi-lens device (`FQ-01`) — this
-   also validates the preset policy against real hardware.
-3. Background/foreground lifecycle with a live camera.
+   also validates the preset policy against real hardware. **PASS** — one back camera reported, 1x–8x, no fabricated lens label.
+3. Background/foreground lifecycle with a live camera. **PASS**.
 4. **Airplane mode → enqueue → restore, with the app backgrounded.** The single
-   most important device test; it is the mandated requirement.
-5. Force-stop mid-upload → relaunch → lease recovery.
-6. Reboot with items pending.
+   most important device test; it is the mandated requirement. **PASS**, after clearing a Honor-specific `HN_USER_EXPERIENCE` OEM background-launch restriction in device Settings (no code-level fix exists or was needed); re-confirmed with a fresh v1.0.0 install at the documentation-reconciliation session.
+5. Force-stop mid-upload → relaunch → lease recovery. **PASS**.
+6. Reboot with items pending. **PASS**.
 
 ---
 

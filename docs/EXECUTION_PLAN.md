@@ -1,5 +1,18 @@
 # Execution Plan
 
+**Historical execution plan — all gates complete.** This document fixed the order
+of work and the exit criteria for Android's G0.1–G3, plus the original G4–G9 gate
+numbering for what became the Flutter track. G3 was the last gate this numbering
+actually governed: Android continued under its own G3.5–G3.8 polish sequence
+([PROJECT_STATE.md](PROJECT_STATE.md)), and Flutter was replanned and executed
+under [flutter/EXECUTION_PLAN.md](flutter/EXECUTION_PLAN.md)'s F0–F8 numbering
+rather than the G4–G9 sketched below. The original budget and gate planning is
+kept unmodified as provenance; read it as the plan that was made, not as a live
+description of what remains — nothing remains. Current state:
+[PROJECT_STATE.md](PROJECT_STATE.md); current requirements:
+[REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md); submission audit:
+[SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md).
+
 Ordered gates with binary exit criteria, sized for the 48–72 hour window (GEN-09).
 A gate is closed only when **every** exit criterion is objectively true. Partial
 completion means the gate stays open — that is the entire value of the structure.
@@ -351,6 +364,10 @@ premium native Material 3 execution. Budgeted at 11h for this reason.
 **Objective.** Verify the submission as an outsider would, against the PDF and not
 against this project's own notes.
 
+**Final status: this audit ran, in substance, across the documentation-consistency
+reconciliation pass and the two submission-evidence sessions that preceded it.**
+The exit criteria below reflect the actual final outcome, not the plan.
+
 **Requirements:** EXP-01, EXP-04, SUB-01…SUB-03, all rows
 
 **Work — deliberately adversarial**
@@ -369,12 +386,22 @@ against this project's own notes.
 
 **Exit criteria**
 
-- [ ] Every matrix row `DONE` with real evidence, or explicitly and knowingly deferred.
-- [ ] Clean-clone build succeeds from README steps alone.
-- [ ] Both APKs install and run from the published links.
-- [ ] Repository publicly visible while signed out.
-- [ ] SUBMISSION_CHECKLIST.md fully ticked.
-- [ ] No secrets, keys, SDK paths, binaries, or assessment source documents in history.
+- [x] Every matrix row `DONE` with real evidence, or explicitly and knowingly deferred
+      (accepted residuals and platform limitations remain named, not hidden — see
+      [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md) and
+      [flutter/RISK_REGISTER.md §8](flutter/RISK_REGISTER.md)).
+- [x] Clean-clone build succeeds from README steps alone
+      (SUBMISSION_CHECKLIST.md §2.3–2.5).
+- [x] Both APKs install and run from the published links — verified by downloading
+      both fresh from the v1.0.0 GitHub release and installing them side by side on
+      a physical HONOR DNP-NX9.
+- [x] Repository publicly visible while signed out
+      ([github.com/rktuhinbd/PresenceLens](https://github.com/rktuhinbd/PresenceLens)).
+- [x] SUBMISSION_CHECKLIST.md fully ticked, except the two rows that are correctly
+      and permanently unticked: the optional GIFs (DOC-08 accepts screenshots **or**
+      a GIF, and screenshots are delivered).
+- [x] No secrets, keys, SDK paths, binaries, or assessment source documents in
+      history (SUBMISSION_CHECKLIST.md §3).
 
 ---
 

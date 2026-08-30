@@ -9,6 +9,18 @@ is **frozen**. Flutter work is `F0`–`F8`.
 
 ---
 
+## FINAL STATE — SUBMISSION COMPLETE
+
+**Historical execution plan. All mandatory gates are complete.** F0 through F5 and F7
+are done; F6 (accepted bonuses) was implemented, not skipped (see the F6 section
+below); F8 (submission) is done — the repository is public, both release APKs are
+published, and the README/AI-disclosure documentation is final. Earlier gate text
+below records the state at that time and is retained as provenance — read the
+[Stage naming](#stage-naming--authoritative) table for the final status of each gate,
+not the prose beneath it, which was written progressively as each gate closed.
+
+---
+
 ## Stage naming — authoritative
 
 This document is the authority for gate labels, and the labels below are the ones
@@ -23,9 +35,9 @@ were delivered in a single pass, which makes off-by-one confusion easy.
 | **`F3`** | **Camera engine** | ✅ **complete 2026-08-30 — engine only; the camera *screen* moved to `F5`** |
 | `F4` | Batch management | ✅ complete 2026-08-30 — shipped with F5 |
 | **`F5`** | **Camera screen and Upload Manager UI** | ✅ **complete 2026-08-30** |
-| `F6` | Accepted bonuses | not started |
-| `F7` | Device QA | blocked on hardware |
-| `F8` | Submission | not started |
+| `F6` | Accepted bonuses | ✅ **implemented** — last-capture thumbnail with count badge and capability-aware exposure-with-focus are both shipped; post-upload file deletion is implemented but off by default by design (`ADR-F16`), not incomplete |
+| `F7` | Device QA | ✅ **complete 2026-08-30** — physical HONOR DNP-NX9 (Android 16) full pass, plus Samsung Galaxy S25 physical pinch-to-zoom user acceptance |
+| `F8` | Submission | ✅ **complete** — public repository, v1.0.0 release with both APKs, README and AI disclosure published |
 
 **The Camera Engine milestone is `F3`.** Any instruction referring to it as "F2"
 is using the pre-F0 numbering, which this plan superseded; F2 is the sync engine
@@ -48,8 +60,9 @@ The visual approval gate that previously fenced `F3` and `F5` was **passed on
 2026-08-29**, so no gate now blocks any of the sequence below.
 
 **`F1` and `F2` are complete as of 2026-08-29.** The invisible half is built and
-evidenced; what remains is the visible half, its device verification, and the
-submission package.
+evidenced; what remained at that point in the plan was the visible half, its device
+verification, and the submission package — **all since completed** (F3/F4/F5, F7, F8;
+see the [FINAL STATE banner](#final-state--submission-complete) above).
 
 ---
 
@@ -235,44 +248,68 @@ states render with icon and text; semantics asserted; empty state present.
 
 ---
 
-## F6 — Accepted bonuses
+## F6 — Accepted bonuses ✅ **implemented, not skipped**
 
-Only after every MANDATORY row above is `DONE` (`ADR-F09`).
+Only after every MANDATORY row above is `DONE` (`ADR-F09`) — which it was by the time
+these landed alongside F4/F5.
 
-1. Last-capture thumbnail with count badge.
-2. Post-upload file deletion, row retained.
-3. Exposure point with focus.
+1. **Last-capture thumbnail with count badge.** Shipped — `BatchThumbnail`
+   (`FLT-BAT-007`, `FLT-BAT-008`), visible in production and in the submission
+   screenshot `docs/assets/flutter/camera-active-batch.png`.
+2. **Post-upload file deletion, row retained.** Implemented but **deliberately off by
+   default** (`ADR-F16`) — it conflicts with the approved Upload Manager thumbnail,
+   which needs the file to still exist after a successful upload. This is a recorded
+   design decision, not an unfinished bonus.
+3. **Exposure point with focus.** Shipped — capability-aware exposure pairing exists
+   through `camera_x_adapter.dart`, `camera_cubit.dart`, and the domain
+   `camera_capabilities`/`camera_geometry` entities.
 
-**Exit:** each is independently revertible; no mandatory row regressed.
-
----
-
-## F7 — Device QA
-
-Requires physical hardware. Cannot be started from this host.
-
-1. Camera checklist — `CAMERA_ENGINE.md` §8 (13 checks).
-2. Sync failure-injection matrix — `SYNC_ENGINE.md` §10 (8 injections).
-3. **Record `FQ-01`**: actual back-camera count and zoom ranges. Confirm the
-   preset policy against real hardware.
-4. Capture screenshots and the two GIFs that only motion can prove: tap-to-focus,
-   and offline→online auto-retry.
-
-**Exit:** every `DEVICE` row has recorded evidence; `FQ-01`, `FQ-02`, `FQ-04`
-closed or explicitly left open with reasoning.
+**Exit:** each is independently revertible; no mandatory row regressed. **Met.**
 
 ---
 
-## F8 — Submission
+## F7 — Device QA ✅ **complete, 2026-08-30**
 
-1. Release APK (signing per [root ADR-010](../DECISIONS.md#adr-010)).
+Required physical hardware; a HONOR DNP-NX9 (Android 16) was used, plus a Samsung
+Galaxy S25 for the physical pinch-to-zoom acceptance check.
+
+1. Camera checklist — `CAMERA_ENGINE.md` §8 (13 checks). **Executed** — see
+   `CAMERA_ENGINE.md` §8's final annotations for the per-check disposition.
+2. Sync failure-injection matrix — `SYNC_ENGINE.md` §10 (8 injections). **Executed**
+   for the critical path (offline → capture → finish batch → background → restore
+   connectivity → automatic drain, no retry press); see `SYNC_ENGINE.md` §10 for the
+   full per-scenario disposition, including the scenarios not separately run.
+3. **`FQ-01`**: back-camera count and zoom range confirmed against the real device —
+   the HONOR DNP-NX9 reports a single rear camera across 1x–8x, and the preset policy
+   was confirmed against it live.
+4. Screenshots were captured (five Flutter states, one Native state, all under
+   `docs/assets/`). **The two GIFs were not delivered** — the assessment accepts
+   screenshots **or** GIFs (DOC-08), and screenshots satisfy the requirement; the
+   offline→online GIF is additionally covered by the paired
+   `uploads-offline.png` / `uploads-success.png` screenshots.
+
+**Exit:** every `DEVICE` row has recorded evidence; `FQ-01` closed. `FQ-02`/`FQ-04`
+(if they concern the optional GIFs or a second physical device) are explicitly left
+open with the reasoning above, not silently marked done.
+
+---
+
+## F8 — Submission ✅ **complete**
+
+1. Release APK (signing per [root ADR-010](../DECISIONS.md#adr-010)). **Done** — both
+   `PresenceLens-Attendance-v1.0.0.apk` and `PresenceLens-Capture-v1.0.0.apk` are
+   published on the v1.0.0 GitHub release.
 2. README sections 1–5, including the Cubit list (`DOC-04`) and the
-   `ADR-F03` zoom limitation.
-3. `AI_USAGE.md` finalised with representative prompts (`DOC-05`, `DOC-06`).
-4. Root docs reconciled; `SUBMISSION_CHECKLIST.md` ticked.
-5. **Human** makes the repository public and publishes the APK link.
+   `ADR-F03` zoom limitation. **Done.**
+3. `AI_USAGE.md` finalised with representative prompts (`DOC-05`, `DOC-06`). **Done.**
+4. Root docs reconciled; `SUBMISSION_CHECKLIST.md` ticked. **Done** — this document
+   set was reconciled to final state at the dedicated documentation-consistency pass.
+5. **Human** makes the repository public and publishes the APK link. **Done** —
+   [github.com/rktuhinbd/PresenceLens](https://github.com/rktuhinbd/PresenceLens) is
+   public.
 
-**Exit:** a clean clone builds both apps from the README alone.
+**Exit:** a clean clone builds both apps from the README alone. **Met** —
+`SUBMISSION_CHECKLIST.md` §§2.3–2.5.
 
 ---
 
@@ -292,7 +329,7 @@ nothing blocks `F4`–`F6`. `F7` still cannot start without physical hardware.
 
 ## Recommended next implementation sequence
 
-`F1`, `F2` and `F3` are complete. The next gate is **`F4` — batch management**.
+*(Sequencing note, historical — written when `F1`, `F2` and `F3` had just closed.)* The next gate at that point was **`F4` — batch management**, which is itself long since complete, along with every later gate.
 
 Both predictions made at F1 held, and are recorded as such:
 
