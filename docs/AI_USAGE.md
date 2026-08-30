@@ -219,7 +219,7 @@ to license the availability caption to gate anything, so a later session cannot 
 matches their design intent, and that no mandated requirement shifted during the pass.
 
 **Resolved.** ADR-012 was accepted at the G0.1 human review (2026-08-28), recorded in
-[PROJECT_STATE.md](../PROJECT_STATE.md) Completed milestones §5; no requirement
+[PROJECT_STATE.md](PROJECT_STATE.md) Completed milestones §5; no requirement
 shifted — the matrix's GEN/AND rows trace unchanged to this pass.
 
 **Not done, deliberately.** ADR-010 (release signing) remains `PROPOSED` and unchosen
@@ -431,10 +431,10 @@ changing the persistence layer.
 (G3.5, G3.6, G3.8) and again as a physical-device screenshot session at submission.
 (c) The DataStore test restructuring stands unchanged in the shipped suite.
 (b) **Superseded, not simply confirmed:** the original "warns, never blocks" reading
-of AMB-14 was later revised by [ADR-015](../DECISIONS.md#adr-015) at G3.8 — a fix
+of AMB-14 was later revised by [ADR-015](DECISIONS.md#adr-015) at G3.8 — a fix
 wider than the 50 m radius now fails closed rather than only warning, because a fix
 that coarse cannot measure the boundary at all. AMB-14's resolution note in
-[REQUIREMENTS_MATRIX.md](../REQUIREMENTS_MATRIX.md) reflects the final, revised rule.
+[REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md) reflects the final, revised rule.
 
 ---
 
@@ -523,7 +523,7 @@ and (c) sanity-check the haptic on a physical device, which an emulator cannot s
 interpretive calls were "ruled on and accepted" at G3.6 (PROJECT_STATE.md). The haptic
 on the mark-attendance path was never separately confirmed on physical hardware —
 it is recorded honestly as an accepted residual in
-[PROJECT_STATE.md §Next gate](../PROJECT_STATE.md), not claimed.
+[PROJECT_STATE.md §Next gate](PROJECT_STATE.md), not claimed.
 
 ---
 

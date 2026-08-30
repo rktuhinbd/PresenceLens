@@ -272,7 +272,7 @@ verification**; anything needing hardware is 8F and is not checked.
 Executed on a physical HONOR DNP-NX9 (Android 16); item 8F.2 additionally
 corroborated by a physical pinch-to-zoom user acceptance on a Samsung Galaxy S25.
 Nothing below is checked without the corresponding evidence recorded in
-[PROJECT_STATE.md](../PROJECT_STATE.md) and [AI_USAGE.md §F7](../AI_USAGE.md).
+[PROJECT_STATE.md](PROJECT_STATE.md) and [AI_USAGE.md](AI_USAGE.md).
 
 | # | Item | Requirement |
 | --- | --- | --- |

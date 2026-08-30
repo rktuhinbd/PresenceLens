@@ -40,8 +40,7 @@ in the shipped app, not merely that the mechanism exists in code — a mechanism
 implemented, tested, and deliberately left switched off is `OPTIONAL — NOT
 DELIVERED`, not `DONE`.
 
-**FINAL STATUS — gate F7 complete, submission, 2026-08-30.** Every one of the 84
-requirements below is `DONE`. Beyond the F4/F5 production experience described in the
+**FINAL STATUS — gate F7 complete, submission, 2026-08-30.** 84 Flutter requirements are specified. All mandatory and quality requirements are satisfied. Bonus FLT-SYNC-016 is OPTIONAL — NOT DELIVERED because post-upload cleanup is implemented and tested but disabled by default in the shipped configuration. Beyond the F4/F5 production experience described in the
 next paragraph, F7 supplied the physical HONOR DNP-NX9 (Android 16) device pass that
 closed every row whose stated method included `DEVICE`: live preview, pinch (recorded
 as a manual-user check, plus Samsung Galaxy S25 physical pinch-to-zoom user
@@ -109,7 +108,7 @@ they are gates F3–F5.
 | `WIDGET` | `flutter_test` widget test, including semantics assertions. |
 | `BUILD` | Established by a successful build or static analysis. |
 | `REVIEW` | Code or structure review against a stated, checkable criterion. |
-| `DEVICE` | Requires a physical device or emulator. Deferred to hardware QA. |
+| `DEVICE` | Requires a physical device or emulator. It was executed at F7 where listed; scenarios not separately executed are explicitly identified in their evidence. |
 | `DOC` | Verified by inspecting a delivered document or artefact. |
 
 ---
