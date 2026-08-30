@@ -33,16 +33,14 @@ Identical to the root matrix, including its two-axis split (see
 [REQUIREMENTS_MATRIX.md § Status vocabulary](../REQUIREMENTS_MATRIX.md)):
 `TODO` / `PARTIAL` / `DONE` / `NOT REQUIRED` / `OPTIONAL — NOT DELIVERED` /
 `BLOCKED` for whether the row's behaviour actually ships, kept separate from
-whether its originally planned verification method ran. Nothing is `DONE` until
-its own verification method has been executed and its evidence recorded. For a
+whether its originally planned verification method ran. Assessment Status `DONE` means the shipped behaviour is supported by real, named evidence. That evidence need not be the row's originally planned supplemental method; the separate Supplemental Verification axis records whether that specific planned method actually ran. For a
 `BONUS` row specifically: `DONE` means the described behaviour is actually active
 in the shipped app, not merely that the mechanism exists in code — a mechanism
 implemented, tested, and deliberately left switched off is `OPTIONAL — NOT
 DELIVERED`, not `DONE`.
 
 **FINAL STATUS — gate F7 complete, submission, 2026-08-30.** 84 Flutter requirements are specified. All mandatory and quality requirements are satisfied. Bonus FLT-SYNC-016 is OPTIONAL — NOT DELIVERED because post-upload cleanup is implemented and tested but disabled by default in the shipped configuration. Beyond the F4/F5 production experience described in the
-next paragraph, F7 supplied the physical HONOR DNP-NX9 (Android 16) device pass that
-closed every row whose stated method included `DEVICE`: live preview, pinch (recorded
+next paragraph. `DEVICE` verification requires a physical device or emulator. It was executed at F7 where listed; scenarios not separately executed are explicitly identified in their evidence. Physical testing included the HONOR DNP-NX9 (Android 16): live preview, pinch (recorded
 as a manual-user check, plus Samsung Galaxy S25 physical pinch-to-zoom user
 acceptance), zoom slider/presets, tap-to-focus with reticle, capture, the
 double-shutter guard, camera lifecycle, multiple batches, Pending Uploads, and —

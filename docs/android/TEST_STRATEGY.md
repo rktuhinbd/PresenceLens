@@ -17,7 +17,7 @@ The automated suite focuses strictly on proving the mandated rules and ensuring 
 - **Persistence/repository tests:**
   - `OfficeLocationRepository` is tested against DataStore to ensure the office anchor is correctly saved and restored.
 - **Architecture/purity checks:**
-  - `DomainLayerPurityTest` asserts that the `domain` module contains zero Android dependencies, guaranteeing that business rules remain completely isolated from the framework.
+  - `DomainLayerPurityTest` asserts that the `domain` package/layer contains zero Android dependencies, guaranteeing that business rules remain completely isolated from the framework.
 
 ## 2. EMULATOR / MANUAL
 
@@ -27,7 +27,8 @@ Behavior that genuinely requires hardware interaction or specific OS state manip
   - Verified GPS movement spoofing to test real-time distance calculations and state transitions (in/out of 50m range).
   - Verified edge cases such as revoking permissions mid-session or toggling airplane mode.
 - **Final runtime screenshot evidence:**
-  - The final visual states (e.g., Setup, Ready, Out of Range) were captured directly from the emulator/device. These screenshots act as the primary visual proof of implementation fidelity against the design reference.
+  - `attendance-ready.png` captures the final Ready/In-range state from the published Native application on physical hardware.
+  - Other Native UI states were exercised during emulator/manual acceptance but are not represented as separate committed screenshot artefacts.
 
 ## 3. NOT SEPARATELY EXECUTED
 
