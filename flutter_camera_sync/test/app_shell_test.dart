@@ -29,7 +29,7 @@ void main() {
   testWidgets(
     'storage that will not open says so, rather than opening a camera',
     (WidgetTester tester) async {
-      await tester.pumpWidget(const StartupFailureApp());
+      await tester.pumpWidget(StartupFailureApp(onRetry: () {}));
       await tester.pumpAndSettle();
 
       // The one failure that must not present as a camera which silently loses
@@ -40,6 +40,45 @@ void main() {
         find.textContaining('cannot guarantee a captured photo would be kept'),
         findsOneWidget,
       );
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.textContaining('free up storage'), findsNothing);
     },
   );
+
+  testWidgets('Retry genuinely re-runs application bootstrap', (
+    WidgetTester tester,
+  ) async {
+    int attempts = 0;
+    Object? reportedError;
+    StackTrace? reportedStack;
+
+    await tester.pumpWidget(
+      StartupBootstrapApp(
+        bootstrap: () async {
+          attempts++;
+          if (attempts == 1) {
+            throw StateError('database unavailable');
+          }
+          return const MaterialApp(home: Text('Camera application ready'));
+        },
+        errorReporter: (Object error, StackTrace stackTrace) {
+          reportedError = error;
+          reportedStack = stackTrace;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(attempts, 1);
+    expect(reportedError, isA<StateError>());
+    expect(reportedStack, isNotNull);
+    expect(find.text('Retry'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(attempts, 2);
+    expect(find.text('Camera application ready'), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
+  });
 }

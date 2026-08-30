@@ -1,4 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!--
         Uploads must work in a release build. Flutter's generated project declares
         INTERNET only in the debug and profile source sets (where the tool needs it
@@ -21,11 +23,36 @@
     <uses-permission android:name="android.permission.CAMERA"/>
 
     <!--
+        The camera plugin declares audio and legacy shared-storage permissions
+        for its general video/file API. PresenceLens captures still images with
+        enableAudio=false and persists them only in app-private storage.
+    -->
+    <uses-permission
+        android:name="android.permission.RECORD_AUDIO"
+        tools:node="remove"/>
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        tools:node="remove"/>
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        tools:node="remove"/>
+
+    <!--
+        Ordinary constrained WorkManager jobs do not need a notification
+        permission. Revisit this only if the app intentionally adds a
+        user-visible long-running foreground worker.
+    -->
+    <uses-permission
+        android:name="android.permission.POST_NOTIFICATIONS"
+        tools:node="remove"/>
+
+    <!--
         The app is useful only with a camera, but it must still install and
         degrade gracefully on a device without one (FLT-ERR-*), so this is
         declared not-required rather than filtering the app out of the store.
     -->
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.any" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
 
     <application

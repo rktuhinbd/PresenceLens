@@ -15,7 +15,36 @@ orchestration moved into `domain`, and a recorded attendance became an event rat
 live condition ([ADR-015](DECISIONS.md#adr-015), [ADR-016](DECISIONS.md#adr-016),
 [ADR-017](DECISIONS.md#adr-017)). The rows whose stated verification method is a Compose UI
 test remain `PARTIAL`; a manual walkthrough is not that method.**
-Flutter Task 2 status: **F4 AND F5 COMPLETE — PRODUCTION EXPERIENCE BUILT,
+Flutter Task 2 status: **F7 DEVICE QA COMPLETE, 2026-08-30 — RUNTIME HARDENED
+ON PHYSICAL HARDWARE.** A cold-start defect reproduced on the first real-device
+install — `AppDatabase.configure` sent the assignment-form `PRAGMA busy_timeout`
+through `db.execute`, which Android's SQLite binding classifies as a query and
+rejects before `onCreate`/`onUpgrade` ever run, aborting every open — is fixed
+(`db.rawQuery`), regression-tested, and re-verified end to end on a HONOR
+DNP-NX9 (Android 16). `StartupBootstrapApp` replaces the old catch-to-null
+pattern with a genuine retry of the same composition root, and three
+plugin-declared permissions the app does not use (`RECORD_AUDIO`,
+`READ/WRITE_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`) are stripped from the
+merged manifest and pinned by a new architecture test. The critical acceptance
+path — capture offline, finish the batch offline, background the app, restore
+connectivity, and watch the queue drain with **no retry press** — passed, but
+only after discovering and working around a device-specific blocker unrelated
+to this codebase: Honor's MagicOS ships a proprietary WorkManager job
+constraint (`HN_USER_EXPERIENCE`) that silently withholds background execution
+from a freshly-installed app regardless of every standard Android constraint
+being satisfied, until the device's own Settings → App launch panel is
+switched from "automatic" to "manual" for that app — a setting that reverts on
+`force-stop` and has no manifest or code-level equivalent. Zoom (slider and all
+three presets, 1x–8x), tap-to-focus, capture, the double-shutter guard,
+Camera↔Pending Uploads batch-draft preservation, CAMERA-revoke/recovery, and
+force-stop/lifecycle durability all passed against the live SQLite file, not
+inferred from the UI. Physical two-finger pinch is recorded as a **manual-user
+check**, not automated — `adb shell input` cannot produce trustworthy
+multi-touch. **521 tests pass** (516 at F5, +5 this gate), `flutter analyze` 0
+issues, `flutter build apk --debug` PASS. Full account in
+[AI_USAGE.md §F7](AI_USAGE.md).
+
+Flutter Task 2 status at F4/F5: **F4 AND F5 COMPLETE — PRODUCTION EXPERIENCE BUILT,
 2026-08-30.** The assessment-facing Flutter application now exists. `CameraPreviewScreen`
 is the app's home route: a full-bleed viewfinder over the live session, with pinch and a
 right-edge slider and capability-derived presets all writing one `currentZoom`,
@@ -79,19 +108,25 @@ yet** — `CameraPreviewScreen` and the Pending Uploads manager are still unimpl
 approved visual direction was neither redesigned nor built. **No device QA has been performed
 and none is claimed.**
 
-Current gate: **F7 — device QA (blocked on hardware).** F0 through F5 are complete;
+Current gate: **F7 — device QA, COMPLETE 2026-08-30.** F0 through F5 are complete;
 the visual gate is **APPROVED / UNLOCKED**. F6 (accepted bonuses) is optional and
 sequenced last by `ADR-F09`. Android Task 1 is **FROZEN** at G3.8 and was not touched at
-F3, F4 or F5 — `git diff -- android-attendance` is empty at this commit.
+F3, F4, F5 or F7 — `git diff -- android-attendance` is empty at every commit so far.
 
-**What a device session must now establish**, and what nothing in this repository claims:
-a real preview renders; pinch tracks the fingers and clamps at the device's own limits;
-the reticle lands where the user tapped on real hardware; the enumerated back cameras and
-their zoom ranges match what the preset policy assumed (`FQ-01`); the app releases and
-reacquires the camera cleanly across background and resume; and — the single most
-important one — **airplane mode → capture → finish batch → restore network with the app
-backgrounded → the queue drains without the user touching anything.** The checklists are
-already written: `CAMERA_ENGINE.md` §8 and `SYNC_ENGINE.md` §10.
+**What the device session established**, on a HONOR DNP-NX9 (Android 16): a real
+preview renders (confirmed live, not inferred — the preview visibly tracked a moving
+physical scene); tap-to-focus lands the reticle correctly at center, both far corners,
+and at 8x zoom; the zoom slider and all three presets round-trip 1x↔8x with the readout
+always matching the requested state and no value outside range; capture, the
+double-shutter guard, and Camera↔Pending Uploads batch-draft preservation all hold
+against the live SQLite file; and — the single most important one — **offline → capture
+→ finish batch → restore network with the app backgrounded → the queue drains without
+the user touching anything** passed, once a Honor-specific OEM background-launch
+restriction (`HN_USER_EXPERIENCE`, no code-level fix — see
+[AI_USAGE.md §F7](AI_USAGE.md)) was cleared in device Settings. Physical two-finger
+pinch was **not** automated (`adb shell input` cannot produce trustworthy multi-touch)
+and is recorded as a manual-user check rather than a fabricated pass. The checklists
+that guided this pass: `CAMERA_ENGINE.md` §8 and `SYNC_ENGINE.md` §10.
 
 ## Progress
 
@@ -138,7 +173,7 @@ already written: `CAMERA_ENGINE.md` §8 and `SYNC_ENGINE.md` §10.
 | Flutter **zoom coalescing** (`§19`) | **PASS** — 20 requests against a held platform call produce far fewer than 20 calls, and the **last** value requested is the one finally applied |
 | Flutter **camera lifecycle** (`FLT-CAM-012`) | **PASS** — `paused`/`detached` release, `resumed` restores the *selected* camera, `inactive` deliberately does nothing, captures survive a pause, and a pre-pause initialisation completing after a resume publishes nothing |
 | Flutter **honest lens labelling** (`ADR-F03`) | **PASS** — no preset claims an optical identity across every range tested; an unidentified camera's label contains no `x` at all. Re-verified in the resolved plugin source this gate: `camera_android_camerax` 0.7.4+7 contains zero occurrences of `lensType` |
-| Flutter **camera device QA** | **NOT PERFORMED — NOT CLAIMED.** 17-check list in [CAMERA_ENGINE.md](flutter/CAMERA_ENGINE.md) §9. Check 2 is the one that confirms or overturns `FR-04` |
+| Flutter **camera device QA** | **PASS — executed 2026-08-30 on a HONOR DNP-NX9** (Android 16). Real live preview, tap-to-focus at center/corners/8x, zoom slider+presets 1x–8x with no out-of-range value, capture and the double-shutter guard verified against the live SQLite file. Physical two-finger pinch recorded as a **manual-user check**, not automated. Full list in [AI_USAGE.md §F7](AI_USAGE.md) |
 | Flutter **scheduling liveness** (`ADR-F21`) | **PASS** — every drain request uses `append` (→ Android `APPEND_OR_REPLACE`), so a request made while a worker is running becomes its successor instead of being discarded. The exact `ExistingWorkPolicy` is asserted, so it cannot regress to `keep` unnoticed |
 | Flutter **healthy-continuation semantics** (`ADR-F19`) | **PASS** — a bound-limited slice that uploaded 25 of 30 returns *success* and enqueues a WorkManager continuation; only a slice that made **no** progress returns retry. 60 items drain across three slices with every item uploaded exactly once |
 | Flutter `build apk --debug` | PASS — `app-debug.apk` produced with the queue and sync engine compiled in, 2026-08-29 |
@@ -146,7 +181,7 @@ already written: `CAMERA_ENGINE.md` §8 and `SYNC_ENGINE.md` §10.
 | Flutter **stale-lease recovery** (`FLT-SYNC-009`) | **PASS** — a lease inside its 10-minute period cannot be stolen; an expired one is reclaimed exactly once; a `claimed_at` in the future is never treated as expired |
 | Flutter **invariants I1–I10** | **PASS** — each has at least one test that fails if it is broken; mapping tabulated in [TEST_STRATEGY.md](flutter/TEST_STRATEGY.md) §11 |
 | Flutter `domain` free of Flutter/plugin imports | **PASS** — asserted by `domain_purity_test`, including a guard that fails if the scan finds no sources |
-| Flutter device QA | **NOT STARTED** — deferred to gate F7; **no device evidence is claimed anywhere**, and no statement in this repository infers background-worker behaviour from a host test |
+| Flutter device QA | **PASS — gate F7 complete 2026-08-30.** Critical path (offline capture → finish batch → background → restore network → automatic drain, no retry press) verified end to end against the live database. Required clearing a Honor MagicOS OEM background-launch restriction (`HN_USER_EXPERIENCE`) in device Settings first — no code-level fix exists or was attempted. Details in [AI_USAGE.md §F7](AI_USAGE.md) |
 | iOS | Configured (bundle identity, `NSCameraUsageDescription`, background modes). **Never built or validated — impossible from a Windows host** |
 
 ### Unit test breakdown (158)
@@ -542,7 +577,7 @@ Remaining before G3/G3.5 can formally close:
 | ~~B-01~~ | ~~Release build defines no `signingConfig`; `assembleRelease` would be unsigned and non-installable.~~ | — | **RESOLVED 2026-08-28.** ADR-010 accepted; a dedicated release keystore is wired through `key.properties` (never committed), `assembleRelease` produces a verified-signed APK, and it is installed/smoke-tested on the emulator. See [ADR-010](DECISIONS.md#adr-010) and [AI_USAGE.md Entry 007](AI_USAGE.md). |
 | ~~B-02~~ | ~~`ER-03` unanswered (geofence minimum-radius guidance).~~ | — | **RESOLVED at G0.1 review** — `RF-18`; ADR-001 is now `ACCEPTED`. |
 | B-03 | Flutter plugin viability unverified (`ER-05`, `ER-06`, `ER-07`). | G4 | Resolve before adding Flutter plugins, not after. |
-| B-04 | A physical Android device is required for camera work (`DA-04`) and background-retry verification (`DA-06`). | G5, G6, G7 | Confirm availability before G5 — a scheduling risk, not a technical one. |
+| ~~B-04~~ | ~~A physical Android device is required for camera work (`DA-04`) and background-retry verification (`DA-06`).~~ | — | **RESOLVED 2026-08-30.** A HONOR DNP-NX9 (Android 16) was used for the full F7 device QA pass, including the background-retry/offline-sync path. See [AI_USAGE.md §F7](AI_USAGE.md). |
 | ~~B-05~~ | ~~Emulator acceptance of Task 1 not yet run.~~ | — | **RESOLVED 2026-08-28.** Run by the author, then re-run against the polished build during G3.5. Rows whose stated method is a Compose UI test stay `PARTIAL` by design. |
 
 ## Known limitations (Android Task 1)
@@ -649,3 +684,21 @@ Remaining before G3/G3.5 can formally close:
   flip in passing.
 - `MockUploadApi` defaults to `offlineAware`, which is what makes the airplane-mode demo
   work on a device with no code change. Do not switch the default to `alwaysSucceed`.
+
+### Device QA on a Honor/MagicOS phone (from F7)
+
+- **`adb shell am force-stop` reverts a manual "App launch" grant back to
+  "automatic."** If the offline-sync WorkManager job stalls with
+  `HN_USER_EXPERIENCE` in its unsatisfied-constraints bitmask
+  (`dumpsys jobscheduler`) despite every standard constraint being satisfied,
+  re-open Settings → Apps → App launch → the app → "Manage manually" and
+  re-confirm all three toggles. There is no ADB command or manifest entry that
+  fixes this — it is a per-device Honor setting, and it has to be reapplied
+  after every force-stop during a testing session.
+- **Verify `dumpsys power | grep mWakefulness` before and after every injected
+  `adb shell input tap`** when a multi-second command chain precedes it. This
+  device's screen timeout is short enough to lock mid-session, and a tap sent
+  to a dozing screen produces no error and no effect — it looks exactly like a
+  silently-broken capture path until wakefulness is checked. Extending
+  `settings put system screen_off_timeout` for the session avoids the problem
+  outright.

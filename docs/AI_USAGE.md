@@ -1422,3 +1422,92 @@ omitted.
 
 **No device QA was performed and none is claimed.** 516 host tests say nothing
 about whether a real lens focused or whether Android ran a worker.
+
+---
+
+## F7 — Android runtime bring-up and device QA (2026-08-30)
+
+**Prompt intent.** Take over an in-progress runtime fix, finish the remaining
+real-device QA on a physical HONOR DNP-NX9, run the critical offline-sync
+acceptance path, and land a single hardening commit — without redoing the
+root-cause diagnosis a prior session had already completed.
+
+### What the AI verified from the prior session's diff
+
+The uncommitted changes matched the handoff brief exactly: `AppDatabase.configure`
+moved `PRAGMA busy_timeout` from `db.execute` to `db.rawQuery` (Android classifies
+the assignment-form PRAGMA as a query and aborts `execSQL` on it before
+`onCreate`/`onUpgrade` ever runs); `StartupBootstrapApp` replaced the old
+try/catch-to-null pattern with a real retry boundary; `RECORD_AUDIO`,
+`READ/WRITE_EXTERNAL_STORAGE`, and `POST_NOTIFICATIONS` were removed from the
+merged manifest via `tools:node="remove"`; and two new regression tests pinned
+both the query-API choice and the retry behaviour. Nothing in `android-attendance`
+had moved.
+
+### What device QA found that the host suite could not
+
+**1. A device-OEM background restriction, not a code defect.** The critical
+offline-sync path (capture offline → finish batch → background → restore network
+→ automatic drain) stalled indefinitely on first attempt: a WorkManager job sat
+`READY` on every standard Android constraint (connectivity, doze, quota,
+background-restricted) while one Honor-proprietary constraint —
+`HN_USER_EXPERIENCE` — stayed permanently unsatisfied across four escalating
+backoff attempts. This is MagicOS's own job-launch gate, orthogonal to
+`AndroidManifest.xml` and to anything `WorkManager` exposes. Confirmed by
+manually switching the app from "Manage automatically" to "Manage manually" (all
+three sub-toggles on) in Settings → Apps → App launch: the same live job's
+unsatisfied-constraint bitmask dropped `HN_USER_EXPERIENCE` immediately, and the
+already-queued offline batch drained to `COMPLETED` with no code change and no
+retry press. **No source fix exists for this** — it is a per-device, per-install
+OS setting, and the correct engineering call was to document it rather than build
+around an OEM battery manager. One operational wrinkle worth recording: `adb shell
+am force-stop` silently reverts that manual grant back to "automatic," so the
+toggle has to be reapplied after every force-stop before the constraint clears
+again.
+
+**2. A false-positive defect the AI caused and then correctly retracted.** After
+disabling networking to test the offline path, several capture attempts appeared
+to fail permanently — no new row in `queued_images`, no thumbnail increment, no
+change even after restoring connectivity — which briefly looked like a real
+regression in the offline capture pipeline. The actual cause was `mWakefulness:
+Dozing`: the device's screen timeout was short enough that it locked between
+adjacent `adb shell input tap` calls during multi-second diagnostic pauses, so
+the taps were landing on nothing. This is exactly the failure mode
+`CAMERA_ENGINE.md`/session-handoff guidance warns about — inferring a result from
+a later screenshot without confirming the app was still foreground and awake.
+Once `screen_off_timeout` was extended and wakefulness was checked before every
+injected action, the identical capture sequence succeeded cleanly both online and
+offline, with no code change. The lesson is now load-bearing for any future
+`adb`-driven session on this device: verify `dumpsys power | grep mWakefulness`
+immediately before *and after* any tap that a multi-second command chain
+precedes.
+
+### Verification actually executed, on-device
+
+HONOR DNP-NX9 / Android 16. Zoom slider and all three presets round-tripped
+1x↔8x with the readout always matching the requested state. Tap-to-focus at
+center, corners, and at 8x zoom all landed the reticle correctly. Capture,
+double-shutter guard (two rapid taps produced exactly one new row), and
+Camera→Pending Uploads→Camera batch-draft preservation all confirmed against the
+live SQLite file (pulled via `run-as` and inspected directly, not inferred from
+the UI). The offline-sync path passed end-to-end once the OEM constraint above
+was cleared: 5 photos captured offline, `Finish batch` offline showed
+"Waiting for connection" per item with no fabricated progress, and all 5 drained
+to `UPLOADED` automatically while the app was backgrounded. CAMERA-revoke showed
+the honest "Camera access is off" copy (no false "permanently denied" claim) with
+Pending Uploads still reachable, and recovered without a restart once the
+permission was re-granted. Force-stop/relaunch and foreground/background cycling
+both preserved correct durable state. Installed-APK permissions confirmed via
+`dumpsys package`: `CAMERA`, `INTERNET`, `ACCESS_NETWORK_STATE` present;
+`RECORD_AUDIO`, `READ/WRITE_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`,
+`MANAGE_EXTERNAL_STORAGE` absent. Physical two-finger pinch was **not**
+automated — `adb shell input` cannot produce trustworthy multi-touch — and is
+recorded as a manual-user check, not a fabricated pass.
+
+Host gate from `clean`: `dart format` (0 changed), `flutter analyze` (0 issues),
+`flutter test` (**521 pass**, +5 this gate: the two `app_database_test.dart`
+busy-timeout regressions, the `app_shell_test.dart` retry-boundary case, and the
+two new `test/architecture/android_manifest_test.dart` permission-removal
+guards),
+`flutter build apk --debug` (PASS), `git diff --check` clean,
+`git diff -- android-attendance` empty.

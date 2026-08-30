@@ -123,10 +123,15 @@ class DataLayer {
 /// established by `Workmanager().executeTask`.
 Future<DataLayer> buildDataLayer({required bool forBackground}) async {
   final Directory documents = await getApplicationDocumentsDirectory();
-  final Directory captures = Directory(p.join(documents.path, 'captures'));
+  await documents.create(recursive: true);
 
+  final Directory captures = Directory(p.join(documents.path, 'captures'));
+  await captures.create(recursive: true);
+
+  final Directory databaseDirectory = Directory(await getDatabasesPath());
+  await databaseDirectory.create(recursive: true);
   final String databasePath = p.join(
-    await getDatabasesPath(),
+    databaseDirectory.path,
     AppDatabase.fileName,
   );
   final Database database = await AppDatabase.open(

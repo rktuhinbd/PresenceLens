@@ -20,12 +20,13 @@ import 'sync_worker_entrypoint.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _bootstrapBackgroundSync();
-
-  final DataLayer? layer = await _buildDataLayer();
   runApp(
-    layer == null
-        ? const StartupFailureApp()
-        : PresenceLensCaptureApp(dataLayer: layer),
+    StartupBootstrapApp(
+      bootstrap: () async {
+        final DataLayer layer = await buildDataLayer(forBackground: false);
+        return PresenceLensCaptureApp(dataLayer: layer);
+      },
+    ),
   );
 }
 
@@ -46,18 +47,5 @@ Future<void> _bootstrapBackgroundSync() async {
     await Workmanager().initialize(syncCallbackDispatcher);
   } catch (_) {
     // Left to the next launch. Captures already queued are unaffected.
-  }
-}
-
-/// Assembles the UI isolate's data layer, or `null` if storage is unusable.
-///
-/// The failure is caught rather than allowed to crash the launch, because the
-/// alternative is worse than a plain message: an app that opens a camera it
-/// cannot durably store anything from.
-Future<DataLayer?> _buildDataLayer() async {
-  try {
-    return await buildDataLayer(forBackground: false);
-  } catch (_) {
-    return null;
   }
 }

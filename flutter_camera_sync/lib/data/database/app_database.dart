@@ -65,7 +65,11 @@ abstract final class AppDatabase {
     // isolate), so a write can genuinely find the database locked. Waiting
     // briefly is correct; failing instantly would surface as a spurious
     // "database is locked" error on a perfectly ordinary drain.
-    await db.execute('PRAGMA busy_timeout = 5000');
+    // Android classifies this result-returning PRAGMA as a query even when it
+    // includes an assignment. Sending it through `execute` reaches
+    // SQLiteDatabase.execSQL and aborts every open before onCreate/onUpgrade;
+    // `rawQuery` is the cross-platform API for this statement.
+    await db.rawQuery('PRAGMA busy_timeout = 5000');
   }
 
   /// Builds schema v1.

@@ -68,6 +68,26 @@ void main() {
     expect(rows.first.values.first, 1);
   });
 
+  test('configures a five-second busy timeout on this connection', () async {
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'PRAGMA busy_timeout',
+    );
+
+    expect(rows.first.values.first, 5000);
+  });
+
+  test('uses the query API Android requires for busy_timeout', () {
+    final String source = File(
+      'lib/data/database/app_database.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains("await db.rawQuery('PRAGMA busy_timeout = 5000');"),
+    );
+    expect(source, isNot(contains("db.execute('PRAGMA busy_timeout")));
+  });
+
   test('rejects an image whose batch does not exist', () async {
     await expectLater(
       db.insert(AppDatabase.imagesTable, <String, Object?>{

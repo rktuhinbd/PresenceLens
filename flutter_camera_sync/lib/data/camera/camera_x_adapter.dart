@@ -94,6 +94,19 @@ class CameraXAdapter implements CameraEngine {
       );
     }
 
+    assert(() {
+      for (final CameraDescription description in descriptions) {
+        debugPrint(
+          'PresenceLens camera description: '
+          'name=${description.name}, '
+          'direction=${description.lensDirection.name}, '
+          'lensType=${description.lensType.name}, '
+          'sensorOrientation=${description.sensorOrientation}',
+        );
+      }
+      return true;
+    }());
+
     return List<CameraDevice>.unmodifiable(devices);
   }
 
@@ -143,6 +156,21 @@ class CameraXAdapter implements CameraEngine {
         CameraErrorKind.initializationFailed,
       );
     }
+
+    assert(() {
+      debugPrint(
+        'PresenceLens camera capabilities: '
+        'name=${device.id}, '
+        'direction=${device.facing.name}, '
+        'lensType=${device.lensKind.name}, '
+        'sensorOrientation=${device.sensorOrientation}, '
+        'minZoom=${capabilities.zoom.min}, '
+        'maxZoom=${capabilities.zoom.max}, '
+        'focusPointSupported=${capabilities.focusPointSupported}, '
+        'exposurePointSupported=${capabilities.exposurePointSupported}',
+      );
+      return true;
+    }());
 
     return CameraXSession(
       device: device,
