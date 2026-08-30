@@ -144,14 +144,14 @@ manual walkthrough are not that method.
 
 | ID | Requirement | PDF source | Planned implementation | Verification method | Status |
 | --- | --- | --- | --- | --- | --- |
-| DOC-01 | Repository must include a **well-structured `README.md`**. | p3, Deliverables item 2 | Root `README.md` covering both apps, with the five mandated sections in order. | File exists at repo root; all five sections present. | TODO |
-| DOC-02 | Section 1 — Project Title and Description. | p4, Guidelines item 1 | Title "PresenceLens" plus a description of both applications. | Section present and not a placeholder. | TODO |
-| DOC-03 | Section 2 — Project Structure / Approaches: explain the architectural approach (e.g. Layered Architecture, BLoC Pattern). | p4, Guidelines item 2 | Layer diagram and prose for both apps, linked to ARCHITECTURE.md. | Section present and matches the shipped code structure. | TODO |
-| DOC-04 | Section 2 — name the **main BLoC/Cubit classes used**, in **1-2 sentences**. | p4, Guidelines item 2 | An explicit named list of the Cubits/BLoCs (and the Android ViewModels), each with a one-line responsibility. | Every named class exists in source. | TODO |
-| DOC-05 | Section 3 — **Generative AI Usage**: a brief explanation of how AI was used. Explicitly **mandatory**. | p4, Guidelines item 3 | README section 3 summarising tools, models, and where AI contributed, sourced from [AI_USAGE.md](AI_USAGE.md). | Section present and consistent with AI_USAGE.md. | TODO |
-| DOC-06 | Section 3 — include **some of the essential prompts** entered for this project. | p4, Guidelines item 3 | A curated set of the actual load-bearing prompts, quoted. | Prompts present and traceable to AI_USAGE.md entries. | TODO |
-| DOC-07 | Section 4 — **How to Run**: steps to clone the repo and run the app. | p4, Guidelines item 4 | Clone, prerequisites (JDK, Android SDK, Flutter version), per-app build and run commands, and the runtime permissions needed. | Executed verbatim against a clean clone at gate G9. | TODO |
-| DOC-08 | Section 5 — **Screenshots**: include screenshots or GIFs of the running application. | p4, Guidelines item 5 | Screenshots of both apps, plus GIFs of the two behaviours only motion can prove: crossing the 50 m boundary, and offline-to-online auto-retry. | Assets committed and rendering in the README on GitHub. | TODO |
+| DOC-01 | Repository must include a **well-structured `README.md`**. | p3, Deliverables item 2 | Root `README.md` covering both apps, with the five mandated sections in order. | File exists at repo root; all five sections present. | DONE |
+| DOC-02 | Section 1 — Project Title and Description. | p4, Guidelines item 1 | Title "PresenceLens" plus a description of both applications. | Section present and not a placeholder. | DONE |
+| DOC-03 | Section 2 — Project Structure / Approaches: explain the architectural approach (e.g. Layered Architecture, BLoC Pattern). | p4, Guidelines item 2 | Layer diagram and prose for both apps, linked to ARCHITECTURE.md. | Section present and matches the shipped code structure. | DONE |
+| DOC-04 | Section 2 — name the **main BLoC/Cubit classes used**, in **1-2 sentences**. | p4, Guidelines item 2 | An explicit named list of the Cubits/BLoCs (and the Android ViewModels), each with a one-line responsibility. | Every named class exists in source. | DONE |
+| DOC-05 | Section 3 — **Generative AI Usage**: a brief explanation of how AI was used. Explicitly **mandatory**. | p4, Guidelines item 3 | README section 3 summarising tools, models, and where AI contributed, sourced from [AI_USAGE.md](AI_USAGE.md). | Section present and consistent with AI_USAGE.md. | DONE |
+| DOC-06 | Section 3 — include **some of the essential prompts** entered for this project. | p4, Guidelines item 3 | A curated set of the actual load-bearing prompts, quoted. | Prompts present and traceable to AI_USAGE.md entries. | DONE |
+| DOC-07 | Section 4 — **How to Run**: steps to clone the repo and run the app. | p4, Guidelines item 4 | Clone, prerequisites (JDK, Android SDK, Flutter version), per-app build and run commands, and the runtime permissions needed. | Executed verbatim against a clean clone at gate G9. | DONE |
+| DOC-08 | Section 5 — **Screenshots**: include screenshots or GIFs of the running application. | p4, Guidelines item 5 | Screenshots of both apps. The requirement is satisfied by screenshots **or** GIFs; screenshots are delivered and no GIF is provided. Five Flutter states (camera ready, focus + zoom, active batch, offline queue, synced) and the Native attendance screen. | Six device captures committed under `docs/assets/`, each taken from the published v1.0.0 APKs on a physical HONOR DNP-NX9, navigated deliberately and confirmed against the app's accessibility semantics before capture. All render in the README on GitHub. | DONE |
 
 ---
 
@@ -160,7 +160,7 @@ manual walkthrough are not that method.
 | ID | Requirement | PDF source | Planned implementation | Verification method | Status |
 | --- | --- | --- | --- | --- | --- |
 | SUB-01 | Complete, **functioning** source code uploaded to a **public GitHub repository**. | p3, Deliverables item 1 | Push to a public GitHub remote once the human approves. Agents must not push (AGENTS.md Git Rules). | Repository loads while signed out; a clean clone builds. | TODO |
-| SUB-02 | The repository must include the README.md documentation. | p3, Deliverables item 2 | Covered by DOC-01 to DOC-08. | All DOC rows are `DONE`. | TODO |
+| SUB-02 | The repository must include the README.md documentation. | p3, Deliverables item 2 | Covered by DOC-01 to DOC-08. | All DOC rows are `DONE`. | DONE |
 | SUB-03 | Provide a **link to the built release APK** (e.g. Google Drive or another file-sharing service). | p3, Deliverables item 3 | Build release APKs and host them; link from the README. Signing strategy in [ADR-010](DECISIONS.md#adr-010). Scope ambiguity in [AMB-09](#ambiguities) — the plan is to ship **both** apps' release APKs. | `assembleRelease` and `flutter build apk --release` both succeed; each APK installs on a clean device from the shared link. | TODO |
 
 ---

@@ -5,6 +5,19 @@ Resumption document. Read this first, then the active gate in
 [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md).
 
 Last updated: 2026-08-30
+Presentation gate (2026-08-30, final): **SUBMISSION PRESENTATION VERIFIED.** The prior
+screenshot set was audited and four of six images were rejected as non-evidential — they
+carried distinct filenames and hashes but showed the same camera screen, because the
+earlier automation tapped blind coordinates without ever confirming the resulting state.
+`uploads-offline.png` and `uploads-success.png` did not show the Upload Manager at all,
+`camera-active-batch.png` showed no batch, and `focus-zoom.png` showed default zoom with no
+reticle. All six screenshots were recaptured from the published v1.0.0 APKs on a physical
+HONOR DNP-NX9, each one navigated deliberately, confirmed against the app's accessibility
+semantics (`uiautomator dump`) before capture, and then opened and inspected visually before
+being accepted. The offline→online pair carries the same five image UUIDs, so it evidences
+one durable queue draining automatically rather than two unrelated screens. Root, Flutter,
+and Native READMEs were re-audited for claim accuracy; no application source changed.
+
 Overall status: **G3.8 COMPLETE, AWAITING HUMAN SIGN-OFF — Android Task 1 is
 implemented end to end, passes all automated verification, and has been driven through
 every state on an emulator. G3.8 was the final substantive engineering pass: location

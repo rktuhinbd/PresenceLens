@@ -5,6 +5,29 @@ Source record for README §3, which the assessment makes **mandatory** (DOC-05, 
 Recorded as work happens, not reconstructed at the end. Per AGENTS.md, AI output is
 assistance, not authority: nothing is retained that the author cannot explain.
 
+## At a glance
+
+**How AI was used.** Claude (via Claude Code) assisted with requirements extraction from
+the assessment PDF, architectural options and ADR drafting, SQLite concurrency and
+edge-case analysis, test planning, and documentation review. It did not make final
+engineering decisions.
+
+**Representative real prompts** are recorded verbatim-in-summary in each entry below —
+see Entry 001 (requirements extraction), and the later entries covering the camera
+lifecycle, the durable upload queue, and the location quality rules.
+
+**How every output was validated.** Nothing was accepted on the model's word:
+
+- **Automated tests** — 679 across both apps (158 Native Android, 521 Flutter).
+- **Static analysis** — Android Lint and `flutter analyze`, both clean.
+- **Builds** — debug and release builds, including from a clean clone.
+- **Source inspection** — every retained line reviewed; per AGENTS.md, nothing is kept
+  that the author cannot explain.
+- **Device and emulator QA** — physical HONOR DNP-NX9 runtime QA for the Flutter app,
+  emulator acceptance walkthroughs for the Native app.
+
+---
+
 ## How to read this
 
 Each entry names the tool, model, purpose, a summary of the prompt (not its full

@@ -18,7 +18,7 @@ This submission fulfills all requirements of the Intelligent Machines technical 
 
 ## Architecture
 
-Both applications are built on strict Layered Architectures to guarantee that business logic remains fully decoupled from platform implementation details.
+Both applications are built on layered architectures that keep business logic decoupled from platform implementation details.
 
 - **Native Android**: Built around Kotlin Flow and Jetpack Compose. Heavy domain separation ensures location-boundary logic is decoupled from Android services.
 - **Flutter**: Driven by strict BLoC/Cubit state isolation. The `CameraCubit` strictly coordinates the CameraX plugin, while the `SyncBloc` projects a durable SQLite queue mapped identically to the WorkManager background state.
@@ -43,7 +43,7 @@ Generative AI was employed openly to structure test plans, design transactional 
 
 ## Reviewer Quick Start
 
-The quickest way to evaluate this submission is by installing the pre-built, signed APKs linked above onto an Android device (via `adb install`). 
+The quickest way to evaluate this submission is by installing the pre-built release APKs linked above onto an Android device (via `adb install`).
 
 To build the projects from source:
 1. Clone the repository.

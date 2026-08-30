@@ -11,7 +11,7 @@ This application is the Flutter submission for Task 2 of the PresenceLens techni
 
 ## Architecture
 
-The application is built on a strict layered architecture:
+The application is built on a layered architecture:
 
 **Presentation → Application/Domain ← Data/Platform**
 
@@ -36,16 +36,25 @@ The application utilizes the BLoC pattern for rigorous state isolation.
 
 ## Offline-first flow
 
-1. **Capture** → durable app-owned file
-2. **SQLite Metadata** → SQLite image metadata
-3. **Finish Batch** → Finish batch transaction → batch QUEUED + images PENDING
-4. **WorkManager** → WorkManager worker → atomic SQL claim changes an eligible image to UPLOADING
-5. **Deterministic Mock API** → deterministic mock API
-6. **Durable Success/Retry** → durable success or return to PENDING for retry
+1. **Capture** → the image is written to a durable, app-owned file.
+2. **SQLite metadata** → a row describing that file is inserted.
+3. **Finish batch** → one transaction marks the batch `QUEUED` and its images `PENDING`.
+4. **WorkManager** → a constrained background drain is scheduled.
+5. **Atomic SQL claim** → the worker claims one eligible image and moves it to `UPLOADING`.
+6. **Deterministic mock API** → the upload is attempted.
+7. **Terminal state** → `UPLOADED` on success, or back to `PENDING` for a later retry.
+
+Nothing is deleted on failure. An image that cannot be sent stays on the device, in its
+own file, until it has been uploaded.
 
 ## Background sync
 
-Connectivity is treated purely as an advisory state. The network and API results are authoritative. The OS (via WorkManager) strictly controls the exact worker execution timing, ensuring battery-efficient, resilient uploading in the background.
+Connectivity is advisory only — the API result is authoritative, and the app never treats
+"the OS says we are online" as proof that an upload will succeed.
+
+WorkManager schedules constrained background drains; connectivity regain and lifecycle
+reconciliation opportunistically schedule further work. The OS decides exactly when a
+worker runs, which keeps the drain battery-efficient and resilient across process death.
 
 ## Persistence
 
@@ -71,13 +80,22 @@ The codebase enforces strict quality gates, verified by **521 automated tests** 
 
 ## Screenshots
 
-![Camera Ready](../docs/assets/flutter/camera-ready.png)
-![Uploads Offline](../docs/assets/flutter/uploads-offline.png)
-![Uploads Success](../docs/assets/flutter/uploads-success.png)
+Unmodified captures from a physical HONOR DNP-NX9 (Android 16), taken from the published
+v1.0.0 APK.
+
+| Camera ready | Focus + zoom | Offline queue |
+| --- | --- | --- |
+| ![Camera ready](../docs/assets/flutter/camera-ready.png) | ![Focus and zoom](../docs/assets/flutter/focus-zoom.png) | ![Offline pending uploads](../docs/assets/flutter/uploads-offline.png) |
+| Live preview with capability-derived zoom presets and slider. | Focus reticle at the tap point, held at 2x zoom. | Batch finished offline — five images waiting, retained on device. |
+
+| Active batch | Synced |
+| --- | --- |
+| ![Active batch](../docs/assets/flutter/camera-active-batch.png) | ![Uploads synced](../docs/assets/flutter/uploads-success.png) |
+| A live draft batch of three captures, with thumbnail and count. | The same five images after connectivity returned — drained automatically, no manual retry. |
 
 ## Release APK
 
-The signed release APK can be downloaded here:
+The release-mode Android APK can be downloaded here:
 
 https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Capture-v1.0.0.apk
 
@@ -86,5 +104,9 @@ https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-
 Generative AI was used transparently to assist with requirements extraction, test planning, SQLite edge-case analysis, and architectural review. See the root [AI_USAGE.md](../docs/AI_USAGE.md) for full disclosure and examples.
 
 ## Platform notes
+
+iOS project sources are retained for Flutter source compatibility. Physical iOS validation
+and signed IPA packaging were not performed because this assessment was built and validated
+from Windows; the requested release deliverable is the Android APK.
 
 HONOR devices impose an OEM-specific background restriction (`HN_USER_EXPERIENCE`) that suppresses standard WorkManager execution. This is a vendor modification, not an Android or application defect.

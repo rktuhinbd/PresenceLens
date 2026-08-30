@@ -1,13 +1,24 @@
 # PresenceLens Attendance
 
-PresenceLens Attendance is the Native Android application developed for Task 1 of the Intelligent Machines technical assessment. It demonstrates a robust, location-aware mobile client that securely captures employee attendance at a designated office boundary, utilizing offline-first principles, strong domain decoupling, and modern Android architecture.
+PresenceLens Attendance is the Native Android application developed for Task 1 of the Intelligent Machines technical assessment. It demonstrates a robust, location-aware mobile client that reliably decides employee attendance eligibility at a designated office boundary, utilizing offline-first principles, strong domain decoupling, and modern Android architecture.
 
 ## What it demonstrates
 
 - **Location Freshness & Precision Validation**: Verifies GPS coordinates in real-time, rejecting stale or imprecise location data.
 - **Office Anchor Handling**: Computes Haversine distance reliably to ensure check-ins only happen within 50 meters of the office.
 - **Provider Failure Recovery**: Degrades gracefully or prompts user intervention when location services fail or permissions are denied.
-- **Attendance Session Correctness**: Ensures robust visual feedback for office boundary conditions and persistence of check-ins.
+- **Attendance Session Correctness**: Clear visual feedback for every boundary condition. The office anchor is persisted with DataStore; a recorded mark is held in session state and deliberately survives a later stale fix or the user walking away, so the confirmation states what was actually verified at the moment the rule was applied.
+
+## Technology stack
+
+- Kotlin
+- Jetpack Compose
+- Kotlin Coroutines / Flow / StateFlow
+- Android ViewModel + lifecycle
+- Google Play Services Fused Location Provider
+- DataStore Preferences
+- Gradle Kotlin DSL
+- JUnit, Android Lint
 
 ## Architecture
 
@@ -25,6 +36,32 @@ PresenceLens Attendance is the Native Android application developed for Task 1 o
 - Recovers safely from lifecycle interruptions and persistence faults.
 - Office anchor dynamically configurable and persistently saved across sessions.
 
+## The 50 m rule and location quality
+
+Eligibility is decided by a pure domain rule: the Haversine distance between the saved
+office anchor and the current fix must be within 50 m.
+
+A GPS fix is only allowed to answer that question when it is good enough to do so:
+
+- **Accuracy.** A fix within half the radius is precise; up to the radius it is degraded
+  and usable with a caution; beyond the radius it is unusable and eligibility fails
+  closed rather than guessing.
+- **Freshness.** A retained fix is bounded by age, so a stale reading is never silently
+  reused as if it were current.
+- **Anchor quality.** Capturing the office refuses a fix too coarse to be trusted as a
+  permanent anchor — a bad anchor would poison every later decision.
+- **Provider faults.** Location failures retry on a capped backoff, and permission or
+  service problems are surfaced as actionable UI states rather than silent failure.
+
+No mock-location or spoofing detection is implemented, and none is claimed.
+
+## Screenshot
+
+![Attendance ready](../docs/assets/android/attendance-ready.png)
+
+Office anchor saved, live distance to the office, and eligibility inside the 50 m radius.
+Captured on a physical HONOR DNP-NX9 against a live GPS fix.
+
 ## Project structure
 
 - `app/src/main/java/.../domain/`: Core business logic, rules, and models.
@@ -41,12 +78,13 @@ The primary State is managed by the `AttendanceViewModel`, which projects a unif
 Ensure you have Android Studio and the Android SDK installed. To build and run the application on a connected device or emulator:
 
 ```bash
-# Debug build and install
+# Debug build and install on a connected device or emulator
 ./gradlew installDebug
-
-# To manually install the release APK
-adb install release-artifacts/PresenceLens-Attendance-v1.0.0.apk
 ```
+
+To install the published release build instead, download the APK from the
+[v1.0.0 release](https://github.com/rktuhinbd/PresenceLens/releases/tag/v1.0.0) and run
+`adb install <downloaded-apk>`.
 
 ## Tests and verification
 
@@ -61,9 +99,16 @@ To run the tests yourself:
 ./gradlew lint testDebugUnitTest
 ```
 
+## Device and emulator QA
+
+Behaviour was validated by the automated suite plus an emulator acceptance walkthrough,
+where office-set, in-range, out-of-range, permission-denied, and location-disabled states
+can be driven deterministically with simulated coordinates. The screenshot above was
+additionally captured on physical HONOR DNP-NX9 hardware against a live GPS fix.
+
 ## Release APK
 
-The signed release APK can be downloaded here:
+The release-mode Android APK can be downloaded here:
 
 https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Attendance-v1.0.0.apk
 
