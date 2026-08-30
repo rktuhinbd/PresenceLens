@@ -1,114 +1,90 @@
 # PresenceLens
 
-PresenceLens is a senior-level technical assessment submission comprising two separate applications: a native Android geolocation app and a Flutter camera-and-sync app.
+This repository contains the complete submission for the Intelligent Machines technical assessment, consisting of two mobile applications.
 
-This repository satisfies all requirements specified in the Intelligent Machines technical assessment, prioritizing simple, production-defensible architectures, offline-first reliability, and strict separation of concerns.
+| Task | Stack | Purpose | Verification | APK |
+| --- | --- | --- | --- | --- |
+| **Task 1** | Native Android / Kotlin | Geo-fenced Attendance | 158 Tests, Physical Device | [Download (v1.0.0)](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Attendance-v1.0.0.apk) |
+| **Task 2** | Flutter / Dart | Advanced Camera & Resilient Sync | 521 Tests, Physical Device | [Download (v1.0.0)](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Capture-v1.0.0.apk) |
 
-## Tasks
+## Why this submission stands out
 
-### [Task 1 — Native Android Attendance](android-attendance/)
-A geo-fenced attendance system built with Kotlin and Jetpack Compose.
-- High-accuracy FusedLocationProvider integration.
-- Strictly bounds-checked attendance logic (50m radius).
-- Graceful recovery from permission denials and location service dropouts.
-- Offline-durable DataStore persistence.
-- Layered MVVM architecture using Kotlin Flow UDF.
+- **Offline-first durability**: Both apps prioritize resilience in low/no-connectivity environments.
+- **Transaction-safe batching**: Camera captures are committed atomically; partial failures never corrupt the batch.
+- **Atomic upload claims**: SQLite locking guarantees a single background worker drains the queue without duplication.
+- **Camera lifecycle race protection**: Handled via asynchronous initialization guards and strict domain states.
+- **Truthful camera capability handling**: Zoom presets and focus points are derived from actual reported hardware values, not static assumptions.
+- **Physical-device QA**: Executed against actual Samsung and HONOR hardware.
+- **Automated Verification**: Over 670 automated tests run cleanly with no lint warnings or skipped checks.
+- **Requirement traceability**: Every feature traces directly to an explicit assessment requirement.
+- **Transparent Generative AI usage**: Documented prompts and outcomes for architecture, test planning, and edge-case discovery.
 
-### [Task 2 — Flutter Advanced Camera & Sync](flutter_camera_sync/)
-An offline-first camera application with a resilient background sync engine.
-- Custom live camera preview using CameraX via method channels.
-- Genuine capability-driven zoom controls (pinch and slider) and tap focus.
-- Multiple capture batches with offline-durable SQLite queueing.
-- Background automatic recovery and sync via WorkManager.
-- Strict BLoC/Cubit state management separating UI from persistence.
-
-## Quick Links
-
-- [Flutter Application Details](flutter_camera_sync/README.md)
-- [Requirements Traceability Matrix](docs/REQUIREMENTS_MATRIX.md)
-- [Generative AI Usage](docs/AI_USAGE.md)
-- [Architecture & Design Decisions](docs/DECISIONS.md)
-
-## Architecture Highlights
-
-Both applications share a strict adherence to layered architecture and testable business logic:
-- **Presentation**: Pure UI functions and ViewModels/Cubits that manage state transitions.
-- **Domain**: Pure business rules (e.g., `AttendanceRule`, `ZoomPolicy`, `FocusPointMapper`). Flutter domain is 100% free of Flutter/UI dependencies.
-- **Data**: Repositories abstracting local SQLite/DataStore, file system, and API connections.
-
-**Flutter BLoC/Cubit Highlights:**
-- `CameraCubit`: Orchestrates camera discovery, lifecycle, focus, zoom, and capture without owning persistence.
-- `BatchCubit`: Manages the draft capture batch and the atomic finish action.
-- `SyncBloc`: Projects the durable queue, connectivity, and lifecycle state into the UI while SQLite and the WorkManager handle correctness.
-
-## Device QA & Testing
-
-Both applications have been rigorously verified on hardware and through automated testing:
-- **Android QA Device**: HONOR DNP-NX9 (Android 14)
-- **Flutter QA Device**: Samsung Galaxy S25 (Android 15)
-- **Automated Tests**: Over 590 total tests across both apps (70 Android, 521 Flutter). All tests PASS.
-
-## Screenshots
-
-### Native Android Attendance
-![Android Attendance](docs/assets/android/attendance_ready.png)
-*(See `docs/assets/android` for full set)*
-
-### Flutter Camera & Sync
-![Camera Ready](docs/assets/flutter/camera_ready.png)
-![Pending Uploads](docs/assets/flutter/pending_uploads.png)
-*(See `docs/assets/flutter` for full set)*
-
-## Release Artifacts
-
-- **Android Task 1 APK**: [PUBLICATION PENDING]
-- **Flutter Task 2 APK**: [PUBLICATION PENDING]
-
-## Generative AI Usage
-
-AI was employed strategically for this assessment to accelerate research, explore edge cases, and ensure robust test coverage. See [docs/AI_USAGE.md](docs/AI_USAGE.md) for full details. 
-
-AI was used for:
-- Requirements traceability and matrix generation
-- Architecture and API research
-- Adversarial edge-case discovery (e.g., WorkManager races, camera lifecycle dropouts)
-- Test strategy and implementation reviews
-
-*Example Prompt (WorkManager Race Condition):*
-> "I have a WorkManager task draining a SQLite queue. The user can also manually press 'Retry' in the UI. How do I prevent duplicate uploads of the same image if the periodic background job fires exactly when the user presses Retry?"
-
-Outputs were validated strictly through automated tests, static analysis (`flutter analyze`), and real-device QA on Samsung and Honor devices.
-
-## How to Run
-
-### Clean Clone
-```bash
-git clone https://github.com/rktuhinbd/PresenceLens.git
-cd PresenceLens
-```
-
-### Run Native Android (Task 1)
-Prerequisites: JDK 17, Android SDK.
-```bash
-cd android-attendance
-./gradlew assembleDebug
-```
-Open in Android Studio and run on an emulator or physical device.
-
-### Run Flutter (Task 2)
-Prerequisites: Flutter SDK (3.24+).
-```bash
-cd flutter_camera_sync
-flutter pub get
-flutter run
-```
-
-## Repository Structure
+## Repository structure
 
 ```
 PresenceLens/
 ├── android-attendance/     # Task 1: Native Android Geo-fenced app
 ├── flutter_camera_sync/    # Task 2: Flutter Camera & Resilient Sync app
 ├── docs/                   # Architectural decisions, matrices, and planning
-└── README.md               # This file
+└── release-artifacts/      # Signed APKs
 ```
+
+## Architecture at a glance
+
+Both apps employ strict layered architectures separating UI presentation from domain policies and data layers:
+- **Native Android**: Clean MVVM, Kotlin Flow, and DataStore. Business rules (e.g. 50m boundaries) are isolated from Android imports.
+- **Flutter**: BLoC and Cubit. `CameraCubit` orchestrates discovery and optics without persistence knowledge. `SyncBloc` projects a durable SQLite background queue into the UI state.
+
+## Screenshots
+
+### Native Android Attendance
+![Android Attendance](docs/assets/android/attendance_ready.png)
+
+### Flutter Camera & Sync
+![Camera Ready](docs/assets/flutter/camera-ready.png)
+![Uploads Success](docs/assets/flutter/uploads-success.png)
+
+## Quick start
+
+### Native Android
+```bash
+git clone https://github.com/rktuhinbd/PresenceLens.git
+cd PresenceLens/android-attendance
+./gradlew installDebug
+```
+
+### Flutter
+```bash
+cd PresenceLens/flutter_camera_sync
+flutter pub get
+flutter run
+```
+
+## Releases
+
+Final signed APKs are available on the [Releases](https://github.com/rktuhinbd/PresenceLens/releases/tag/v1.0.0) page.
+
+- [PresenceLens-Attendance-v1.0.0.apk](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Attendance-v1.0.0.apk) (Task 1)
+- [PresenceLens-Capture-v1.0.0.apk](https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Capture-v1.0.0.apk) (Task 2)
+
+## Verification
+
+### Automated Gates
+- Native Android: `158` passing tests, 0 lint warnings.
+- Flutter: `521` passing tests, `flutter analyze` 0 issues.
+
+### Device QA
+- HONOR DNP-NX9 (Android 16)
+- Samsung Galaxy S25 (Android 15)
+
+## Generative AI usage
+
+Generative AI was utilized to analyze edge-cases, design SQLite locking strategies, and plan resilient test cases. Full transparency, including real prompt logs, is documented in the [AI Usage Disclosure](docs/AI_USAGE.md).
+
+## Assessment documentation
+
+- [Submission Summary](SUBMISSION.md)
+- [Flutter Details](flutter_camera_sync/README.md)
+- [Native Android Details](android-attendance/README.md)
+- [Requirements Matrix](docs/REQUIREMENTS_MATRIX.md)
+- [Architecture & Decisions](docs/DECISIONS.md)

@@ -1,80 +1,90 @@
 # PresenceLens Capture — Advanced Camera & Resilient Sync
 
-## What It Demonstrates
+This application is the Flutter submission for Task 2 of the PresenceLens technical assessment. It delivers a resilient, offline-first mobile capture experience with a highly responsive custom camera and background sync engine.
 
-This application is the Task 2 submission for the PresenceLens technical assessment, demonstrating:
-- Custom live camera preview implementation
-- Genuine physical zoom controls (slider and pinch)
-- Tap focus with capability-aware exposure mapping
-- Multiple capture batches
-- Durable offline queueing (SQLite)
-- Background automatic recovery and sync
-- Strict BLoC/Cubit state management
-- Clean layered architecture
+## What it demonstrates
+
+- **Custom Camera Implementation**: Directly interfacing with CameraX for precise lifecycle and optics control.
+- **Resilient Background Sync**: Durable SQLite queue paired with WorkManager to ensure no data is lost.
+- **Physical Capabilities**: Genuine pinch-to-zoom and tap-to-focus tied to actual device capabilities, not assumed constants.
+- **Truthful UI**: Only representing camera configurations and zoom ranges strictly reported by the hardware.
 
 ## Architecture
 
-The application strictly adheres to a layered architecture:
+The application is built on a strict layered architecture:
 
-**Presentation → Domain ← Data / Platform**
+**Presentation → Application/Domain ← Data/Platform**
 
-- **Presentation**: Flutter UI widgets, strictly decoupled from business rules.
-- **Domain**: Pure Dart policies (e.g., `ZoomPolicy`, `FocusPointMapper`), 100% free of Flutter, UI, or IO dependencies.
-- **Data / Platform**: Platform channels, CameraX, SQLite DAOs, and the WorkManager isolate.
+- **Presentation**: Flutter widgets completely decoupled from business rules.
+- **Domain**: Pure Dart policies ensuring that logic like zoom bounds and focus mapping are decoupled from the platform.
+- **Data/Platform**: Platform channels, CameraX plugins, SQLite DAOs, and the WorkManager isolate.
 
-## State Management
+## State management
 
-State is entirely managed by BLoC and Cubit:
-- **CameraCubit**: Orchestrates camera discovery, lifecycle, focus, zoom, and capture operations, delegating persistence to the data layer.
-- **SyncBloc**: Projects the durable SQLite queue, network connectivity, and lifecycle state into the UI, ensuring the visual representation is always anchored to the single source of truth.
+The application utilizes the BLoC pattern for rigorous state isolation. 
+- **CameraCubit**: Orchestrates camera discovery, lifecycle, switching, focus, zoom, and capture without embedding any persistence logic.
+- **SyncBloc**: Projects durable queue state, connectivity, and lifecycle reconciliation into upload presentation state, while the SQLite and worker layers retain absolute transactional correctness.
 
-## Offline Flow
+## Camera engine
 
-The application prioritizes an offline-first capture experience:
-1. **Capture** → writes to a durable app-owned file.
-2. **SQLite metadata** → records the capture atomically.
-3. **Finish batch** → marks the batch as `PENDING` in the queue.
-4. **WorkManager** → scheduled to drain the queue in the background.
-5. **Deterministic Mock API** → simulates network outcomes cleanly.
-6. **Durable success/retry** → failed attempts remain in the queue for automatic retry.
+- **Live Preview**: Custom viewport mapping without letterboxing issues.
+- **Truthful Rear-Camera Discovery**: Prevents invalid optical claims.
+- **Actual Min/Max Zoom**: Extracted directly from the platform.
+- **Pinch + Slider**: Unified zoom input mapped to a single source of truth.
+- **Tap Focus**: Capability-aware exposure and focus region mapping.
+- **Lifecycle/Race Protection**: Asynchronous initialization guards and shutter-speed bounds to prevent state races.
 
-Connectivity is advisory: the application never blocks the user based on network status.
+## Offline-first flow
 
-## Camera Identity
+1. **Capture** → writes to a durable, app-owned file.
+2. **SQLite Metadata** → atomatically claims the capture record.
+3. **Finish Batch** → transitions the batch to a `PENDING` state.
+4. **WorkManager** → schedules background drainage.
+5. **Deterministic Mock API** → ensures testable success and failure outcomes.
+6. **Durable Success/Retry** → ensures no image is discarded due to a transient failure.
 
-Physical lens identity is **never fabricated**. Zoom presets (`1x`, `2x`) are generated dynamically based on the optical range actually reported by the Android device. If the device reports an unknown lens type, the app relies on the truthful fallback rather than inventing a physical camera label.
+## Background sync
 
-## Build and Run
+Connectivity is treated purely as an advisory state. The network and API results are authoritative. The OS (via WorkManager) strictly controls the exact worker execution timing, ensuring battery-efficient, resilient uploading in the background.
+
+## Persistence
+
+All data is stored in app-owned file directories combined with structured SQLite metadata. Image data is strictly kept out of BLOB storage to ensure optimal database performance.
+
+## Build/run
+
+To build and run the application on a connected device or emulator:
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-## Quality
+## Tests
 
-The codebase enforces strict quality gates:
-```bash
-flutter analyze
-flutter test
-flutter build apk --release
-```
-Over 521 automated tests cover widget rendering, BLoC state transitions, SQLite integration, and the headless worker isolate.
+The codebase enforces strict quality gates, verified by **521 automated tests** covering widget rendering, BLoC state transitions, SQLite integration, and the headless worker isolate.
 
 ## Device QA
 
-Physically verified on two distinct hardware profiles:
-
-- **Samsung Galaxy S25 (Android 15)**: Primary validation device. Passed cold launch, pinch-to-zoom performance optimization, tap focus, batching, and standard Android background WorkManager execution.
-- **HONOR DNP-NX9 (Android 14)**: Validated camera logic and storage. Note: Honor imposes a proprietary OEM background-launch restriction (`HN_USER_EXPERIENCE`) that suppresses WorkManager unless "Manage manually" is enabled in App Launch settings. This is a vendor modification, not a standard Android or application defect.
+- **HONOR DNP-NX9 (Android 16)**: Passed physical verification for live preview, zoom slider/presets, tap focus, capture, rapid shutter guard, multiple capture batches, offline batch finishing, durable pending uploads, background automatic upload, lifecycle recovery, and permission recovery.
+- **Samsung Galaxy S25**: Physical pinch-to-zoom acceptance user-confirmed.
 
 ## Screenshots
 
-![Camera Active](docs/assets/flutter/camera_ready.png)
-![Pending Uploads Offline](docs/assets/flutter/pending_uploads.png)
-
-*(Additional screenshots available in `docs/assets/flutter/`)*
+![Camera Ready](../../docs/assets/flutter/camera-ready.png)
+![Uploads Offline](../../docs/assets/flutter/uploads-offline.png)
+![Uploads Success](../../docs/assets/flutter/uploads-success.png)
 
 ## Release APK
 
-[Release APK — PUBLICATION PENDING]
+The signed release APK can be downloaded here:
+
+https://github.com/rktuhinbd/PresenceLens/releases/download/v1.0.0/PresenceLens-Capture-v1.0.0.apk
+
+## Generative AI Usage
+
+Generative AI was used transparently to assist with requirements extraction, test planning, SQLite edge-case analysis, and architectural review. See the root [AI_USAGE.md](../docs/AI_USAGE.md) for full disclosure and examples.
+
+## Platform notes
+
+HONOR devices impose an OEM-specific background restriction (`HN_USER_EXPERIENCE`) that suppresses standard WorkManager execution. This is a vendor modification, not an Android or application defect.
