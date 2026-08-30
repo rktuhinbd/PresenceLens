@@ -12,8 +12,8 @@ Walked end to end at gate G9. Each item names the requirement it discharges.
 | # | Check | Req |
 | --- | --- | --- |
 | 1.1 | [x] Repository exists on GitHub. | SUB-01 |
-| 1.2 | [ ] Repository visibility is **Public**. | SUB-01 |
-| 1.3 | [ ] Repository URL loads **while signed out of GitHub** (verified in a private window, not assumed from the settings page). | SUB-01 |
+| 1.2 | [x] Repository visibility is **Public**. | SUB-01 |
+| 1.3 | [x] Repository URL loads **while signed out of GitHub** (verified in a private window, not assumed from the settings page). | SUB-01 |
 | 1.4 | [x] Default branch contains the final submitted state. | SUB-01 |
 | 1.5 | [x] Repository has a description and is not named as a throwaway. | GEN-05 |
 
@@ -74,7 +74,7 @@ The assessment specifies five sections. All five, in order, none a placeholder.
 | 4.20 | [x] Screenshots of the Flutter camera and Upload Manager screens included. | DOC-08 |
 | 4.21 | [x] GIF: crossing the 50 m boundary with the live distance updating. | DOC-08, AND-09 |
 | 4.22 | [x] GIF: offline → online automatic retry with no user interaction. | DOC-08, FLT-12 |
-| 4.23 | [ ] All media renders correctly **on github.com**, not just locally. | DOC-08 |
+| 4.23 | [x] All media renders correctly **on github.com**, not just locally. | DOC-08 |
 
 ## 5. Architecture documentation
 
@@ -289,8 +289,8 @@ Nothing below is checked, and nothing in this repository claims any of it.
 | 9.1 | [x] Android `assembleRelease` succeeds. **2026-08-28**, signed via ADR-010, `apksigner`-verified. | SUB-03 |
 | 9.2 | [x] `flutter build apk --release` succeeds. | SUB-03 |
 | 9.3 | [x] **Both release APKs are signed and installable**. Both Android and Flutter APKs built and signed. | SUB-03 |
-| 9.4 | [ ] Both APKs uploaded to a file-sharing service (GitHub Releases). | SUB-03 |
-| 9.5 | [ ] **Share links accessible to anyone with the link** (verified signed out). | SUB-03 |
+| 9.4 | [x] Both APKs uploaded to a file-sharing service (GitHub Releases). | SUB-03 |
+| 9.5 | [x] **Share links accessible to anyone with the link** (verified signed out). | SUB-03 |
 | 9.6 | [x] Links included in the README. | SUB-03 |
 | 9.7 | [x] Both APKs install on a device that has never had them. | SUB-03, DA-08 |
 | 9.8 | [x] Both apps launch and run from the installed release build. | SUB-03 |
@@ -310,4 +310,4 @@ Nothing below is checked, and nothing in this repository claims any of it.
 | 10.7 | [x] All ADRs are `ACCEPTED` or `SUPERSEDED` — none left dangling as `PROPOSED`. | EXP-03 |
 | 10.8 | [x] Documents are mutually consistent (matrix, architecture, decisions, state). | EXP-04 |
 | 10.9 | [x] Delivered within the 48–72 hour window. | GEN-09 |
-| 10.10 | [ ] Final submission message includes the repository URL and both APK links. | SUB-01, SUB-03 |
+| 10.10 | [x] Final submission message includes the repository URL and both APK links. | SUB-01, SUB-03 |
