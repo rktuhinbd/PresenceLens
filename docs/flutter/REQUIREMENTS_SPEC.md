@@ -218,7 +218,7 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 | FLT-TEST-006 | A retryable failure followed by a later success shall be tested end to end through the processor. | QUALITY | `UNIT`, `DATA` | **DONE** — proven through `QueueProcessor` and again across two worker invocations. |
 | FLT-TEST-007 | Widget tests shall assert semantics and the rendering of every Upload Manager item state. | QUALITY | `WIDGET` | **DONE** — `WIDGET`: all six item states render with an icon **and** words, and the row exposes one screen-reader sentence rather than four fragments. Camera semantics — shutter, switch, uploads, batch, presets, slider — are asserted in the same tier, with the 48 dp targets measured. |
 | FLT-TEST-008 | The domain-layer purity rule (FLT-GEN-007) shall be asserted by an automated test, not by inspection. | QUALITY | `UNIT` | **DONE** — `domain_purity_test`, including the empty-scan guard. |
-| FLT-TEST-009 | Device verification shall cover preview, zoom limits, pinch, tap-focus, capture, camera switching, lifecycle, and the offline→online drain. | MANDATORY | `DEVICE` | TODO |
+| FLT-TEST-009 | Device verification shall cover preview, zoom limits, pinch, tap-focus, capture, camera switching, lifecycle, and the offline→online drain. | MANDATORY | `DEVICE` | **DONE** |
 
 ---
 
@@ -227,10 +227,10 @@ Every row here is an instance of the mandatory `FLT-GEN-004`.
 | ID | Requirement | Source | Priority | Verification | Status |
 | --- | --- | --- | --- | --- | --- |
 | FLT-DEL-001 | Complete functioning source in a public GitHub repository. | p3 Deliverables 1 | MANDATORY | `DOC` | TODO — repository is intentionally private until the human publishes it. |
-| FLT-DEL-002 | The README shall cover the Flutter app's structure and name its Cubits in 1–2 sentences. | p4 Guidelines 2 | MANDATORY | `DOC` | TODO |
-| FLT-DEL-003 | A release APK shall be built and linked. | p3 Deliverables 3 | MANDATORY | `BUILD`, `DOC` | TODO |
-| FLT-DEL-004 | Screenshots/GIFs of the running Flutter app shall be included. | p4 Guidelines 5 | MANDATORY | `DOC` | TODO |
-| FLT-DEL-005 | Generative AI usage and representative prompts shall be documented. | p4 Guidelines 3 | MANDATORY | `DOC` | TODO |
+| FLT-DEL-002 | The README shall cover the Flutter app's structure and name its Cubits in 1–2 sentences. | p4 Guidelines 2 | MANDATORY | `DOC` | **DONE** |
+| FLT-DEL-003 | A release APK shall be built and linked. | p3 Deliverables 3 | MANDATORY | `BUILD`, `DOC` | **DONE** |
+| FLT-DEL-004 | Screenshots/GIFs of the running Flutter app shall be included. | p4 Guidelines 5 | MANDATORY | `DOC` | **DONE** |
+| FLT-DEL-005 | Generative AI usage and representative prompts shall be documented. | p4 Guidelines 3 | MANDATORY | `DOC` | **DONE** |
 
 ---
 

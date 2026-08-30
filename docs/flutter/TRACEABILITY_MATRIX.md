@@ -126,7 +126,7 @@ justification for its existence.
 
 After gates **F4** and **F5** (2026-08-30):
 
-| Category | Total | DONE | PARTIAL | TODO |
+| Category | Total | DONE | **DONE** | **DONE** |
 | --- | --- | --- | --- | --- |
 | FLT-GEN | 7 | 5 | 2 | 0 |
 | FLT-CAM | 18 | 8 | 10 | 0 |
