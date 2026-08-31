@@ -1,122 +1,189 @@
-# Native Android UX Specification
+﻿# Native Android UX Specification
 
-**What this document is for:** it defines the visual direction and acts as a post-implementation UX contract for the Native Android Compose UI. It serves as the authoritative basis for creating the implementation-faithful HTML references in Gate B.
+**What this document is for:** it defines the visual direction for the Native Android Compose UI and records the state inventory the shipped `AttendanceStatus` hierarchy produces. Authority order for the presentation layer (Gate B2): the shipped Compose source first, then the verified v1.0.0 runtime screenshot (`docs/assets/android/attendance-ready.png`), then this document, then the generated HTML reference under `docs/android/design/`. Where a paragraph below and the source disagree, the source is right and this document is stale - report it rather than trusting this file.
 
 ## Visual Direction
 
-Governed by [ADR-012](../DECISIONS.md#adr-012): **reference-layout fidelity with premium native Material 3 execution.**
+Governed by [ADR-012](../ARCHITECTURE.md#visual-direction-adr-012): **reference-layout fidelity with premium native Material 3 execution.**
 The reference screenshot's information architecture, ordering, controls, and overall composition are preserved exactly. The execution quality is elevated via typographic hierarchy, spacing rhythm, shape system, tonal surfaces, meaningful status color, complete button states, and purposeful motion. Stable Material 3 / Compose only; native Android semantics, accessibility, and touch targets take precedence over any stylistic influence.
 
 ## Source-State UX Inventory
 
-The following represents every meaningful shipped UI condition based on the `AttendanceStatus` sealed hierarchy and associated `AttendanceMessage` session states. This explicitly maps the underlying Compose source to the presentation.
+The following represents every meaningful shipped UI condition based on the `AttendanceStatusKind` closed set (`AttendanceStatusPresenter.kt`), the underlying `AttendanceStatus` sealed hierarchy, and the `AttendanceMessage` session events. Copy quoted here is taken directly from `android-attendance/app/src/main/res/values/strings.xml` - it is not paraphrased, and a future edit to this document must keep it that way.
 
-### 1. OfficeNotSet (Setup Mode)
-- **Source type**: `AttendanceStatus.OfficeNotSet` (or `office = null`)
-- **Trigger/precondition**: The user has granted permissions and services are on, but no office anchor is persisted.
-- **Visible primary copy**: "Office Location Not Set"
-- **Secondary copy**: Explains that an office location is required.
-- **Primary CTA**: "Set Office Location" (initiates one-shot capture).
-- **Secondary CTA**: Help/How it works.
-- **Visual treatment**: The `OfficeContextCard` is in setup mode; the distance gauge is entirely hidden.
-- **Gate-B HTML reference?**: YES.
-- **Reason**: Distinct structural state of the screen before the primary tracking loop engages.
+Two facts are independent of which of the fourteen kinds is showing, and are recorded separately in [Section 3](#3-orthogonal-modifiers) rather than folded into the state table: whether an office is saved (`state.office != null`, which decides the `OfficeContextCard` face and whether `ProximityCard` renders at all) and whether the current fix is `LocationQuality.DEGRADED`.
 
-### 2. PermissionRequired
-- **Source type**: `AttendanceStatus.PermissionRequired` / `MarkAttendanceBlocker.PERMISSION`
-- **Trigger/precondition**: Location permission has not been granted or has been permanently denied.
-- **Visible primary copy**: "Location permission required"
-- **Secondary copy**: Explains why location is needed for attendance.
-- **Primary CTA**: "Grant Location" or "Open Settings" (if permanently denied).
-- **Secondary CTA**: None.
-- **Visual treatment**: Surfaced within `AttendanceStatusCard` with an error/warning color scheme. Main action button is disabled.
-- **Gate-B HTML reference?**: YES.
-- **Reason**: Standard failure state required by GEN-04.
+### 1. OFFICE_NOT_SET
+- **Source type**: `AttendanceStatus.OfficeNotSet`
+- **Trigger/precondition**: A location fix exists and permission/services are fine, but no office anchor is persisted yet (`office = null`).
+- **Title**: "Office setup required"
+- **Body**: "Save your office location once to enable attendance."
+- **Tone**: `INFO` (primaryContainer / onPrimaryContainer)
+- **Mark Attendance**: blocked - "Set your office location to continue."
+- **Visual treatment**: `OfficeContextCard` is in its setup face (title, body, filled "Set Office Location" button); `ProximityCard` is entirely absent, because a gauge with no office to measure from would have nothing to draw.
+- **Reference page**: `01-setup.html`.
 
-### 3. PreciseLocationRequired
-- **Source type**: `AttendanceStatus.PreciseLocationRequired` / `MarkAttendanceBlocker.PRECISE_LOCATION`
-- **Trigger/precondition**: User granted coarse-only location.
-- **Visible primary copy**: "Precise location required"
-- **Secondary copy**: "A precise fix is needed for a 50m radius."
-- **Primary CTA**: "Enable Precise" / "Open Settings".
-- **Secondary CTA**: None.
-- **Visual treatment**: Similar to `PermissionRequired` but specific copy for precision.
-- **Gate-B HTML reference?**: YES.
-- **Reason**: Differentiates between partial grants and total denials (AMB-14).
+### 2. PERMISSION_REQUIRED
+- **Source type**: `AttendanceStatus.PermissionRequired`, `canRequestPermissionInApp = true`
+- **Trigger/precondition**: Foreground location permission has not been granted, and the system will still show its own request dialog (`shouldShowRequestPermissionRationale() == true`, or no request has been refused yet).
+- **Title**: "Location access needed"
+- **Body**: "PresenceLens compares your position with the saved office location. It uses location only while this screen is open."
+- **Tone**: `ATTENTION` (warningContainer)
+- **Action**: "Grant location access" (`REQUEST_PERMISSION`)
+- **Mark Attendance**: blocked - "Grant location access to continue."
+- **Reference page**: `05-location-permission.html` (primary frame).
 
-### 4. LocationServicesDisabled
-- **Source type**: `AttendanceStatus.LocationServicesDisabled` / `MarkAttendanceBlocker.SERVICES_OFF`
-- **Trigger/precondition**: Global device location services are toggled off.
-- **Visible primary copy**: "Location services disabled"
-- **Secondary copy**: Prompt to turn on device location.
-- **Primary CTA**: "Enable Location".
-- **Secondary CTA**: None.
-- **Visual treatment**: Surfaced within `AttendanceStatusCard`. Main action button disabled.
-- **Gate-B HTML reference?**: YES.
-- **Reason**: Graceful handling of hardware/OS failure (GEN-04).
+### 3. PERMISSION_BLOCKED
+- **Source type**: `AttendanceStatus.PermissionRequired`, `canRequestPermissionInApp = false`
+- **Trigger/precondition**: The system has stopped showing its own permission dialog (`shouldShowRequestPermissionRationale() == false` after a prior refusal). Unlike the Flutter camera plugin's Android limitation (`ADR-F22`), Android's location permission API genuinely distinguishes this state via `shouldShowRequestPermissionRationale()`, so "blocked" here is a real, checkable signal rather than an inferred guess.
+- **Title**: "Location access needed" (same title as kind 2 - only the body and action change)
+- **Body**: "Location access was declined. Enable it for PresenceLens in app settings to continue."
+- **Tone**: `ATTENTION`
+- **Action**: "Open app settings" (`OPEN_APPLICATION_SETTINGS`, with the external-link glyph)
+- **Mark Attendance**: blocked - "Grant location access to continue."
+- **Reference page**: `05-location-permission.html` (repeated-denial variant).
 
-### 5. AcquiringFix / RefreshingFix / ImprovingAccuracy
-- **Source type**: `AttendanceStatus.AcquiringFix`, `RefreshingFix`, `ImprovingAccuracy` / `MarkAttendanceBlocker.NO_FIX`
-- **Trigger/precondition**: Location services are engaged but either no fix has arrived, the fix is stale (>10s), or the error radius exceeds the acceptable bound.
-- **Visible primary copy**: "Acquiring location..." or specific blocking reason in `AttendanceActionPanel`.
-- **Secondary copy**: Dynamic based on progress.
-- **Primary CTA**: Main action button is disabled.
-- **Secondary CTA**: None.
-- **Visual treatment**: Loading indicators or disabled main CTA with inline blocking reason.
-- **Gate-B HTML reference?**: NO.
-- **Reason**: These are transient states. Reference representations are better handled by the stable "Ready" and "Warning" states.
+### 4. PRECISE_REQUIRED
+- **Source type**: `AttendanceStatus.PreciseLocationRequired`, `canRequestPermissionInApp = true`
+- **Trigger/precondition**: Only `ACCESS_COARSE_LOCATION` was granted. Coarse resolves to roughly a city block, which cannot decide a 50 m boundary, so it is refused explicitly rather than trusted.
+- **Title**: "Precise location required"
+- **Body**: "Approximate location is accurate to roughly a city block, which cannot decide a 50 metre boundary. Switch to precise location to continue."
+- **Tone**: `ATTENTION`
+- **Action**: "Use precise location" (`REQUEST_PERMISSION`) - a distinct label from kind 2's "Grant location access", because the user has already granted *something*.
+- **Mark Attendance**: blocked - "Precise location is required."
+- **Reference page**: `06-precise-location.html` (primary frame).
 
-### 6. Tracking: Out of Range
-- **Source type**: `AttendanceStatus.Tracking(proximity)` with `canMarkAttendance = false` / `MarkAttendanceBlocker.OUT_OF_RANGE`
-- **Trigger/precondition**: Active precise fix, but distance to office > 50 m.
-- **Visible primary copy**: Live distance readout (e.g. "120 m away").
-- **Secondary copy**: Range guidance out.
-- **Primary CTA**: "Mark Attendance" (Disabled).
-- **Secondary CTA**: None.
-- **Visual treatment**: `ProximityCard` with `RangeStatusChip` marked "OUT OF RANGE" (Error/Warning colors). Distance gauge dial filled proportionally.
-- **Gate-B HTML reference?**: YES.
-- **Reason**: The primary negative business logic state.
+### 5. PRECISE_BLOCKED
+- **Source type**: `AttendanceStatus.PreciseLocationRequired`, `canRequestPermissionInApp = false`
+- **Trigger/precondition**: As kind 4, with the system permission dialog also suppressed.
+- **Title**: "Precise location required" (unchanged)
+- **Body**: unchanged from kind 4
+- **Tone**: `ATTENTION`
+- **Action**: "Open app settings" (`OPEN_APPLICATION_SETTINGS`)
+- **Mark Attendance**: blocked - "Precise location is required."
+- **Evidence**: **no `@Preview` and no runtime screenshot exist for this kind.** It is derived directly from source (kind 4's title/body composed with kind 3's action), and the generated reference labels it as such.
+- **Reference page**: `06-precise-location.html` (no-preview variant).
 
-### 7. Tracking: In Range (Ready)
-- **Source type**: `AttendanceStatus.Tracking(proximity)` with `canMarkAttendance = true`
-- **Trigger/precondition**: Active precise fix, distance to office <= 50 m.
-- **Visible primary copy**: Live distance readout (e.g. "32 m away").
-- **Secondary copy**: Range guidance in.
-- **Primary CTA**: "Mark Attendance" (Enabled).
-- **Secondary CTA**: None.
-- **Visual treatment**: `ProximityCard` with `RangeStatusChip` marked "IN RANGE" (Success colors).
-- **Gate-B HTML reference?**: YES.
-- **Reason**: The primary positive business logic state.
+### 6. SERVICES_DISABLED
+- **Source type**: `AttendanceStatus.LocationServicesDisabled`
+- **Trigger/precondition**: Permission is granted, but the OS location toggle is off.
+- **Title**: "Turn on location services"
+- **Body**: "Device location is off, so your position cannot be read and attendance stays locked."
+- **Tone**: `ATTENTION`
+- **Action**: "Open location settings" (`OPEN_LOCATION_SETTINGS`)
+- **Mark Attendance**: blocked - "Turn on device location to continue."
+- **Visual treatment**: office is **set** in the canonical fixture (the `@Preview` "Location services off" saves an office first), so `OfficeContextCard` is in its configured face and `ProximityCard` renders with an empty gauge (`"—"`) - there is no active `Tracking` state to measure from.
+- **Reference page**: `07-location-services-disabled.html`.
 
-### 8. Degraded Accuracy (Modifier)
-- **Source type**: `LocationQuality.DEGRADED`
-- **Trigger/precondition**: Tracking is active, but the fix error radius is wide (cautionary but not immediately disqualifying).
-- **Visible primary copy**: "Degraded Accuracy"
-- **Secondary copy**: Mentions the specific error radius (e.g. "±60m").
-- **Primary CTA**: None.
-- **Secondary CTA**: None.
-- **Visual treatment**: Injects a `DegradedAccuracyNotice` warning banner below the status card. Does not disable the main button on its own.
-- **Gate-B HTML reference?**: YES.
-- **Reason**: Explicit handling of edge-case GPS hardware behavior.
+### 7. ACQUIRING_FIX
+- **Source type**: `AttendanceStatus.AcquiringFix`
+- **Trigger/precondition**: Permission and services are both fine; no usable fix has arrived yet.
+- **Title**: "Finding your location…"
+- **Body**: "Waiting for an accurate fix. This is usually quicker near a window or outdoors."
+- **Tone**: `PROGRESS` (secondaryContainer) - the status badge shows a spinner, not an icon.
+- **Mark Attendance**: blocked - "Waiting for your location."
+- **Reference page**: `08-location-progress.html` (primary frame).
 
-### 9. AttendanceMarked (Session State)
-- **Source type**: `AttendanceMessage.AttendanceMarked` (event)
-- **Trigger/precondition**: The user successfully clicked "Mark Attendance" while in range.
-- **Visible primary copy**: "Attendance confirmed"
-- **Secondary copy**: Time and verified distance.
-- **Primary CTA**: Button converts to success state / disappears or locks.
-- **Secondary CTA**: None.
-- **Visual treatment**: Haptic feedback pulse; `AttendanceActionPanel` locks into a success layout.
-- **Gate-B HTML reference?**: YES.
-- **Reason**: The terminal success state of the application.
+### 8. REFRESHING_FIX
+- **Source type**: `AttendanceStatus.RefreshingFix`
+- **Trigger/precondition**: A position is held, but it is older than the freshness window. The last known fix stays on the `LocationSurface` so nothing blinks, but no distance is quoted.
+- **Title**: "Updating your location…"
+- **Body**: "Waiting for a fresh GPS fix."
+- **Tone**: `PROGRESS`
+- **Mark Attendance**: blocked - "Waiting for a fresh GPS fix."
+- **Reference page**: `08-location-progress.html` (variant - geometrically identical to kind 7, distinct banner).
 
-### 10. Office Capture / Storage Failures
-- **Source type**: `AttendanceMessage.OfficeLocationCaptureFailed` or `OfficeLocationSaveFailed`
-- **Trigger/precondition**: Provider timeout during setup or DataStore write exception.
-- **Visible primary copy**: Snackbar message detailing the failure.
-- **Secondary copy**: None.
-- **Primary CTA**: Snackbar dismissal.
-- **Secondary CTA**: None.
-- **Visual treatment**: Material 3 Snackbar overlay.
-- **Gate-B HTML reference?**: NO.
-- **Reason**: A standard transient Material snackbar; does not require a dedicated full-screen HTML reference.
+### 9. IMPROVING_ACCURACY
+- **Source type**: `AttendanceStatus.ImprovingAccuracy`
+- **Trigger/precondition**: A current position is held, but its reported error radius is wider than the 50 m boundary (or the provider reported no accuracy at all). The provider is converging, which is progress, not failure.
+- **Title**: "Improving location accuracy…"
+- **Body**: "Waiting for a more precise location fix. This is usually quicker near a window or outdoors."
+- **Tone**: `PROGRESS`
+- **Mark Attendance**: blocked - "Waiting for a more precise location fix."
+- **Reference page**: `08-location-progress.html` (variant - geometrically identical to kinds 7-8, distinct banner).
+
+### 10. LOCATION_UNAVAILABLE_NO_FIX
+- **Source type**: `AttendanceStatus.LocationUnavailable(LocationFailureCause.NO_FIX_AVAILABLE)`
+- **Trigger/precondition**: The app has never held a position and the acquisition window has passed. Reserved for a real inability to obtain a position - never a reaction to a single `LocationAvailability` event.
+- **Title**: "Location unavailable"
+- **Body**: "No position could be obtained. Move somewhere with a clearer view of the sky and it will retry automatically."
+- **Tone**: `BLOCKED` (errorContainer) - distinct from `ATTENTION`; nothing the user can do fixes this directly.
+- **Mark Attendance**: blocked - "Waiting for your location."
+- **Reference page**: `09-location-unavailable.html` (primary frame).
+
+### 11. LOCATION_UNAVAILABLE_PROVIDER
+- **Source type**: `AttendanceStatus.LocationUnavailable(LocationFailureCause.PROVIDER_ERROR)`
+- **Trigger/precondition**: The location provider itself reported an error.
+- **Title**: "Location unavailable" (same title as kind 10)
+- **Body**: "The location provider reported an error. It will retry automatically." - the one line that distinguishes this kind from kind 10.
+- **Tone**: `BLOCKED`
+- **Mark Attendance**: blocked - "Waiting for your location."
+- **Evidence**: **no `@Preview` and no runtime screenshot exist for this kind.** Geometry is identical to kind 10; only the body string differs. Source-derived, labelled as such in the generated reference.
+- **Reference page**: `09-location-unavailable.html` (no-preview variant).
+
+### 12. OUT_OF_RANGE
+- **Source type**: `AttendanceStatus.Tracking(proximity)`, `proximity.isEligible = false`
+- **Trigger/precondition**: A fix and a saved office both exist; distance exceeds 50 m.
+- **Title**: "Move closer to the office"
+- **Body**: "You're `<distance>` away. Move within 50 m to mark attendance."
+- **Tone**: `BLOCKED`
+- **Visual treatment**: `RangeStatusChip` reads "OUT OF RANGE" in error tones; the gauge's arc saturates at the full 50 m allowance (`ProximityGeometry.radiusUsageFraction` clamps at 1.0), while the plan-view marker itself is allowed to sit outside the boundary ring, compressing smoothly rather than clamping (`ProximityGeometry.surfaceRadiusFraction`). `AttendanceActionPanel` keeps its dashed outline and disabled button.
+- **Mark Attendance**: blocked - "Move within 50 m to mark attendance."
+- **Reference page**: `03-tracking-out-of-range.html`.
+
+### 13. READY_TO_MARK
+- **Source type**: `AttendanceStatus.Tracking(proximity)`, `proximity.isEligible = true`, `isAttendanceConfirmed = false`
+- **Trigger/precondition**: A fix and a saved office both exist; distance is within 50 m; attendance has not yet been marked this session.
+- **Title**: "Ready to mark attendance"
+- **Body**: "You're `<distance>` from the office, inside the 50 m radius."
+- **Tone**: `SUCCESS` (successContainer)
+- **Visual treatment**: `RangeStatusChip` reads "IN RANGE"; `AttendanceActionPanel`'s outline turns solid and the Mark Attendance button becomes pressable, filled in `statusColors.success` (**not** the Material `primary` role - a distinct status colour with no Material 3 baseline equivalent).
+- **Mark Attendance**: available.
+- **Evidence**: **runtime screenshot** (`docs/assets/android/attendance-ready.png`, captured at 2 m) is this kind's primary evidence, alongside the "Ready to mark" `@Preview` (32 m).
+- **Reference page**: `02-tracking-ready.html`.
+
+### 14. ATTENDANCE_MARKED
+- **Source type**: `AttendanceStatus.Tracking(proximity)` **with** `isAttendanceConfirmed = true` (checked *before* eligibility - `AttendanceStatusPresenter`, `ADR-016`)
+- **Trigger/precondition**: The user pressed Mark Attendance while eligible. The confirmation is a **triad** of three independently-sourced facts that must not drift apart, because three different call sites read them from the same `AttendanceUiState.markedAttendance` value:
+  1. **`AttendanceStatusKind.ATTENDANCE_MARKED`** - drives the status card's title/body ("Attendance marked" / "Your location was verified at `<time>`.") and stays showing even if the user later walks outside the radius, because a completed action is a fact about the past, not a live condition.
+  2. **`MarkAttendanceAction.COMPLETED`** - drives `AttendanceActionPanel` to drop the dashed/solid outline and the button entirely, replacing them with a compact receipt (badge, "Attendance marked", "Location verified · `<distance>` from office", and the time on the trailing edge).
+  3. **`AttendanceMessage.AttendanceMarked`** - fires exactly once, produces **no snackbar** (the success is already shown in place), and triggers only a `HapticFeedbackType.LongPress`.
+- **Tone**: `SUCCESS`
+- **Reference page**: `04-attendance-marked.html`.
+
+## 2. Not modelled as a fifteenth kind: office capture / storage feedback
+
+`OfficeLocationSaved`, `OfficeLocationSavedWithLimitedAccuracy`, `OfficeLocationAccuracyInsufficient`, `OfficeLocationSaveFailed`, `OfficeLocationCaptureFailed`, and `LocationPermissionMissing` are one-shot `AttendanceMessage` values rendered as a Material 3 `Snackbar`, never as a status-card kind. No `@Preview` exercises any of them (Compose previews cannot show a transient `LaunchedEffect`-driven snackbar). The generated reference includes exactly one representative Snackbar (`snackbar_office_saved`) in the component gallery, labelled source-derived - it is not, and must not become, a standalone reference page.
+
+## 3. Orthogonal modifiers
+
+These are not `AttendanceStatusKind` values. Each can, in principle, combine with several of the fourteen kinds above, and none of them is a standalone reference page - they are variants shown in the `docs/android/design/index.html` component gallery.
+
+### 3.1 Capturing office location (`isCapturingOfficeLocation`)
+- **Trigger/precondition**: The one-shot high-accuracy capture is in flight, after "Set Office Location" or "Change office location" is pressed.
+- **Visual effect**: the pressed button's leading icon becomes an 18 dp spinner (label text is unchanged - AND-05 fixes it at "Set Office Location"); both office controls disable via `canSetOfficeLocation`; a `CapturingNote` expands beneath the button: "Getting a precise fix. This can take a few seconds."
+- **Independent of** `AttendanceStatusKind`: capturing can occur from `OFFICE_NOT_SET` (first capture) or from any kind once an office already exists (a re-capture via "Change office location").
+
+### 3.2 Degraded accuracy notice (`DegradedAccuracyNotice`)
+- **Trigger/precondition**: `state.currentLocation?.quality == LocationQuality.DEGRADED` - the reported accuracy is wider than `AttendanceRule.ELIGIBLE_RADIUS_METERS / 2` (25 m) but no wider than the full radius (50 m). An accuracy value at or beyond 50 m is `UNUSABLE`, not `DEGRADED`, and never reaches `Tracking` at all (`LocationQuality.kt`); a value beyond 50 m is therefore **not a reachable example for this notice** - **40 m** is the canonical, production-valid example (the `@Preview` "Degraded fix" uses 40 m at a 18 m distance, deliberately inside the radius so the notice and a live `READY_TO_MARK` state can be shown together).
+- **Title**: "Location accuracy is low"
+- **Body**: "Accuracy is about 40 m. The distance shown may be off by roughly that much." (with the actual accuracy substituted)
+- **Visual effect**: a second `StatusBanner`, in warning tones, inserted between the main status card and `OfficeContextCard`. It is a caution, never a refusal (`AMB-14`) - it never disables Mark Attendance on its own, because AND-08 names distance as the only eligibility condition.
+
+## 4. Reference-family mapping (Gate B2)
+
+The fourteen kinds above map to exactly nine standalone HTML pages under `docs/android/design/`, following each kind's own canonical `@Preview` fixture (or, for the two kinds with no preview, the nearest structurally-identical one) rather than a uniform assumption. The office-set/office-null axis is independent of kind and is called out per page because it changes the screen's height and the `OfficeContextCard` face, not just its copy.
+
+| Page | Kinds | Office precondition |
+|---|---|---|
+| `01-setup.html` | `OFFICE_NOT_SET` | office = null, current location held |
+| `02-tracking-ready.html` | `READY_TO_MARK` | office set (runtime: 2 m; preview variant: 32 m) |
+| `03-tracking-out-of-range.html` | `OUT_OF_RANGE` | office set, 120 m |
+| `04-attendance-marked.html` | `ATTENDANCE_MARKED` | office set, 32 m |
+| `05-location-permission.html` | `PERMISSION_REQUIRED`, `PERMISSION_BLOCKED` | office = null, current location = null |
+| `06-precise-location.html` | `PRECISE_REQUIRED`, `PRECISE_BLOCKED` | office = null, current location = null |
+| `07-location-services-disabled.html` | `SERVICES_DISABLED` | office **set** (ProximityCard present, empty gauge) |
+| `08-location-progress.html` | `ACQUIRING_FIX`, `REFRESHING_FIX`, `IMPROVING_ACCURACY` | office **set** in all three |
+| `09-location-unavailable.html` | `LOCATION_UNAVAILABLE_NO_FIX`, `LOCATION_UNAVAILABLE_PROVIDER` | office **set** |
+
+No tenth standalone page exists. The two modifiers in Section 3, plus `HowAttendanceWorksSheet`, `ChangeOfficeLocationDialog`, and one representative Snackbar, are rendered as component-gallery variants on `index.html` only.

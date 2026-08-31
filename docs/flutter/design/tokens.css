@@ -1,73 +1,33 @@
-/* PresenceLens Capture - design tokens.
-   Generated artefact. The authority is docs/flutter/UX_SPEC.md section 2.
-
-   Two palettes live here on purpose:
-   - Application surfaces follow the Material 3 scheme and respond to
-     prefers-color-scheme (FLT-UX-008).
-   - Camera surfaces are FIXED DARK and deliberately ignore the system theme
-     (ADR-F07), because the content behind them is always a live image. */
-
 :root {
-  /* --- seed ------------------------------------------------------------ */
-  --seed: #00A884;
+  --palette-control: #FFFFFFEB;
+  --palette-control-background: #00000073;
+  --palette-control-active: #00E5A8;
+  --palette-control-active-background: #0000009E;
+  --palette-shutter: #FFFFFF;
+  --palette-accent: #00E5A8;
+  --palette-warning: #FFB74D;
+  --palette-panel: #101416;
+  --palette-placeholder: #0B0F11;
+  --palette-on-accent: #06231B;
 
-  /* --- application surfaces, light ------------------------------------- */
-  --primary:            #006B58;
-  --on-primary:         #FFFFFF;
-  --primary-container:  #82F8D8;
-  --on-primary-container:#002019;
-  --tertiary:           #3F6375;
-  --on-tertiary:        #FFFFFF;
-  --error:              #BA1A1A;
-  --on-error:           #FFFFFF;
-  --error-container:    #FFDAD6;
-  --surface:            #F5FBF7;
-  --surface-container:  #E9EFEB;
-  --surface-container-high:#E3E9E5;
-  --on-surface:         #171D1B;
-  --on-surface-variant: #3F4945;
-  --outline-variant:    #BFC9C4;
-  --scrim-page:         rgba(0,0,0,.06);
+  --scrim-top: linear-gradient(to bottom, #000000B3, transparent);
+  --scrim-bottom: linear-gradient(to top, #000000E0, transparent);
 
-  /* --- camera surfaces, FIXED (never themed) --------------------------- */
-  --cam-control:        rgba(255,255,255,.92);
-  --cam-control-dim:    rgba(255,255,255,.62);
-  --cam-control-bg:     rgba(0,0,0,.45);
-  /* Active state is the ACCENT on a darker pill, not white-on-translucent-white.
-     The prototype showed the latter washing out over a bright document. */
-  --cam-control-active: #00E5A8;
-  --cam-control-active-bg: rgba(0,0,0,.62);
-  --cam-shutter:        #FFFFFF;
-  --cam-accent:         #00E5A8;
-  --cam-warning:        #FFB74D;
+  --release-width: 365.7142857px;
+  --release-height: 800px;
+  --safe-top: 40.29px;
+  --safe-bottom: 22.29px;
 
-  /* --- spacing (4dp grid) ---------------------------------------------- */
-  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px; --s12: 48px;
-
-  /* --- shape ------------------------------------------------------------ */
-  --r-card: 16px; --r-row: 12px; --r-thumb: 8px; --r-full: 999px;
-
-  /* --- type ------------------------------------------------------------- */
-  --font: "Inter", "Roboto", -apple-system, "Segoe UI", system-ui, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary:            #65DBBB;
-    --on-primary:         #00382C;
-    --primary-container:  #005140;
-    --on-primary-container:#82F8D8;
-    --tertiary:           #A7CBE0;
-    --on-tertiary:        #0B3446;
-    --error:              #FFB4AB;
-    --on-error:           #690005;
-    --error-container:    #93000A;
-    --surface:            #0E1513;
-    --surface-container:  #1A211F;
-    --surface-container-high:#242B29;
-    --on-surface:         #DDE4E0;
-    --on-surface-variant: #BFC9C4;
-    --outline-variant:    #3F4945;
-    --scrim-page:         rgba(0,0,0,.5);
-  }
+  --um-primary: #88D6BA;
+  --um-primary-container: #00513E;
+  --um-on-primary-container: #A4F2D5;
+  --um-on-surface: #DEE4DF;
+  --um-on-surface-variant: #BFC9C3;
+  --um-surface: #0F1512;
+  --um-surface-container: #1B211E;
+  --um-surface-container-low: #171D1A;
+  --um-surface-container-highest: #303633;
+  --um-outline: #89938E;
+  --um-tertiary: #A7CCE1;
+  --um-error: #FFB4AB;
 }

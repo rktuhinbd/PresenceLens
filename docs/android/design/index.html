@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PresenceLens Attendance - post-implementation UI reference index</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="screens.css">
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var theme = params.get('theme');
+  if (theme === 'light' || theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  if (params.get('bare') === '1') {
+    document.documentElement.classList.add('bare');
+  }
+  if (params.get('tall') === '1') {
+    document.documentElement.classList.add('tall');
+  }
+})();
+</script>
+</head>
+<body class="standalone">
+<p class="breadcrumb"><a href="index.html">&larr; Android UI reference index</a></p><div class="theme-toggle">
+  <a href="?theme=dark">dark</a> &middot; <a href="?theme=light">light</a>
+  <span class="theme-toggle__default">(default: dark)</span>
+</div><header class="page-head">
+  <h1>PresenceLens Attendance &mdash; post-implementation UI reference</h1>
+  <p>Rendered directly from the shipped Compose source
+  (<code>android-attendance/app/src/main/java/.../presentation/attendance/</code>), parsed
+  <code>strings.xml</code> copy, and the project's own vector icons. Authority order: shipped
+  source &gt; the verified v1.0.0 runtime screenshot &gt; <code>docs/android/UX_SPEC.md</code> &gt;
+  this HTML. <b>The application is never modified to match this reference; this reference is
+  modified to match the application.</b></p>
+  <p>Only <b>02-tracking-ready</b> has committed Native runtime screenshot evidence
+  (<code>docs/assets/android/attendance-ready.png</code>), captured at 2 m and shown here as
+  that page's primary frame. Every other family is deterministic-preview-backed or, for two
+  kinds with no preview (<code>PRECISE_BLOCKED</code>, <code>LOCATION_UNAVAILABLE_PROVIDER</code>),
+  derived directly from source and labelled as such.</p>
+  <p>Primary viewport: <b>365.7143 &times; 800 CSS px</b> (the release-evidence
+  frame, measured from the six committed v1.0.0 screenshots at 1280&times;2800 physical px,
+  density 3.5). This is a review frame, not a claim about the capture device's own logical
+  resolution. Toggle theme per page with <code>?theme=dark</code> / <code>?theme=light</code>;
+  screenshot-backed pages default to dark.</p>
+  <div class="gate">Post-implementation UI reference &mdash; Gate B2</div>
+</header>
+<div class="stage">
+<figure class="screen-card">
+  <a href="01-setup.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner"
+     style="background:var(--primary-container);color:var(--on-primary-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12,21.5C12,21.5 19,14.8 19,9.5A7,7 0 0 0 5,9.5C5,14.8 12,21.5 12,21.5ZM9.4,9.5A2.6,2.6 0 1 0 14.6,9.5A2.6,2.6 0 1 0 9.4,9.5" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Office setup required</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">Save your office location once to enable attendance.</p>
+
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--outline)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Not set</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--outline);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--outline-variant);stroke-width:2;stroke-dasharray:6,8;opacity:0.55"/><circle cx="146.86" cy="95.00" r="13" style="fill:var(--outline);opacity:0.10"/>
+    <circle cx="146.86" cy="95.00" r="8.5" style="fill:var(--surface-container-lowest)"/>
+    <circle cx="146.86" cy="95.00" r="5.5" style="fill:var(--outline)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--outline)"></span><span class="label-medium">You</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">You</div><div class="label-large">Lat: 23.780636, Lon: 90.279372</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-medium">Set up your office location</p>
+      <p class="body-medium" style="color:var(--on-surface-variant)">Stand at the office and capture its coordinates once.</p>
+      <button type="button" class="filled-button label-large" >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,12A8,8 0 1 0 20,12A8,8 0 1 0 4,12M9.4,12A2.6,2.6 0 1 0 14.6,12A2.6,2.6 0 1 0 9.4,12M12,1.5L12,4.5M12,19.5L12,22.5M1.5,12L4.5,12M19.5,12L22.5,12" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Set Office Location</span>
+      </button>
+
+    </div>
+</div></div>
+
+  <div class="section-gap"><div class="action-panel action-panel--blocked">
+  <div class="action-panel__header" style="color:var(--on-surface-variant)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+    <span class="overline">ATTENDANCE LOCKED</span>
+  </div>
+  <button type="button" class="mark-button label-large" disabled>Mark Attendance</button>
+  <div class="inline-note body-medium" style="color:var(--on-surface-variant)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M12,11L12,16.5M12,7.6L12.01,7.6" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Set your office location to continue.</span></div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="01-setup.html">Setup - office not set</a></b>
+    <p class="evidence">Deterministic Compose preview: “First use - setup”</p>
+    <p class="precondition">office = null, currentLocation set (a fix exists; no office is anchored yet)</p>
+  </figcaption>
+</figure><figure class="screen-card">
+  <a href="02-tracking-ready.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner"
+     style="background:var(--success-container);color:var(--on-success-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M7.8,12.2L10.8,15.2L16.2,9.2" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Ready to mark attendance</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">You’re 2 m from the office, inside the 50 m radius.</p>
+
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--success)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Saved</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--success);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--success);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:url(#boundary-fill)"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--success);stroke-width:2.5;stroke-dasharray:11,7;opacity:0.9"/><line x1="146.85714285714286" y1="95.0" x2="147.20" y2="93.74" style="stroke:var(--on-surface-variant);stroke-width:1.5;stroke-dasharray:4,5;opacity:0.45"/><circle cx="147.20" cy="93.74" r="13" style="fill:var(--success);opacity:0.10"/>
+    <circle cx="147.20" cy="93.74" r="8.5" style="fill:var(--surface-container-lowest)"/>
+    <circle cx="147.20" cy="93.74" r="5.5" style="fill:var(--success)"/><circle cx="146.85714285714286" cy="95.0" r="16" style="fill:var(--tertiary);opacity:0.14"/><circle cx="146.85714285714286" cy="95.0" r="10" style="fill:var(--surface-container-lowest)"/><circle cx="146.85714285714286" cy="95.0" r="6.5" style="fill:var(--tertiary)"/><circle cx="146.85714285714286" cy="95.0" r="2.4" style="fill:var(--surface-container-lowest)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--tertiary)"></span><span class="label-medium">Office</span></div><div class="surface-legend__entry"><span class="dot" style="background:var(--success)"></span><span class="label-medium">You</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">Office</div><div class="label-large">Lat: 24.885400, Lon: 91.885777</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-small">Saved office location</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Captured Aug 30, 2026 10:38 PM</p>
+      <button type="button" class="text-button label-large" >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,8L17,8M14,5L17,8L14,11M20,16L7,16M10,13L7,16L10,19" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Change office location</span>
+      </button>
+
+    </div>
+</div></div>
+  <div class="section-gap"><div class="proximity-card">
+  <div class="gauge">
+  <svg width="136" height="136" viewBox="0 0 136 136" aria-hidden="true">
+    <circle cx="68.0" cy="68.0" r="63.0" style="fill:none;stroke:var(--surface-container-highest);stroke-width:10;stroke-linecap:round"/>
+    <path d="M 68.000 5.000 A 63.000 63.000 0 0 1 83.667 6.979" style="fill:none;stroke:var(--success);stroke-width:10;stroke-linecap:round"/>
+  </svg>
+  <div class="gauge__readout">
+    <span class="gauge__value display-small">2</span><span class="gauge__unit title-medium">m</span>
+  </div>
+  <div class="gauge__caption overline">AWAY</div>
+</div>
+  <div class="proximity-readout">
+      <div class="range-chip" style="background:var(--success-container);color:var(--on-success-container)"><span class="dot" style="background:var(--on-success-container)"></span><span class="overline">IN RANGE</span></div>
+      <p class="title-medium" style="text-align:center">You’re 2 m from the office.</p>
+      <p class="body-medium" style="text-align:center;color:var(--on-surface-variant)">You’re within the attendance area.</p>
+    </div>
+</div></div>
+  <div class="section-gap"><div class="action-panel action-panel--enabled">
+  <div class="action-panel__header" style="color:var(--success)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M7.8,12.2L10.8,15.2L16.2,9.2" style="stroke:var(--success);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+    <span class="overline">READY TO MARK</span>
+  </div>
+  <button type="button" class="mark-button label-large" >Mark Attendance</button>
+
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="02-tracking-ready.html">Tracking - ready to mark</a></b>
+    <p class="evidence">Runtime screenshot docs/assets/android/attendance-ready.png (primary frame, 2m) + Compose preview “Ready to mark” (32m variant, below)</p>
+    <p class="precondition">office set, proximity.isEligible = true</p>
+  </figcaption>
+</figure><figure class="screen-card">
+  <a href="03-tracking-out-of-range.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner"
+     style="background:var(--error-container);color:var(--on-error-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12,21.5C12,21.5 19,14.8 19,9.5A7,7 0 0 0 5,9.5C5,14.8 12,21.5 12,21.5ZM9.4,9.5A2.6,2.6 0 1 0 14.6,9.5A2.6,2.6 0 1 0 9.4,9.5" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Move closer to the office</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">You’re 120 m away. Move within 50 m to mark attendance.</p>
+
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--success)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Saved</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--error);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--error);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:url(#boundary-fill)"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--error);stroke-width:2.5;stroke-dasharray:11,7;opacity:0.9"/><line x1="146.85714285714286" y1="95.0" x2="161.73" y2="39.49" style="stroke:var(--on-surface-variant);stroke-width:1.5;stroke-dasharray:4,5;opacity:0.45"/><circle cx="161.73" cy="39.49" r="13" style="fill:var(--error);opacity:0.10"/>
+    <circle cx="161.73" cy="39.49" r="8.5" style="fill:var(--surface-container-lowest)"/>
+    <circle cx="161.73" cy="39.49" r="5.5" style="fill:var(--error)"/><circle cx="146.85714285714286" cy="95.0" r="16" style="fill:var(--tertiary);opacity:0.14"/><circle cx="146.85714285714286" cy="95.0" r="10" style="fill:var(--surface-container-lowest)"/><circle cx="146.85714285714286" cy="95.0" r="6.5" style="fill:var(--tertiary)"/><circle cx="146.85714285714286" cy="95.0" r="2.4" style="fill:var(--surface-container-lowest)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--tertiary)"></span><span class="label-medium">Office</span></div><div class="surface-legend__entry"><span class="dot" style="background:var(--error)"></span><span class="label-medium">You</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">Office</div><div class="label-large">Lat: 23.780636, Lon: 90.279372</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-small">Saved office location</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Captured Aug 24, 2025, 1:46 AM</p>
+      <button type="button" class="text-button label-large" >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,8L17,8M14,5L17,8L14,11M20,16L7,16M10,13L7,16L10,19" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Change office location</span>
+      </button>
+
+    </div>
+</div></div>
+  <div class="section-gap"><div class="proximity-card">
+  <div class="gauge">
+  <svg width="136" height="136" viewBox="0 0 136 136" aria-hidden="true">
+    <circle cx="68.0" cy="68.0" r="63.0" style="fill:none;stroke:var(--surface-container-highest);stroke-width:10;stroke-linecap:round"/>
+    <path d="M 68.000 5.000 A 63.000 63.000 0 1 1 67.890 5.000" style="fill:none;stroke:var(--error);stroke-width:10;stroke-linecap:round"/>
+  </svg>
+  <div class="gauge__readout">
+    <span class="gauge__value display-small">120</span><span class="gauge__unit title-medium">m</span>
+  </div>
+  <div class="gauge__caption overline">AWAY</div>
+</div>
+  <div class="proximity-readout">
+      <div class="range-chip" style="background:var(--error-container);color:var(--on-error-container)"><span class="dot" style="background:var(--on-error-container)"></span><span class="overline">OUT OF RANGE</span></div>
+      <p class="title-medium" style="text-align:center">You’re 120 m from the office.</p>
+      <p class="body-medium" style="text-align:center;color:var(--on-surface-variant)">Move within 50 m to mark attendance.</p>
+    </div>
+</div></div>
+  <div class="section-gap"><div class="action-panel action-panel--blocked">
+  <div class="action-panel__header" style="color:var(--on-surface-variant)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+    <span class="overline">ATTENDANCE LOCKED</span>
+  </div>
+  <button type="button" class="mark-button label-large" disabled>Mark Attendance</button>
+  <div class="inline-note body-medium" style="color:var(--on-surface-variant)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M12,11L12,16.5M12,7.6L12.01,7.6" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Move within 50 m to mark attendance.</span></div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="03-tracking-out-of-range.html">Tracking - out of range</a></b>
+    <p class="evidence">Deterministic Compose preview: “Out of range”</p>
+    <p class="precondition">office set, proximity.isEligible = false</p>
+  </figcaption>
+</figure><figure class="screen-card">
+  <a href="04-attendance-marked.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner"
+     style="background:var(--success-container);color:var(--on-success-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M7.8,12.2L10.8,15.2L16.2,9.2" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Attendance marked</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">Your location was verified at 1:46 AM.</p>
+
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--success)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Saved</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--success);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--success);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:url(#boundary-fill)"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--success);stroke-width:2.5;stroke-dasharray:11,7;opacity:0.9"/><line x1="146.85714285714286" y1="95.0" x2="152.27" y2="74.80" style="stroke:var(--on-surface-variant);stroke-width:1.5;stroke-dasharray:4,5;opacity:0.45"/><circle cx="152.27" cy="74.80" r="13" style="fill:var(--success);opacity:0.10"/>
+    <circle cx="152.27" cy="74.80" r="8.5" style="fill:var(--surface-container-lowest)"/>
+    <circle cx="152.27" cy="74.80" r="5.5" style="fill:var(--success)"/><circle cx="146.85714285714286" cy="95.0" r="16" style="fill:var(--tertiary);opacity:0.14"/><circle cx="146.85714285714286" cy="95.0" r="10" style="fill:var(--surface-container-lowest)"/><circle cx="146.85714285714286" cy="95.0" r="6.5" style="fill:var(--tertiary)"/><circle cx="146.85714285714286" cy="95.0" r="2.4" style="fill:var(--surface-container-lowest)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--tertiary)"></span><span class="label-medium">Office</span></div><div class="surface-legend__entry"><span class="dot" style="background:var(--success)"></span><span class="label-medium">You</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">Office</div><div class="label-large">Lat: 23.780636, Lon: 90.279372</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-small">Saved office location</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Captured Aug 24, 2025, 1:46 AM</p>
+      <button type="button" class="text-button label-large" >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,8L17,8M14,5L17,8L14,11M20,16L7,16M10,13L7,16L10,19" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Change office location</span>
+      </button>
+
+    </div>
+</div></div>
+  <div class="section-gap"><div class="proximity-card">
+  <div class="gauge">
+  <svg width="136" height="136" viewBox="0 0 136 136" aria-hidden="true">
+    <circle cx="68.0" cy="68.0" r="63.0" style="fill:none;stroke:var(--surface-container-highest);stroke-width:10;stroke-linecap:round"/>
+    <path d="M 68.000 5.000 A 63.000 63.000 0 1 1 19.458 108.158" style="fill:none;stroke:var(--success);stroke-width:10;stroke-linecap:round"/>
+  </svg>
+  <div class="gauge__readout">
+    <span class="gauge__value display-small">32</span><span class="gauge__unit title-medium">m</span>
+  </div>
+  <div class="gauge__caption overline">AWAY</div>
+</div>
+  <div class="proximity-readout">
+      <div class="range-chip" style="background:var(--success-container);color:var(--on-success-container)"><span class="dot" style="background:var(--on-success-container)"></span><span class="overline">IN RANGE</span></div>
+      <p class="title-medium" style="text-align:center">You’re 32 m from the office.</p>
+      <p class="body-medium" style="text-align:center;color:var(--on-surface-variant)">You’re within the attendance area.</p>
+    </div>
+</div></div>
+  <div class="section-gap"><div class="action-panel action-panel--completed">
+  <div class="confirmation-row">
+    <div class="confirmation-badge"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M7.8,12.2L10.8,15.2L16.2,9.2" style="stroke:var(--on-success-container);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+    <div class="confirmation-text">
+      <p class="title-small">Attendance marked</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Location verified · 32 m from office</p>
+    </div>
+    <p class="label-large">1:46 AM</p>
+  </div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="04-attendance-marked.html">Attendance marked</a></b>
+    <p class="evidence">Deterministic Compose preview: “Attendance marked”</p>
+    <p class="precondition">office set, proximity.isEligible = true, isAttendanceConfirmed = true (the action panel is replaced by a receipt; ADR-016)</p>
+  </figcaption>
+</figure><figure class="screen-card">
+  <a href="05-location-permission.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner has-action"
+     style="background:var(--warning-container);color:var(--on-warning-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Location access needed</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">PresenceLens compares your position with the saved office location. It uses location only while this screen is open.</p>
+    <button type="button" class="status-banner__action label-large"><span>Grant location access</span></button>
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--outline)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Not set</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--outline);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--outline-variant);stroke-width:2;stroke-dasharray:6,8;opacity:0.55"/></svg>
+  <div class="surface-legend"></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">You</div><div class="label-large">Coordinates unavailable</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-medium">Set up your office location</p>
+      <p class="body-medium" style="color:var(--on-surface-variant)">Stand at the office and capture its coordinates once.</p>
+      <button type="button" class="filled-button label-large" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,12A8,8 0 1 0 20,12A8,8 0 1 0 4,12M9.4,12A2.6,2.6 0 1 0 14.6,12A2.6,2.6 0 1 0 9.4,12M12,1.5L12,4.5M12,19.5L12,22.5M1.5,12L4.5,12M19.5,12L22.5,12" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Set Office Location</span>
+      </button>
+
+    </div>
+</div></div>
+
+  <div class="section-gap"><div class="action-panel action-panel--blocked">
+  <div class="action-panel__header" style="color:var(--on-surface-variant)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+    <span class="overline">ATTENDANCE LOCKED</span>
+  </div>
+  <button type="button" class="mark-button label-large" disabled>Mark Attendance</button>
+  <div class="inline-note body-medium" style="color:var(--on-surface-variant)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M12,11L12,16.5M12,7.6L12.01,7.6" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Grant location access to continue.</span></div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="05-location-permission.html">Location permission</a></b>
+    <p class="evidence">Deterministic Compose previews: “Permission required”, “Permission permanently denied”</p>
+    <p class="precondition">office = null, currentLocation = null (no fix exists before permission is granted) Covers 2 kinds on this page: <code>PERMISSION_REQUIRED</code>, <code>PERMISSION_BLOCKED</code>.</p>
+  </figcaption>
+</figure><figure class="screen-card">
+  <a href="06-precise-location.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner has-action"
+     style="background:var(--warning-container);color:var(--on-warning-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,12A8,8 0 1 0 20,12A8,8 0 1 0 4,12M9.4,12A2.6,2.6 0 1 0 14.6,12A2.6,2.6 0 1 0 9.4,12M12,1.5L12,4.5M12,19.5L12,22.5M1.5,12L4.5,12M19.5,12L22.5,12" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Precise location required</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">Approximate location is accurate to roughly a city block, which cannot decide a 50 metre boundary. Switch to precise location to continue.</p>
+    <button type="button" class="status-banner__action label-large"><span>Use precise location</span></button>
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--outline)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Not set</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--outline);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--outline-variant);stroke-width:2;stroke-dasharray:6,8;opacity:0.55"/></svg>
+  <div class="surface-legend"></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">You</div><div class="label-large">Coordinates unavailable</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-medium">Set up your office location</p>
+      <p class="body-medium" style="color:var(--on-surface-variant)">Stand at the office and capture its coordinates once.</p>
+      <button type="button" class="filled-button label-large" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,12A8,8 0 1 0 20,12A8,8 0 1 0 4,12M9.4,12A2.6,2.6 0 1 0 14.6,12A2.6,2.6 0 1 0 9.4,12M12,1.5L12,4.5M12,19.5L12,22.5M1.5,12L4.5,12M19.5,12L22.5,12" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Set Office Location</span>
+      </button>
+
+    </div>
+</div></div>
+
+  <div class="section-gap"><div class="action-panel action-panel--blocked">
+  <div class="action-panel__header" style="color:var(--on-surface-variant)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+    <span class="overline">ATTENDANCE LOCKED</span>
+  </div>
+  <button type="button" class="mark-button label-large" disabled>Mark Attendance</button>
+  <div class="inline-note body-medium" style="color:var(--on-surface-variant)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M12,11L12,16.5M12,7.6L12.01,7.6" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Precise location is required.</span></div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="06-precise-location.html">Precise location required</a></b>
+    <p class="evidence">Deterministic Compose preview “Approximate location only”; PRECISE_BLOCKED has no preview and no screenshot - derived from source (PRECISE_REQUIRED's copy + PERMISSION_BLOCKED's action)</p>
+    <p class="precondition">office = null, currentLocation = null Covers 2 kinds on this page: <code>PRECISE_REQUIRED</code>, <code>PRECISE_BLOCKED</code>.</p>
+  </figcaption>
+</figure><figure class="screen-card">
+  <a href="07-location-services-disabled.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner has-action"
+     style="background:var(--warning-container);color:var(--on-warning-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,12A8,8 0 1 0 20,12A8,8 0 1 0 4,12M12,1.5L12,4.5M12,19.5L12,22.5M1.5,12L4.5,12M19.5,12L22.5,12M5.5,5.5L18.5,18.5" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Turn on location services</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">Device location is off, so your position cannot be read and attendance stays locked.</p>
+    <button type="button" class="status-banner__action label-large"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M14,4L20,4L20,10M20,4L11.5,12.5M17,14L17,18.5A1.5,1.5 0 0 1 15.5,20L5.5,20A1.5,1.5 0 0 1 4,18.5L4,8.5A1.5,1.5 0 0 1 5.5,7L10,7" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Open location settings</span></button>
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--success)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Saved</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--outline);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:url(#boundary-fill)"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--outline);stroke-width:2.5;stroke-dasharray:11,7;opacity:0.9"/><circle cx="146.85714285714286" cy="95.0" r="16" style="fill:var(--tertiary);opacity:0.14"/><circle cx="146.85714285714286" cy="95.0" r="10" style="fill:var(--surface-container-lowest)"/><circle cx="146.85714285714286" cy="95.0" r="6.5" style="fill:var(--tertiary)"/><circle cx="146.85714285714286" cy="95.0" r="2.4" style="fill:var(--surface-container-lowest)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--tertiary)"></span><span class="label-medium">Office</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">Office</div><div class="label-large">Lat: 23.780636, Lon: 90.279372</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-small">Saved office location</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Captured Aug 24, 2025, 1:46 AM</p>
+      <button type="button" class="text-button label-large" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,8L17,8M14,5L17,8L14,11M20,16L7,16M10,13L7,16L10,19" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Change office location</span>
+      </button>
+
+    </div>
+</div></div>
+  <div class="section-gap"><div class="proximity-card">
+  <div class="gauge">
+  <svg width="136" height="136" viewBox="0 0 136 136" aria-hidden="true">
+    <circle cx="68.0" cy="68.0" r="63.0" style="fill:none;stroke:var(--surface-container-highest);stroke-width:10;stroke-linecap:round"/>
+
+  </svg>
+  <div class="gauge__readout">
+    <span class="gauge__value display-small">—</span><span class="gauge__unit title-medium"></span>
+  </div>
+  <div class="gauge__caption overline">AWAY</div>
+</div>
+
+</div></div>
+  <div class="section-gap"><div class="action-panel action-panel--blocked">
+  <div class="action-panel__header" style="color:var(--on-surface-variant)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+    <span class="overline">ATTENDANCE LOCKED</span>
+  </div>
+  <button type="button" class="mark-button label-large" disabled>Mark Attendance</button>
+  <div class="inline-note body-medium" style="color:var(--on-surface-variant)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M12,11L12,16.5M12,7.6L12.01,7.6" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Turn on device location to continue.</span></div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="07-location-services-disabled.html">Location services disabled</a></b>
+    <p class="evidence">Deterministic Compose preview: “Location services off”</p>
+    <p class="precondition">office SET (ProximityCard is present; the gauge is empty because no Tracking proximity exists while services are off)</p>
+  </figcaption>
+</figure><figure class="screen-card">
+  <a href="08-location-progress.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner"
+     style="background:var(--secondary-container);color:var(--on-secondary-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><span class="spinner" style="width:18px;height:18px;color:currentColor"></span></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Finding your location…</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">Waiting for an accurate fix. This is usually quicker near a window or outdoors.</p>
+
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--success)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Saved</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--outline);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:url(#boundary-fill)"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--outline);stroke-width:2.5;stroke-dasharray:11,7;opacity:0.9"/><circle cx="146.85714285714286" cy="95.0" r="16" style="fill:var(--tertiary);opacity:0.14"/><circle cx="146.85714285714286" cy="95.0" r="10" style="fill:var(--surface-container-lowest)"/><circle cx="146.85714285714286" cy="95.0" r="6.5" style="fill:var(--tertiary)"/><circle cx="146.85714285714286" cy="95.0" r="2.4" style="fill:var(--surface-container-lowest)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--tertiary)"></span><span class="label-medium">Office</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">Office</div><div class="label-large">Lat: 23.780636, Lon: 90.279372</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-small">Saved office location</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Captured Aug 24, 2025, 1:46 AM</p>
+      <button type="button" class="text-button label-large" >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,8L17,8M14,5L17,8L14,11M20,16L7,16M10,13L7,16L10,19" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Change office location</span>
+      </button>
+
+    </div>
+</div></div>
+  <div class="section-gap"><div class="proximity-card">
+  <div class="gauge">
+  <svg width="136" height="136" viewBox="0 0 136 136" aria-hidden="true">
+    <circle cx="68.0" cy="68.0" r="63.0" style="fill:none;stroke:var(--surface-container-highest);stroke-width:10;stroke-linecap:round"/>
+
+  </svg>
+  <div class="gauge__readout">
+    <span class="gauge__value display-small">—</span><span class="gauge__unit title-medium"></span>
+  </div>
+  <div class="gauge__caption overline">AWAY</div>
+</div>
+
+</div></div>
+  <div class="section-gap"><div class="action-panel action-panel--blocked">
+  <div class="action-panel__header" style="color:var(--on-surface-variant)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+    <span class="overline">ATTENDANCE LOCKED</span>
+  </div>
+  <button type="button" class="mark-button label-large" disabled>Mark Attendance</button>
+  <div class="inline-note body-medium" style="color:var(--on-surface-variant)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M12,11L12,16.5M12,7.6L12.01,7.6" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Waiting for your location.</span></div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="08-location-progress.html">Acquiring / refreshing / improving accuracy</a></b>
+    <p class="evidence">Deterministic Compose previews: “Acquiring fix”, “Refreshing a stale fix”, “Improving accuracy” - geometrically identical, three distinct banners</p>
+    <p class="precondition">office SET in all three; REFRESHING_FIX and IMPROVING_ACCURACY additionally hold a stale/imprecise currentLocation (the last position stays on the plan view) Covers 3 kinds on this page: <code>ACQUIRING_FIX</code>, <code>REFRESHING_FIX</code>, <code>IMPROVING_ACCURACY</code>.</p>
+  </figcaption>
+</figure><figure class="screen-card">
+  <a href="09-location-unavailable.html"><div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner"
+     style="background:var(--error-container);color:var(--on-error-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12,4L21.5,20L2.5,20ZM12,10L12,14M12,16.9L12,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Location unavailable</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">No position could be obtained. Move somewhere with a clearer view of the sky and it will retry automatically.</p>
+
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--success)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Saved</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--outline);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:url(#boundary-fill)"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--outline);stroke-width:2.5;stroke-dasharray:11,7;opacity:0.9"/><circle cx="146.85714285714286" cy="95.0" r="16" style="fill:var(--tertiary);opacity:0.14"/><circle cx="146.85714285714286" cy="95.0" r="10" style="fill:var(--surface-container-lowest)"/><circle cx="146.85714285714286" cy="95.0" r="6.5" style="fill:var(--tertiary)"/><circle cx="146.85714285714286" cy="95.0" r="2.4" style="fill:var(--surface-container-lowest)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--tertiary)"></span><span class="label-medium">Office</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">Office</div><div class="label-large">Lat: 23.780636, Lon: 90.279372</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-small">Saved office location</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Captured Aug 24, 2025, 1:46 AM</p>
+      <button type="button" class="text-button label-large" >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,8L17,8M14,5L17,8L14,11M20,16L7,16M10,13L7,16L10,19" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Change office location</span>
+      </button>
+
+    </div>
+</div></div>
+  <div class="section-gap"><div class="proximity-card">
+  <div class="gauge">
+  <svg width="136" height="136" viewBox="0 0 136 136" aria-hidden="true">
+    <circle cx="68.0" cy="68.0" r="63.0" style="fill:none;stroke:var(--surface-container-highest);stroke-width:10;stroke-linecap:round"/>
+
+  </svg>
+  <div class="gauge__readout">
+    <span class="gauge__value display-small">—</span><span class="gauge__unit title-medium"></span>
+  </div>
+  <div class="gauge__caption overline">AWAY</div>
+</div>
+
+</div></div>
+  <div class="section-gap"><div class="action-panel action-panel--blocked">
+  <div class="action-panel__header" style="color:var(--on-surface-variant)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+    <span class="overline">ATTENDANCE LOCKED</span>
+  </div>
+  <button type="button" class="mark-button label-large" disabled>Mark Attendance</button>
+  <div class="inline-note body-medium" style="color:var(--on-surface-variant)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M12,11L12,16.5M12,7.6L12.01,7.6" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Waiting for your location.</span></div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div></a>
+  <figcaption>
+    <b><a href="09-location-unavailable.html">Location unavailable</a></b>
+    <p class="evidence">Deterministic Compose preview “Location unavailable” (NO_FIX_AVAILABLE); PROVIDER_ERROR has no preview and no screenshot - derived from source (identical geometry, body swapped to status_unavailable_body_provider)</p>
+    <p class="precondition">office SET Covers 2 kinds on this page: <code>LOCATION_UNAVAILABLE_NO_FIX</code>, <code>LOCATION_UNAVAILABLE_PROVIDER</code>.</p>
+  </figcaption>
+</figure>
+</div>
+<section class="page-notes">
+  <h2>Modifier / overlay gallery</h2>
+  <p>These are variants of components already on the nine pages above, not standalone
+  reference pages (there is no tenth family).</p>
+  <div class="stage stage--gallery">
+  <figure class="screen-card screen-card--gallery">
+  <div class="gallery-frame"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--outline)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Not set</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--outline);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--outline-variant);stroke-width:2;stroke-dasharray:6,8;opacity:0.55"/><circle cx="146.86" cy="95.00" r="13" style="fill:var(--outline);opacity:0.10"/>
+    <circle cx="146.86" cy="95.00" r="8.5" style="fill:var(--surface-container-lowest)"/>
+    <circle cx="146.86" cy="95.00" r="5.5" style="fill:var(--outline)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--outline)"></span><span class="label-medium">You</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">You</div><div class="label-large">Lat: 23.780636, Lon: 90.279372</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-medium">Set up your office location</p>
+      <p class="body-medium" style="color:var(--on-surface-variant)">Stand at the office and capture its coordinates once.</p>
+      <button type="button" class="filled-button label-large" disabled>
+        <span class="spinner" style="width:18px;height:18px;color:var(--on-primary)"></span><span>Set Office Location</span>
+      </button>
+      <p class="capturing-note body-small">Getting a precise fix. This can take a few seconds.</p>
+    </div>
+</div></div>
+  <figcaption><b>Modifier: capturing office location</b><p class="evidence">Source-derived (isCapturingOfficeLocation = true)</p></figcaption>
+</figure><figure class="screen-card screen-card--gallery">
+  <div class="gallery-frame"><div class="status-banner status-banner--degraded"
+     style="background:var(--warning-container);color:var(--on-warning-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12,4L21.5,20L2.5,20ZM12,10L12,14M12,16.9L12,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Location accuracy is low</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">Accuracy is about 40 m. The distance shown may be off by roughly that much.</p>
+
+  </div>
+</div></div>
+  <figcaption><b>Modifier: degraded accuracy notice</b><p class="evidence">Deterministic Compose preview “Degraded fix” (accuracy = 40m)</p></figcaption>
+</figure><figure class="screen-card screen-card--gallery">
+  <div class="gallery-frame gallery-frame--sheet"><div class="sheet">
+  <p class="headline-small">How attendance works</p>
+  <p class="body-medium" style="color:var(--on-surface-variant)">Four things worth knowing before you mark attendance.</p>
+  <div class="disclosure-list"><div class="disclosure-row">
+      <div class="disclosure-row__badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M7.5,2.5L16.5,2.5A2,2 0 0 1 18.5,4.5L18.5,19.5A2,2 0 0 1 16.5,21.5L7.5,21.5A2,2 0 0 1 5.5,19.5L5.5,4.5A2,2 0 0 1 7.5,2.5ZM9.6,11.4L14.4,11.4L14.4,15.4L9.6,15.4ZM10.6,11.4L10.6,9.6A1.4,1.4 0 0 1 13.4,9.6L13.4,11.4" style="stroke:var(--on-secondary-container);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+      <div><p class="title-small">Your office location stays on this device</p><p class="body-medium" style="color:var(--on-surface-variant)">The coordinates you capture are written to this phone's local storage. Nothing is uploaded, and there is no account.</p></div>
+    </div><div class="disclosure-row">
+      <div class="disclosure-row__badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,12A8,8 0 1 0 20,12A8,8 0 1 0 4,12M9.4,12A2.6,2.6 0 1 0 14.6,12A2.6,2.6 0 1 0 9.4,12M12,1.5L12,4.5M12,19.5L12,22.5M1.5,12L4.5,12M19.5,12L22.5,12" style="stroke:var(--on-secondary-container);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+      <div><p class="title-small">Location is read only on this screen</p><p class="body-medium" style="color:var(--on-surface-variant)">Updates start when this screen is visible and stop the moment you leave it.</p></div>
+    </div><div class="disclosure-row">
+      <div class="disclosure-row__badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12,21.5C12,21.5 19,14.8 19,9.5A7,7 0 0 0 5,9.5C5,14.8 12,21.5 12,21.5ZM9.4,9.5A2.6,2.6 0 1 0 14.6,9.5A2.6,2.6 0 1 0 9.4,9.5" style="stroke:var(--on-secondary-container);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+      <div><p class="title-small">You must be within 50 m</p><p class="body-medium" style="color:var(--on-surface-variant)">Mark Attendance unlocks only inside the 50 metre radius around the saved office, and locks again as soon as you step outside it.</p></div>
+    </div><div class="disclosure-row">
+      <div class="disclosure-row__badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6,10L18,10A2,2 0 0 1 20,12L20,19A2,2 0 0 1 18,21L6,21A2,2 0 0 1 4,19L4,12A2,2 0 0 1 6,10ZM8,10L8,7A4,4 0 0 1 16,7L16,10" style="stroke:var(--on-secondary-container);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+      <div><p class="title-small">No background tracking</p><p class="body-medium" style="color:var(--on-surface-variant)">PresenceLens never asks for background location and reads nothing while it is closed.</p></div>
+    </div></div>
+  <div class="divider"></div>
+  <p class="body-small" style="color:var(--on-surface-variant)">Office hours are shown for information only. Distance is the only condition for marking attendance.</p>
+  <button type="button" class="text-button label-large" style="align-self:flex-end">Got it</button>
+</div></div>
+  <figcaption><b>Overlay: How attendance works sheet</b><p class="evidence">Deterministic Compose preview “How attendance works”</p></figcaption>
+</figure><figure class="screen-card screen-card--gallery">
+  <div class="gallery-frame gallery-frame--dialog"><div class="dialog">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,8L17,8M14,5L17,8L14,11M20,16L7,16M10,13L7,16L10,19" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <p class="headline-small">Replace the saved office?</p>
+  <p class="body-medium">The office is currently saved at Lat: 23.780636, Lon: 90.279372. Replacing it records your current position instead, and attendance will be measured from there. This cannot be undone.</p>
+  <div class="dialog__actions">
+    <button type="button" class="text-button label-large">Keep current</button>
+    <button type="button" class="text-button label-large">Replace</button>
+  </div>
+</div></div>
+  <figcaption><b>Overlay: Change office location dialog</b><p class="evidence">Deterministic Compose preview “Change office confirmation”</p></figcaption>
+</figure><figure class="screen-card screen-card--gallery">
+  <div class="gallery-frame"><div class="snackbar body-medium">Office location saved at 24.885400, 91.885777</div></div>
+  <figcaption><b>Snackbar: office location saved</b><p class="evidence">Source-derived - no deterministic preview exists for any Snackbar</p></figcaption>
+</figure>
+  </div>
+</section></body>
+</html>

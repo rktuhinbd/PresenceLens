@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PresenceLens Attendance - Attendance marked - post-implementation UI reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="screens.css">
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var theme = params.get('theme');
+  if (theme === 'light' || theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  if (params.get('bare') === '1') {
+    document.documentElement.classList.add('bare');
+  }
+  if (params.get('tall') === '1') {
+    document.documentElement.classList.add('tall');
+  }
+})();
+</script>
+</head>
+<body class="standalone">
+<p class="breadcrumb"><a href="index.html">&larr; Android UI reference index</a></p><div class="theme-toggle">
+  <a href="?theme=dark">dark</a> &middot; <a href="?theme=light">light</a>
+  <span class="theme-toggle__default">(default: dark)</span>
+</div><div class="stage stage--standalone">
+<figure class="screen-card">
+  <div class="phone">
+  <div class="system-inset system-inset--top"></div>
+  <div class="app-content"><div class="topbar">
+  <button type="button" class="icon-button" aria-label="Navigate back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19,12L5,12M11,18L5,12L11,6" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+  <span class="title-large">Attendance</span>
+  <button type="button" class="icon-button" aria-label="How attendance works"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M9.2,9.4A2.9,2.9 0 0 1 14.9,10C14.9,12 12,13 12,13.8M12,17.1L12.01,17.1" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></button>
+</div>
+<div class="content">
+  <div class="status-banner"
+     style="background:var(--success-container);color:var(--on-success-container)">
+  <div class="status-banner__badge" style="background:color-mix(in srgb, currentColor 12%, transparent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M7.8,12.2L10.8,15.2L16.2,9.2" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+  <div class="status-banner__text">
+    <p class="status-banner__title title-medium">Attendance marked</p>
+    <p class="status-banner__body body-medium" style="color:color-mix(in srgb, currentColor 82%, transparent)">Your location was verified at 1:46 AM.</p>
+
+  </div>
+</div>
+
+  <div class="section-gap"><div class="office-card">
+  <div class="office-card__header">
+    <span class="overline" style="color:var(--on-surface-variant)">STEP 1: OFFICE CONTEXT</span>
+    <span class="status-dot" style="background:var(--success)"></span>
+    <span class="label-medium" style="color:var(--on-surface-variant)">Saved</span>
+  </div>
+  <div class="location-surface" style="width:293.7143px;height:190px">
+  <svg class="location-surface__plan" width="293.7143" height="190" viewBox="0 0 293.7143 190" aria-hidden="true"><defs>
+    <radialGradient id="wash" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--outline-variant);stop-opacity:0.22"/>
+      <stop offset="1" style="stop-color:var(--outline-variant);stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="boundary-fill" cx="50%" cy="50%" r="50%">
+      <stop offset="0" style="stop-color:var(--success);stop-opacity:0.04"/>
+      <stop offset="1" style="stop-color:var(--success);stop-opacity:0.18"/>
+    </radialGradient>
+  </defs><circle cx="146.85714285714286" cy="95.0" r="91.91" style="fill:url(#wash)"/><circle cx="146.85714285714286" cy="95.0" r="16.34" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.34"/><circle cx="146.85714285714286" cy="95.0" r="52.29" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="73.53" style="fill:none;stroke:var(--outline-variant);stroke-width:1;opacity:0.18"/><line x1="146.85714285714286" y1="21.47" x2="146.85714285714286" y2="168.53" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><line x1="73.33" y1="95.0" x2="220.39" y2="95.0" style="stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:3,5;opacity:0.26"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:url(#boundary-fill)"/><circle cx="146.85714285714286" cy="95.0" r="32.68" style="fill:none;stroke:var(--success);stroke-width:2.5;stroke-dasharray:11,7;opacity:0.9"/><line x1="146.85714285714286" y1="95.0" x2="152.27" y2="74.80" style="stroke:var(--on-surface-variant);stroke-width:1.5;stroke-dasharray:4,5;opacity:0.45"/><circle cx="152.27" cy="74.80" r="13" style="fill:var(--success);opacity:0.10"/>
+    <circle cx="152.27" cy="74.80" r="8.5" style="fill:var(--surface-container-lowest)"/>
+    <circle cx="152.27" cy="74.80" r="5.5" style="fill:var(--success)"/><circle cx="146.85714285714286" cy="95.0" r="16" style="fill:var(--tertiary);opacity:0.14"/><circle cx="146.85714285714286" cy="95.0" r="10" style="fill:var(--surface-container-lowest)"/><circle cx="146.85714285714286" cy="95.0" r="6.5" style="fill:var(--tertiary)"/><circle cx="146.85714285714286" cy="95.0" r="2.4" style="fill:var(--surface-container-lowest)"/></svg>
+  <div class="surface-legend"><div class="surface-legend__entry"><span class="dot" style="background:var(--tertiary)"></span><span class="label-medium">Office</span></div><div class="surface-legend__entry"><span class="dot" style="background:var(--success)"></span><span class="label-medium">You</span></div></div>
+  <div class="surface-pill surface-pill--radius overline">50 M RADIUS</div>
+  <div class="surface-pill surface-pill--coord">
+    <span class="dot" style="background:var(--primary)"></span>
+    <div><div class="overline">Office</div><div class="label-large">Lat: 23.780636, Lon: 90.279372</div></div>
+  </div>
+</div>
+  <div class="office-face">
+      <p class="title-small">Saved office location</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Captured Aug 24, 2025, 1:46 AM</p>
+      <button type="button" class="text-button label-large" >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4,8L17,8M14,5L17,8L14,11M20,16L7,16M10,13L7,16L10,19" style="stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg><span>Change office location</span>
+      </button>
+
+    </div>
+</div></div>
+  <div class="section-gap"><div class="proximity-card">
+  <div class="gauge">
+  <svg width="136" height="136" viewBox="0 0 136 136" aria-hidden="true">
+    <circle cx="68.0" cy="68.0" r="63.0" style="fill:none;stroke:var(--surface-container-highest);stroke-width:10;stroke-linecap:round"/>
+    <path d="M 68.000 5.000 A 63.000 63.000 0 1 1 19.458 108.158" style="fill:none;stroke:var(--success);stroke-width:10;stroke-linecap:round"/>
+  </svg>
+  <div class="gauge__readout">
+    <span class="gauge__value display-small">32</span><span class="gauge__unit title-medium">m</span>
+  </div>
+  <div class="gauge__caption overline">AWAY</div>
+</div>
+  <div class="proximity-readout">
+      <div class="range-chip" style="background:var(--success-container);color:var(--on-success-container)"><span class="dot" style="background:var(--on-success-container)"></span><span class="overline">IN RANGE</span></div>
+      <p class="title-medium" style="text-align:center">You’re 32 m from the office.</p>
+      <p class="body-medium" style="text-align:center;color:var(--on-surface-variant)">You’re within the attendance area.</p>
+    </div>
+</div></div>
+  <div class="section-gap"><div class="action-panel action-panel--completed">
+  <div class="confirmation-row">
+    <div class="confirmation-badge"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3,12A9,9 0 1 0 21,12A9,9 0 1 0 3,12M7.8,12.2L10.8,15.2L16.2,9.2" style="stroke:var(--on-success-container);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg></div>
+    <div class="confirmation-text">
+      <p class="title-small">Attendance marked</p>
+      <p class="body-small" style="color:var(--on-surface-variant)">Location verified · 32 m from office</p>
+    </div>
+    <p class="label-large">1:46 AM</p>
+  </div>
+  <div class="divider"></div>
+  <div class="office-hours">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5,12A8.5,8.5 0 1 0 20.5,12A8.5,8.5 0 1 0 3.5,12M12,7.2L12,12.2L15.4,14" style="stroke:var(--on-surface-variant);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></svg>
+  <span class="label-medium" style="color:var(--on-surface-variant)">Office hours</span>
+  <span class="label-medium" style="color:var(--on-surface)">09:00 AM – 5:00 PM</span>
+</div>
+</div></div>
+</div></div>
+  <div class="system-inset system-inset--bottom"></div>
+</div>
+  <figcaption>
+    <b>Attendance marked</b>
+    <p class="evidence">Deterministic Compose preview: “Attendance marked”</p>
+    <p class="precondition">office set, proximity.isEligible = true, isAttendanceConfirmed = true (the action panel is replaced by a receipt; ADR-016)</p>
+    <p class="notes">Primary state for this page.</p>
+  </figcaption>
+</figure>
+</div>
+<section class="page-notes">
+  <h2>Source kinds covered</h2>
+  <ul class="kind-list"><li><code>ATTENDANCE_MARKED</code></li></ul>
+</section></body>
+</html>

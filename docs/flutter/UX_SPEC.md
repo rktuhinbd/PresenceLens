@@ -3,20 +3,14 @@
 **What this document is for:** it fixes the design tokens, screen hierarchy,
 interaction behaviour, motion and accessibility rules that the production UI will
 be built to, so that implementation is transcription rather than invention — and
-so the static prototypes in [design/](design/) can be judged against a written
+so the static HTML references in [design/](design/) can be judged against a written
 intent.
 
 Covers `FLT-UX-001` … `FLT-UX-013`, and the presentation half of `FLT-CAM-*` and
 `FLT-BAT-*`.
 
-> **VISUAL DIRECTION APPROVED — 2026-08-29.** This specification and the
-> prototypes in `design/` were reviewed and approved, and the decisions they
-> record are now **frozen as the production design direction**. They should not
-> be redesigned during implementation without an evidenced device or usability
-> problem.
->
-> No production `CameraPreviewScreen` or Upload Manager widget exists yet; this
-> document is what they will be built to.
+> **POST-IMPLEMENTATION UI REFERENCE**
+> The design references in `design/` are implementation-faithful UI references at the documented release-evidence viewport, derived from the shipped application source and validated against available v1.0.0 runtime screenshots. Browser and Flutter use different rendering engines, so minor font rasterization and platform-chrome differences are not claimed to be pixel-identical.
 
 ---
 
@@ -52,10 +46,20 @@ Derived by `ColorScheme.fromSeed`. One seed, both brightnesses.
 | Token | Value | Role |
 | --- | --- | --- |
 | `seed` | `#00A884` | Shared with the attendance app. Signal green: presence, confirmation. |
-| `primary` | from seed | Primary actions, active states |
-| `surface` / `surfaceContainer*` | from seed | Cards, sheets, list rows |
-| `error` | M3 default | Permanent failure only |
-| `outlineVariant` | from seed | Row dividers, inactive borders |
+| `primary` | `#88D6BA` | Primary actions, active states |
+| `primaryContainer` | `#00513E` | Container for primary |
+| `onPrimaryContainer` | `#A4F2D5` | Text on primary container |
+| `surface` | `#0F1512` | Cards, sheets, list rows |
+| `surfaceContainerLow` | `#171D1A` | Lowest surface container |
+| `surfaceContainer` | `#1B211E` | Middle surface container |
+| `surfaceContainerHighest` | `#303633` | Highest surface container |
+| `onSurface` | `#DEE4DF` | General text |
+| `onSurfaceVariant` | `#BFC9C3` | Secondary text |
+| `outline` | `#89938E` | Active borders |
+| `outlineVariant` | `#3F4944` | Row dividers, inactive borders |
+| `secondary` | `#B2CCC1` | Secondary accents |
+| `tertiary` | `#A7CCE1` | Tertiary states |
+| `error` | `#FFB4AB` | Permanent failure only |
 
 Semantic roles for sync state — mapped to scheme roles, never raw hex, and each
 one paired with an icon so state never depends on colour alone (`FLT-UX-005`):
@@ -87,19 +91,13 @@ the preview.
 | `camera.shutterCore` | `#FFFFFF` | Shutter fill |
 | `camera.accent` | `#00E5A8` | Focus reticle, batch count badge — the seed lifted for dark |
 | `camera.warning` | `#FFB74D` | Offline hint |
+| `camera.panel` | `#101416` | Panel background |
+| `camera.onAccent` | `#06231B` | Text on accent elements |
 
 Scrims are gradients, not flat fills: a flat panel over a viewfinder reads as an
 obstruction, a gradient reads as the image continuing underneath. They are
 deliberately strong at the edges — the bottom scrim reaches 88% black — because
 every control sits over a subject that may be a bright document in daylight.
-
-**Changed after prototyping.** The active zoom preset was originally specified as
-white text on a 22%-white fill. Rendering it over a bright document
-([03-camera-active-batch](design/03-camera-active-batch.html)) showed it failing
-contrast badly — white on translucent white over a light subject is close to
-invisible. The active state is now the accent colour on a *darker* pill, which
-also gives the accent one consistent meaning across the screen: this is the
-current value. This is the kind of defect the prototype gate exists to catch.
 
 ### 2.3 Typography
 
@@ -127,7 +125,7 @@ a large accessibility setting cannot push the preset row over the preview.
 | List rows | 12 |
 | Zoom preset pill | full (circular) |
 | Buttons | full (M3 default) |
-| Focus reticle | full |
+| Focus reticle | full (72 dp diameter, 6 dp dot, pending stroke 2.4, settled stroke 1.6) |
 | Thumbnail | 8 |
 
 Elevation is M3 tonal, not shadow-heavy: level 0 for the page, level 1 for cards,
@@ -162,7 +160,23 @@ buzz on every preview tap becomes irritating quickly.
 
 ---
 
-## 3. `CameraPreviewScreen` hierarchy
+## 3. Reference Families
+
+The design reference consists of nine HTML pages grouped logically into families:
+
+1. **`01-camera-ready.html`** (Runtime-backed): Empty batch, 1x active, pending count 0.
+2. **`02-camera-focus-zoom.html`** (Runtime-backed): Transient continuous zoom approx 2.4049x, 2x preset highlighted. The 2x preset remains visually active because production chooses the greatest preset <= current zoom.
+3. **`03-camera-active-batch.html`** (Runtime-backed): Batch count 3, "Finish batch (3)" action visible.
+4. **`04-upload-manager-pending.html`** (Source-derived): Connected, uploading automatically, pending items.
+5. **`05-upload-manager-retrying.html`** (Mixed): The primary phone is **Runtime-backed** (OFFLINE / Waiting for connection). Separate isolated rows demonstrate other `QueueItemTone` mappings (Source-derived).
+6. **`06-upload-manager-empty.html`** (Source-derived): `state.isEmpty == true`.
+7. **`07-camera-permission-error.html`** (Source-derived): Exhaustive permission permutations.
+8. **`08-upload-manager-success.html`** (Runtime-backed): `state.isEmpty == false`, but `hasPendingWork == false`. Completion hold showing synced state.
+9. **`09-camera-status.html`** (Source-derived): `CameraStatusPanel` states (Busy, Unavailable, Failed).
+
+---
+
+## 4. `CameraPreviewScreen` hierarchy
 
 ```
 ┌─────────────────────────────────────────┐
@@ -191,18 +205,18 @@ Region by region:
 
 | Region | Contents | Rules |
 | --- | --- | --- |
-| **Top bar** | Offline chip; Pending Uploads entry with count. **No close control** — see §3.1. | Over a scrim, not a solid bar. The offline chip appears only when there is something queued *and* no link — otherwise it is noise. |
+| **Top bar** | Offline chip; Pending Uploads entry with count. **No close control** — see §4.1. | Over a scrim, not a solid bar. The offline chip appears only when there is something queued *and* no link — otherwise it is noise. |
 | **Viewport** | Full-bleed `CameraPreview` | The entire area is the tap-to-focus and pinch target. No control sits in the optical centre. |
 | **Focus reticle** | Ring at the tap point | §7. Never clipped: near an edge it stays fully on-screen by nudging inward. |
 | **Zoom slider** | Vertical, right edge, ~40% of height | Right-edge vertical is the one-handed-reachable position for a thumb; a horizontal slider at the bottom would collide with the shutter. Labelled with min/max. |
-| **Preset row** | Circular pills above the bottom scrim | Derived from device capability (`CAMERA_ENGINE.md` §4). Hidden entirely if the device reports no usable zoom range — an inert `1x` pill is worse than nothing. |
+| **Preset row** | Circular pills above the bottom scrim | Derived from device capability (`ARCHITECTURE.md` §4). Hidden entirely if the device reports no usable zoom range — an inert `1x` pill is worse than nothing. |
 | **Bottom bar** | Thumbnail + count · shutter · camera switch | Shutter centred, 72 dp, unmissable. Switch appears only when more than one camera exists. |
-| **Batch action** | "Finish batch (n)", with a completion mark, not a send glyph | **Contextual** — absent at count 0. A permanently visible disabled button is clutter. Wording per §3.2. |
+| **Batch action** | "Finish batch (n)", with a completion mark, not a send glyph | **Contextual** — absent at count 0. A permanently visible disabled button is clutter. Wording per §4.2. |
 
 **One-handed ergonomics.** Shutter centred and low; zoom slider on the right edge
 within thumb arc; navigational controls at the top, out of accidental reach.
 
-### 3.1 Navigation semantics — why there is no close control
+### 4.1 Navigation semantics — why there is no close control
 
 The camera route has **no X, no back arrow, and no exit affordance.**
 
@@ -226,7 +240,7 @@ CameraPreviewScreen  ──"Uploads ›"──▶  UploadManagerScreen
 ```
 
 The back affordance belongs to the Upload Manager, where it means exactly one
-thing and nothing is at risk. That screen already has it (§4).
+thing and nothing is at risk. That screen already has it (§5).
 
 **Invariant — the draft batch is never silently discarded.**
 
@@ -241,16 +255,16 @@ There is deliberately no gesture, control, or navigation path that destroys an
 open batch as a side effect. Discarding a batch, if it is ever offered, must be
 an explicit and separately confirmed action — it is not in scope for this
 submission. Verified by `FLT-BAT-004` and the process-death rows of
-[DATA_MODEL.md](DATA_MODEL.md) §5.
+[ARCHITECTURE.md](ARCHITECTURE.md) §5.
 
-### 3.2 Batch action language — "Finish", not "Upload"
+### 4.2 Batch action language — "Finish", not "Upload"
 
 The primary batch control reads **"Finish batch (n)"** with a completion mark.
 
 Pressing it is a **purely local, durable act**: it closes the open batch, moves
 its images to `PENDING` in one transaction, and asks the OS to schedule a drain.
 No network operation occurs, and none is guaranteed to occur soon afterwards —
-WorkManager decides when the worker runs (`SYNC_ENGINE.md` §9).
+WorkManager decides when the worker runs (`ARCHITECTURE.md` §9).
 
 "Upload batch" promised the wrong thing twice over. It implied the press performs
 a transfer, and it made the offline case read as a contradiction: a screen
@@ -265,28 +279,42 @@ completely normal and is exactly what the resilient queue exists to support.
 | Implies | A network transfer starts now | Capture is complete and safely handed over |
 | Offline | Reads as contradictory | Reads as normal |
 
-The same reasoning governs the status copy in §4: the app says what is *true of
+The same reasoning governs the status copy in §5: the app says what is *true of
 the data* ("captures are safe") before it says anything about the network.
 
-### Camera screen states
+### 4.3 `CameraStatusPanel` (07, 09)
 
-| State | Screen |
-| --- | --- |
-| Ready, empty batch | Preview + controls; no batch action, no thumbnail |
-| Ready, active batch | Thumbnail with count badge; "Finish batch (n)" visible |
-| Focusing | Reticle at tap point |
-| Zooming | Slider thumb tracks; active preset highlights |
-| Capturing | Brief frame flash; shutter compresses; controls stay live |
-| Permission denied | Preview replaced by an explanatory panel + action |
-| No camera | Explanatory panel; Pending Uploads still reachable |
-| Initialisation failed | Explanatory panel + "Try again" |
+When the camera is not ready, `CameraStatusPanel` covers the preview area but leaves the Top bar available.
 
-The last three matter: the user must still reach their queued uploads when the
-camera is unavailable. **The queue is never trapped behind a broken camera.**
+**Busy mappings:**
+- `CameraInitial` / `CameraReleased` / `CameraPreparing(restoring)` -> Reopening the camera / One moment.
+- `CameraPreparing(discovering)` -> Finding your cameras / One moment.
+- `CameraPreparing(initializing)` -> Starting the camera / One moment.
+- `CameraPreparing(switching)` -> Switching camera / One moment.
+
+**Unavailable mappings:**
+- `noBackCamera` -> No rear camera / This device has no rear-facing camera, so captures are not possible here.
+- `noCameras` -> No camera found / This device did not report a usable camera.
+
+**Failed mappings:**
+- `cameraUnavailable` -> Camera isn't available / Another app may be using the camera. Try again.
+- `other` -> Camera didn't start / Another app may be using the camera. Try again.
+
+### 4.4 Permission Semantics (07)
+
+Permission denial shows the following branches:
+- **Variant A** (canRetry true, consecutiveDenials < 2): Camera access is off / PresenceLens needs the camera to take photos. (Actions: Allow camera)
+- **Variant B** (canRetry true, consecutiveDenials >= 2): Camera access is off / PresenceLens needs the camera to take photos. (Actions: Allow camera, Open settings). Note: Repeated Android refusal broadens recovery actions; it is not a permanent OS denial verdict.
+- **Variant C** (canRetry false): Camera access is off / PresenceLens needs the camera to take photos. You can turn access back on in Settings. (Actions: Open settings).
+
+**Queued Reassurance**:
+- pendingCount == 0: absent (returns null)
+- pendingCount == 1: "Your 1 queued photo is safe"
+- pendingCount > 1: "Your N queued photos are safe"
 
 ---
 
-## 4. Upload Manager (Pending Uploads)
+## 5. Upload Manager (Pending Uploads)
 
 ```
 ┌─────────────────────────────────────────┐
@@ -318,15 +346,15 @@ camera is unavailable. **The queue is never trapped behind a broken camera.**
 
 | Element | Rule |
 | --- | --- |
-| Connectivity chip | Hint wording. Never "STABLE LINK" as a guarantee — the app cannot know (`FR-05`, `FLT-UX-010`). Exact strings in §4.1. |
+| Connectivity chip | Hint wording. Never "STABLE LINK" as a guarantee — the app cannot know (`FR-05`, `FLT-UX-010`). Exact strings in §5.1. |
 | Batch header | Relative time + `n of m` uploaded. Progress is **count-based**, honest; no fabricated byte percentage. |
 | Density | Professional, not decorative. Filenames at `bodyMedium`, status at `bodySmall`, ~16 dp row padding, and a **noticeably larger gap between batches than between rows** — the grouping is carried by whitespace, not by borders or nested cards. Rows must stay compact enough that several are visible at once; this is a work queue, not a feed. |
 | Item row | Thumbnail, name, state with icon + words (`FLT-UX-005`, `FLT-UX-011`). |
-| Attempt count | Shown only while retrying. No `/5` denominator unless a cap exists (`SYNC_ENGINE.md` §5). |
+| Attempt count | Shown only while retrying. No `/5` denominator unless a cap exists (`ARCHITECTURE.md` §5). |
 | Reassurance line | Persistent while anything is pending. This is the single most important sentence on the screen (`FLT-UX-007`). |
 | Manual retry | Overflow only, labelled "Try now". An accelerator, never the mechanism (`FLT-SYNC-014`). |
 
-### 4.1 Status copy — what the app is allowed to claim
+### 5.1 Status copy — what the app is allowed to claim
 
 Three things must come across, in this order of priority: **captures are safe**,
 **syncing is automatic**, **you do not have to do anything**. The network is the
@@ -346,7 +374,7 @@ Camera chip stays compact — just **"Offline"**. There is no room for a sentenc
 over a viewfinder, and the camera screen is not where the queue is explained.
 
 **What the copy must not claim.** WorkManager scheduling is OS-controlled and can
-be deferred by Doze, App Standby and OEM battery managers (`SYNC_ENGINE.md` §9).
+be deferred by Doze, App Standby and OEM battery managers (`ARCHITECTURE.md` §9).
 So the wording promises *automatic*, never *immediate* or *continuous*:
 
 | Never write | Why | Write |
@@ -361,21 +389,26 @@ So the wording promises *automatic*, never *immediate* or *continuous*:
 is true and is `FLT-SYNC-004`, without promising a schedule the app does not
 control.
 
-### Empty state (`FLT-UX-006`)
+### 5.2 Empty state (06)
 
-Not an error. Centred icon, "Everything's uploaded", one line — "Photos you
-capture will appear here until they're safely uploaded." — and a primary
-"Open camera" action.
+`state.isEmpty` is independent from `hasPendingWork`.
+For 06:
+- `state.isEmpty == true`
+- `hasPendingWork == false`
+- Renders `UploadsEmptyView`.
+Icon, "Everything's uploaded", "Photos you capture will appear here until they're safely uploaded.", and "Open camera" primary action.
 
-### Completion
+### 5.3 Completion hold (08)
 
-A batch reaching `COMPLETED` does not vanish mid-glance. It shows "Synced" for
-~2 s, then collapses out with `standard` motion — so the user sees the success
-rather than an item disappearing.
+For 08:
+- `state.isEmpty == false`
+- `hasPendingWork == false`
+- Renders a completion-hold `QueueList`.
+Completed batch remains held in state. 100% determinate progress, N of N, "Synced", no reassurance line, no overflow retry.
 
 ---
 
-## 5. Tone of voice
+## 6. Tone of voice
 
 | Instead of | Write |
 | --- | --- |
@@ -384,7 +417,7 @@ rather than an item disappearing.
 | "No connection · we'll retry automatically" | "Offline · captures are safe" |
 | "Error 500" | "Couldn't upload — we'll retry" |
 | "0 items" | "Everything's uploaded" |
-| "Permission denied" | "PresenceLens needs camera access to take photos" |
+| "Permission denied" | "PresenceLens needs the camera to take photos" |
 | "STABLE LINK" | "Connected · uploading automatically" |
 
 The user's mental question is *"did I lose my photos?"* Every string on the
@@ -392,7 +425,7 @@ Upload Manager answers "no".
 
 ---
 
-## 6. Accessibility (`FLT-UX-002` … `FLT-UX-005`, `FLT-UX-013`)
+## 7. Accessibility (`FLT-UX-002` … `FLT-UX-005`, `FLT-UX-013`)
 
 | Requirement | Implementation |
 | --- | --- |
@@ -407,15 +440,15 @@ Upload Manager answers "no".
 | Colour independence | Every state has an icon and a word (§2.1). |
 | Gesture alternatives | Zoom is fully operable by slider and presets without pinch (`FLT-UX-013`). Focus has no non-gesture equivalent — noted honestly; the camera auto-focuses without user input. |
 | Text scaling | Supported; camera labels capped at 1.3×. |
-| Reduced motion | §7. |
+| Reduced motion | §8. |
 
 ---
 
-## 7. Motion (`FLT-UX-004`)
+## 8. Motion (`FLT-UX-004`)
 
 Motion must explain a state change. Nothing here is decorative.
 
-### 7.1 The signature interaction — focus → capture → batch
+### 8.1 The signature interaction — focus → capture → batch
 
 This is the one sequence worth getting exactly right. It is where the product's
 character lives, and it is the only motion in the app that is *composed* rather
@@ -501,7 +534,7 @@ only movement is removed. This is the rule the widget test in
 The user who has asked for reduced motion still learns: they aimed, it fired, the
 count went up, and the thumbnail changed. They just are not shown anything moving.
 
-### 7.2 All motion
+### 8.2 All motion
 
 | Interaction | Normal | Reduced motion |
 | --- | --- | --- |
@@ -521,7 +554,7 @@ queue that is stuck.
 
 ---
 
-## 8. Responsive and inset behaviour
+## 9. Responsive and inset behaviour
 
 | Condition | Behaviour |
 | --- | --- |
@@ -530,21 +563,3 @@ queue that is stuck.
 | Small screens (< 600 dp) | Preset row scrolls horizontally rather than shrinking below the 48 dp target. |
 | Large / tablet | Camera stays full-bleed with controls constrained to a max width so the shutter stays thumb-reachable; Upload Manager content caps at 640 dp. |
 | Landscape | Camera supports it: controls migrate to the trailing edge, shutter stays on the natural thumb side. Upload Manager is a standard scroll. |
-
----
-
-## 9. What the prototypes must let a reviewer judge
-
-The static artefacts in [design/](design/) exist to answer, before any production
-code is written:
-
-1. Is the camera chrome restrained enough that the preview is still the content?
-2. Does the absence of a close control read as confident, or as missing? (§3.1)
-3. Are the zoom controls reachable one-handed, and legible over a bright scene?
-4. Does the focus reticle read as feedback rather than decoration?
-5. Does "Finish batch" read as completing capture rather than starting a transfer? (§3.2)
-6. Is the batch affordance obvious without being permanently present?
-7. Does the Upload Manager make "your photos are safe" the dominant message?
-8. Is the Upload Manager scannable at a glance without feeling sparse? (§4)
-9. Are the five per-item states distinguishable without colour?
-10. Does the error state keep the queue reachable?

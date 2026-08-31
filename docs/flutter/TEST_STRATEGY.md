@@ -31,7 +31,7 @@ available — is the one this summary exists to close out: it is no longer
 deferred, and every headline it enumerated was executed and evidenced (full
 account: [PROJECT_STATE.md](../PROJECT_STATE.md), [AI_USAGE.md
 §F7](../AI_USAGE.md), and the per-check tables in
-[CAMERA_ENGINE.md](CAMERA_ENGINE.md) §9 and [SYNC_ENGINE.md](SYNC_ENGINE.md) §10).
+[ARCHITECTURE.md](ARCHITECTURE.md) §9 and [ARCHITECTURE.md](ARCHITECTURE.md) §10).
 
 **Historical planning language below this summary is preserved as written.** It
 was the pre-implementation risk-based strategy that shaped what got tested, and
@@ -213,7 +213,7 @@ file. Fourteen cases, and the claims they carry:
 | A successful foreground pass leaves nothing pending and the batch synced | `ADR-F25`'s foreground drain |
 | A completed batch collapses out after its hold | The screen ends in the empty *success* state |
 | A retryable failure keeps row, file and attempt count | `FLT-SYNC-003` end to end |
-| A cleanup failure never shows a synced item as pending again | Housekeeping is not delivery (`SYNC_ENGINE.md` §5) |
+| A cleanup failure never shows a synced item as pending again | Housekeeping is not delivery (`ARCHITECTURE.md` §5) |
 
 **None of these claims anything about Android's scheduler.** Every scheduling
 assertion is about what the app *asked* for.
@@ -225,8 +225,8 @@ assertion is about what the app *asked* for.
 **HISTORICAL PLANNING NOTE, superseded by §0 above.** This section was written
 when hardware was not yet available; it enumerated the headlines so the eventual
 session would be a checklist, not an exploration. That session happened at F7.
-Full per-check results: [CAMERA_ENGINE.md](CAMERA_ENGINE.md) §9 and
-[SYNC_ENGINE.md](SYNC_ENGINE.md) §10.
+Full per-check results: [ARCHITECTURE.md](ARCHITECTURE.md) §9 and
+[ARCHITECTURE.md](ARCHITECTURE.md) §10.
 
 Headlines, and their final disposition:
 
@@ -276,7 +276,7 @@ path is a genuine defect class here, not a style preference.
 No coverage percentage target. A percentage rewards testing trivial getters and
 says nothing about whether the claim query is atomic.
 
-The stated intent instead: **every row in `DATA_MODEL.md` §5 (invariants I1–I10)
+The stated intent instead: **every row in `ARCHITECTURE.md` §5 (invariants I1–I10)
 has at least one test that fails if the invariant is broken.** That is the
 checkable coverage claim for this project, and it is the one a reviewer can audit
 in a minute. **Discharged at F1** — the mapping is tabulated in §11.
@@ -362,7 +362,7 @@ it further would mean a second app-side scheduler, which is `RS-04`.
 
 ### Invariant coverage — the checkable claim from §10
 
-Every row of `DATA_MODEL.md` §5 has at least one test that fails if the invariant
+Every row of `ARCHITECTURE.md` §5 has at least one test that fails if the invariant
 is broken.
 
 | # | Invariant | Test |
@@ -381,7 +381,7 @@ is broken.
 ### What the contention test does and does not prove — stated precisely
 
 The claim tests open **genuinely independent SQLite connections to one database
-file** (`singleInstance: false`; see `DATA_MODEL.md` §7) and start two — and in
+file** (`singleInstance: false`; see `ARCHITECTURE.md` §7) and start two — and in
 one case eight — claims before awaiting any of them. Exactly one wins, every time,
 and the stored row is `UPLOADING` exactly once.
 
@@ -396,7 +396,7 @@ through a single background isolate, so the two statements are dispatched
 concurrently and executed one after another. The property under test — that the
 second `UPDATE` observes zero rows because its `WHERE` clause no longer matches —
 is exercised either way, and it is the property that matters. Genuine parallel
-execution across two Android isolates is a device check (`SYNC_ENGINE.md` §10,
+execution across two Android isolates is a device check (`ARCHITECTURE.md` §10,
 injection 3), and no claim about it is made from a host run.
 
 `busy_timeout = 5000` is set on every connection for the device case, where the

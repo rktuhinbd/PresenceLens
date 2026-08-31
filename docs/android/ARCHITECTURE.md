@@ -1,142 +1,71 @@
-# PresenceLens Attendance Architecture
+# Android Architecture
 
-**Verified baseline:** AGP 9.3.2, Gradle 9.5.0, Kotlin 2.2.10, Compose BOM
-2026.02.01, `compileSdk`/`targetSdk` 37, `minSdk` 24, namespace
-`io.github.rktuhinbd.presencelens.attendance`. Single `:app` module
-([ADR-004](../DECISIONS.md#adr-004)).
+This document details the architecture, state management, and domain rules for the Native Android Geo-Attendance application (Task 1).
 
-## Layers
+## 1. Architectural Boundaries
 
-**Layered MVVM with unidirectional data flow, an Android-free domain layer, repository
-abstractions, and selective use cases where orchestration justifies them**
-([ADR-017](../DECISIONS.md#adr-017)). Deliberately *not* described as strict Clean Architecture:
-there are no separate Gradle modules, no mapper layer between data and domain models, no
-entity/interactor split, and exactly one use case rather than one per operation. The label
-would be inaccurate about the code a reviewer can read.
+The application is structured into a single module (`:app`) following a deliberate constraint to minimize build complexity for reviewers (`ADR-004`). Architecture is enforced logically via packages rather than Gradle module boundaries:
 
-Packages inside `:app`, with dependencies pointing inward only:
+- **domain**: Pure Kotlin rules and models. Contains `AttendanceRule`, distance calculation, and business logic. It has zero Android dependencies.
+- **data**: Device and persistence access. Contains the `FusedLocationProviderClient` implementation and `DataStore` repositories.
+- **presentation**: Jetpack Compose UI and the `AttendanceViewModel`.
 
-```
-presentation ──▶ domain ◀── data
-     │                        │
-   Compose UI            device + storage
-   ViewModel             access
-```
+## 2. MVVM and UDF Flow
 
-`domain` depends on nothing. That is the property that makes AND-08 unit-testable
-with plain JUnit, and it is asserted by `DomainLayerPurityTest` rather than trusted.
+The application enforces strict unidirectional data flow (UDF) via the MVVM pattern. UI events flow downwards as function calls into the ViewModel, which holds the single source of truth. The ViewModel exposes a single immutable `StateFlow<AttendanceUiState>` back to the UI.
 
-### `domain` — pure, no Android imports
+## 3. AttendanceViewModel Responsibility
 
-| Element | Responsibility | Why it exists |
-| --- | --- | --- |
-| `OfficeLocation` | Saved office coordinates + capture time. | The persisted unit (AND-07). Accuracy is deliberately **not** stored ([ADR-015](../DECISIONS.md#adr-015)) — it has no later consumer. |
-| `DeviceLocation` | Current position + accuracy + monotonic timestamp. | Carries accuracy so quality can be judged (AMB-14). |
-| `AttendanceRule` | `(current, office, radius) -> ProximityResult` | **The mandated 50 m rule (AND-08), isolated.** Pure function, testable at the boundary. |
-| `ProximityResult` | Distance in metres + in-range flag + bearing. | Feeds both the gauge (AND-17) and the button gate (AND-08). |
-| `LocationFreshness` | How old a fix may be (10 s, monotonic clock). | The retention bound ([ADR-014](../DECISIONS.md#adr-014)). |
-| `LocationQuality` | Classifies a reported error radius against the attendance radius. | The trust bound ([ADR-015](../DECISIONS.md#adr-015)). Both thresholds derive from the 50 m constant. |
-| `LocationKnowledge` / `LocationReading` | Folds raw fixes into what the app knows, then reads that at an instant against age **and** accuracy. | The "may this position decide the rule?" state machine. Moved out of the ViewModel at G3.8 ([ADR-017](../DECISIONS.md#adr-017)). |
-| `SetOfficeLocationUseCase` | Acquire a fresh position → qualify it → persist → report which step decided. | The one action spanning two collaborators and a policy; the only use case in the app. Returns `SetOfficeLocationResult` and holds no UI copy. |
+`AttendanceViewModel` orchestrates domain and data components to derive the UI state. It holds the active location subscription and coordinates persistence reads/writes. The ViewModel maps raw data from repositories to presentation states, but it delegates all true business logic (e.g., is this location within 50 m?) to pure domain functions.
 
-The 50 m radius is a single named constant in `domain`. Nothing else may hard-code it, and the
-two accuracy thresholds are derived from it rather than written down again.
+## 4. Location Data Source & FusedLocationProvider
 
-**Distance remains the only eligibility rule.** `LocationQuality` decides whether a fix is a
-measurement the rule can be applied to; it never becomes a term in the rule. The app does not
-evaluate `distance + accuracy <= 50`.
+Location tracking relies exclusively on `FusedLocationProviderClient` rather than OS geofencing (`ADR-001`). The tracker operates entirely in the foreground via a `callbackFlow` tied to the UI lifecycle (active when resumed, stopped when backgrounded).
 
-### `data` — device and persistence access
+## 5. Office Anchor Persistence / DataStore
 
-| Element | Responsibility | Notes |
-| --- | --- | --- |
-| `LocationDataSource` | Wraps `FusedLocationProviderClient`. Streaming updates as a `callbackFlow`; a separate one-shot current-location call for "Set Office Location" (AND-06). | High-accuracy priority ([ADR-001](../DECISIONS.md#adr-001)). Cancellation must remove the callback. The stream waits for an accurate first fix; the one-shot capture refuses the cache entirely (`maxUpdateAge = 0`) at `GRANULARITY_FINE` over a 28 s window ([ADR-015](../DECISIONS.md#adr-015)). |
-| `OfficeLocationRepository` | Reads/writes office coordinates as a `Flow`. | DataStore Preferences ([ADR-002](../DECISIONS.md#adr-002)). |
-| `LocationServiceMonitor` | Reports whether location services are enabled. | Required for the services-off state (GEN-04). |
+The single office anchor coordinate pair (latitude/longitude) is persisted using Jetpack DataStore (Preferences). Room was explicitly rejected to avoid unnecessary abstraction overhead for a single record (`ADR-002`).
 
-Each is an interface in `domain` with its implementation in `data`, so the ViewModel
-is testable with fakes.
+## 6. Office Anchor Cache Policy
 
-**State explicit confirmations:**
-- The **office anchor is persisted** via DataStore.
-- The **attendance mark is session state** (transient attendance mark semantics).
-- There is **no persisted attendance-history database**.
-- There is **no mock-location spoof detection**.
+The repository uses strict no-cache semantics. The anchor is read directly from the DataStore Flow to ensure the UI immediately reflects changes (e.g., if overwritten), guaranteeing durability over fast-but-stale memory caches.
 
-### `presentation` — Compose + ViewModel
+## 7. Freshness Model
 
-`AttendanceViewModel` combines four inputs — permission status, the OS location toggle,
-the device location `Flow`, and the office location `Flow` — into **one**
-`StateFlow<AttendanceUiState>` ([ADR-006](../DECISIONS.md#adr-006)). It consumes the domain's
-`LocationReading` rather than re-deriving it, and delegates the office capture to
-`SetOfficeLocationUseCase`, mapping its results to user-facing messages.
+A location fix older than 10 seconds is considered stale (`ADR-014`). This exact threshold allows the app to tolerate up to five consecutive missed updates (at a 2-second interval) before displaying an "Acquiring location..." state, ensuring that stationary devices do not falsely report failures due to minor sensor sleep.
 
-A provider fault does not end tracking: the stream retries on a capped backoff
-(1 s → 2 s → 5 s) for as long as the screen is subscribed ([ADR-015](../DECISIONS.md#adr-015)).
+## 8. Accuracy & LocationQuality Model
 
-`AttendanceStatus` models the screen's conditions as a **sealed hierarchy**, not as
-independent booleans, so contradictory states cannot be represented:
+Fixes are strictly gated by their error radius:
+- **PRECISE (<= 25 m)**: Trusted for eligibility.
+- **DEGRADED (> 25 m and <= 50 m)**: Treated as caution, not refusal. The user sees a warning banner, but eligibility is still evaluated.
+- **UNUSABLE (> 50 m)**: Too coarse to make a 50m boundary decision. Mark attendance is blocked.
+- **UNKNOWN**: Missing, invalid, or nonpositive accuracies. Treated as unusable.
 
-```
-AttendanceStatus
-├── PermissionRequired          (not yet granted / permanently denied)
-├── PreciseLocationRequired     (approximate-only grant)
-├── LocationServicesDisabled
-├── AcquiringFix                (no usable fix yet)
-├── RefreshingFix               (a fix, but older than the freshness bound)
-├── ImprovingAccuracy           (a current fix, but wider than the radius, or unqualified)
-├── LocationUnavailable(cause)  (a real inability)
-├── OfficeNotSet                (fix available, no saved office)
-└── Tracking(proximity)
-```
+## 9. Haversine & 50m Eligibility
 
-`Tracking` is the only state in which the 50 m rule is meaningful, which is precisely
-why the others are separate: it becomes structurally impossible to render "120m away"
-while holding no location fix — or while holding one the app has refused to trust.
+The attendance rule is a strict 50 m radius evaluation. The pure-Kotlin `DistanceCalculator` uses the Haversine formula with an Earth radius of exactly **6,371,000 m**, producing deterministic, mathematically provable distances independent of platform APIs.
 
-Two derived values are deliberately independent of each other:
-`canMarkAttendance` is **live** (distance, now), and `isAttendanceConfirmed` is an
-**event** that stands for the session once a mark happens
-([ADR-016](../DECISIONS.md#adr-016)). `canSetOfficeLocation` depends only on the permission
-grant, the OS toggle, and whether a capture is already running — never on the live stream,
-because the capture issues its own request.
+## 10. Provider Failure and Retry/Backoff
 
-`AttendanceScreen` (AND-03) is a single composable hosting both the setup card and the
-attendance action (AND-04), rendering the p2 reference layout (AND-13 to AND-21).
-It is lightweight, manual composition, stateless with respect to business logic — it reads state and emits events.
+If the location provider encounters an error or drops the connection, the data layer automatically attempts to reconnect using a capped exponential backoff for the duration of the UI subscription.
 
-## Visual direction
+## 11. Presentation State Derivation
 
-Governed by [ADR-012](../DECISIONS.md#adr-012): **reference-layout fidelity with premium
-native Material 3 execution.** The reference screenshot's information architecture,
-ordering, controls, and overall composition are preserved exactly; the execution
-quality above that line is deliberately elevated — typographic hierarchy, spacing
-rhythm, shape system, tonal surfaces, meaningful status colour, complete button
-states, and subtle purposeful motion. Stable Material 3 / Compose only; no alpha or
-preview design libraries. Native Android semantics, accessibility, and touch targets
-take precedence over any stylistic influence.
+The `AttendanceStatusPresenter` classifies the raw state into one of 14 mutually exclusive UI presentations (`AttendanceStatusKind`). These include `PERMISSION_REQUIRED`, `ACQUIRING_FIX`, `OUT_OF_RANGE`, `READY_TO_MARK`, etc.
+Other UI elements are simply modifiers:
+- `isCapturingOfficeLocation` modifies the state to show the setup flow.
+- `DegradedAccuracyNotice` modifies the state to show a warning.
 
-This is a **presentation-layer standard with no behavioural authority.** It cannot
-alter AND-08, and it does not license the availability caption to gate anything
-([ADR-011](../DECISIONS.md#adr-011)).
+## 12. Attendance Receipt & Marked Precedence
 
-## Location surface
+An AttendanceMessage.AttendanceMarked is a transient, one-shot message. Once marked, the session receipt explicitly records the time and the distance verified *at the exact moment of the mark*. This `markedAttendance` receipt outlives the live location eligibility—so walking out of range does not erase the success state.
 
-The map region is an original, dependency-free Compose surface — **not** the Google
-Maps SDK ([ADR-003](../DECISIONS.md#adr-003)). It keeps the reference panel's position
-and approximate visual weight, and conveys office context, a pin/status indicator, the
-50 m radius, and the user's position relative to it, alongside the coordinate pill.
+## 13. Dependency Wiring
 
-Because it draws only project-owned vectors, it carries no API key, no network
-dependency, and no third-party map tiles or Maps branding — so it renders in full on a
-clean clone, which is what keeps DOC-07 and SUB-01 intact. It must not present pan or
-zoom affordances it does not implement.
+Dependencies are wired manually via constructor injection. No Hilt, Dagger, or Koin is used (`ADR-009`), keeping the architecture clean and readable without annotation processing overhead.
 
-## Lifecycle and permissions
+## 14. Key Decisions & ADRs
 
-- Location collection is bound to the resumed lifecycle state; updates stop when the
-  screen is not visible ([ADR-001](../DECISIONS.md#adr-001) consequences).
-- Permission flow covers: not requested, granted, denied once, permanently denied
-  (with a settings route). Coarse-only grant is treated as insufficient for a 50 m
-  decision and surfaced as such — a coarse fix cannot honestly resolve a 50 m
-  boundary (AMB-14).
+- **Single Module**: Enforced via packages (`ADR-004`).
+- **Visual Direction (`ADR-012`)**: The app adheres to reference-layout fidelity with premium native Material 3 execution. It uses purely custom Compose canvas for the location radar, avoiding any Google Maps SDK dependencies.

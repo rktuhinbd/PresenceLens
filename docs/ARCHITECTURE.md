@@ -1,60 +1,77 @@
 # PresenceLens Architecture
 
-**What this document is for:** it provides a high-level, cross-application architectural summary of the two systems built for the PresenceLens assessment.
 
-## Architecture at a glance
 
-### Task 1: Native Android Geo-Attendance
-- **Language / UI:** Kotlin / Jetpack Compose
-- **State Management:** `StateFlow`
-- **Pattern:** Layered MVVM + Unidirectional Data Flow (UDF)
-- **Deep Dive:** [android/ARCHITECTURE.md](android/ARCHITECTURE.md)
+**What this document is for:** it provides a high-level, cross-application architectural summary of the two systems built for the PresenceLens assessment. Detailed implementation remains in the respective platform architecture files.
 
-### Task 2: Flutter Capture & Sync
-- **Language / UI:** Dart / Flutter
-- **State Management:** BLoC / Cubit
-- **Pattern:** `presentation` → `application/domain` ← `data/platform`
-- **Deep Dive:** [flutter/ARCHITECTURE.md](flutter/ARCHITECTURE.md)
 
-## Shared engineering principles
 
-1. **Strictly layered boundaries:** Both applications enforce a domain layer entirely free of UI or framework dependencies (verified by `DomainLayerPurityTest` in both codebases).
-2. **Explicit failure paths:** Both applications model failures as structured types (e.g. sealed states/events) rather than relying on silent catches or generic exceptions.
-3. **No mock-location spoof detection:** Out of scope for this assessment.
-4. **Offline-first resilience:** Both apps function smoothly under network and hardware constraints.
+## 1. Repository & Application Split
 
-## State management
 
-### Native
-- **`AttendanceViewModel`**: Uses `StateFlow` to combine location updates, office anchors, and permission statuses into a single, unified `AttendanceUiState` sealed hierarchy.
 
-### Flutter
-- **`CameraCubit`**: Manages the hardware camera lifecycle and session readiness.
-- **`BatchCubit`**: Accumulates captured images until the user triggers a finish.
-- **`SyncBloc`**: Handles background resilient upload queues.
+The PresenceLens repository is structured as a monorepo containing two fully independent applications, sharing no code or runtime dependencies. This satisfies the assessment requirement to build a native Android geo-attendance system and a Flutter capture/sync engine within one repository structure.
 
-## Persistence
 
-### Native
-- **`DataStore`**: Persists only the single office anchor coordinate. The attendance mark itself is transient session state.
 
-### Flutter
-- **App-owned files + SQLite**: High-resolution image files are stored in the app's isolated document directory, while their metadata and upload status are tracked in a robust local SQLite queue.
+- **Task 1: Native Android Geo-Attendance** (`android-attendance/`)
 
-## Failure handling
+- **Task 2: Flutter Capture & Sync** (`flutter_camera_sync/`)
 
-Both applications are built to gracefully handle denied permissions, disabled device services, missing fixes, or network drops, surfacing exact reasons to the user through specific UI states rather than generic errors.
 
-## Verification
 
-The systems were rigorously verified through automated test suites covering pure domain rules, state machines, and integrations.
+### Independent Build & Runtime Boundaries
 
-- **Native tests:** 158
-- **Flutter tests:** 521
-- **Combined total:** 679
+Each application has its own build system (Gradle for Android, Flutter toolchain for Dart/Flutter) and distinct runtime properties. They do not share assets, databases, or UI components.
 
-## Documentation map
 
-For detailed, application-specific architectural decisions, refer to the local documentation spaces:
-- **Native Android:** [docs/android/](android/)
-- **Flutter:** [docs/flutter/](flutter/)
+
+## 2. Shared Engineering Principles
+
+
+
+While implemented independently, both applications adhere to the following shared engineering principles:
+
+
+
+1. **State-Driven UI**: Both applications use a unidirectional data flow (UDF) approach where the UI is a pure reflection of an immutable state object emitted by a ViewModel (Android) or Cubit/Bloc (Flutter).
+
+2. **Offline-First Resilience**: Both apps function smoothly under network and hardware constraints. They are designed to degrade gracefully (e.g., degraded location accuracy, offline sync queues).
+
+3. **Strict Separation of Concerns**: Both codebases enforce a domain layer entirely free of UI or framework dependencies, making core business logic highly testable.
+
+4. **Explicit Failure Paths**: Failures are modeled as structured types (e.g. sealed states/events) rather than relying on silent catches or generic exceptions.
+
+
+
+## 3. Key Root-Level Architectural Decisions
+
+
+
+Several key decisions shape the overall repository approach (from the migration contract):
+
+
+
+- **Single Android Module (`ADR-004`)**: The native Android application is contained in a single `:app` module, enforcing architectural layering via packages (`domain`, `data`, `presentation`) rather than over-engineering with Gradle modules.
+
+- **Both Applications in a Single Repository (`ADR-007`)**: A shared repository simplifies reviewer context and satisfies documentation constraints, with distinct build paths for each task.
+
+- **Deterministic Mock API (`ADR-008`)**: The Flutter sync engine uses a deterministic mock API behind a real client seam, allowing exact reproduction of success, timeout, and failure scenarios during review.
+
+- **Manual Dependency Wiring (`ADR-009`)**: Dependencies are wired manually via constructor injection in small composition roots, avoiding heavyweight DI frameworks (Hilt/get_it) that obscure the review path.
+
+- **Release APK Signing Strategy (`ADR-010`)**: The release pipeline uses a local, project-specific keystore that is never committed, with graceful fallback to allow a clean clone to build unsigned binaries.
+
+
+
+## 4. Documentation Map
+
+
+
+For detailed, application-specific architectural decisions, refer to the platform documentation spaces:
+
+
+
+- **Native Android:** [docs/android/ARCHITECTURE.md](android/ARCHITECTURE.md)
+
+- **Flutter:** [docs/flutter/ARCHITECTURE.md](flutter/ARCHITECTURE.md)

@@ -1,34 +1,35 @@
-# Documentation Guide
+# PresenceLens — Documentation Guide
 
-## Current shared submission state
+Welcome to the **PresenceLens** repository, developed for the Intelligent Machines technical assessment. This repository contains two independent applications satisfying the assessment requirements:
 
-- [../README.md](../README.md)
-- [../SUBMISSION.md](../SUBMISSION.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [PROJECT_STATE.md](PROJECT_STATE.md)
-- [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md)
-- [SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md)
-- [AI_USAGE.md](AI_USAGE.md)
+1. **Native Android Attendance** (Task 1): A geo-fenced attendance system with an office anchor and 50m eligibility rule.
+2. **Flutter Capture & Sync** (Task 2): A resilient offline-first image capture engine with background synchronization.
 
-## Task 1 — PresenceLens Attendance
+## Reviewer Entry Points
 
-Primary:
-- [android/README.md](android/README.md)
+### 1. Native Android Application
+- **Start Here**: [docs/android/README.md](android/README.md)
+- **Architecture**: [docs/android/ARCHITECTURE.md](android/ARCHITECTURE.md)
+- **UX & Behavior**: [docs/android/UX_SPEC.md](android/UX_SPEC.md)
+- **Test Strategy**: [docs/android/TEST_STRATEGY.md](android/TEST_STRATEGY.md)
+- **Design Reference**: [docs/android/design/index.html](android/design/index.html) (or [README](android/design/README.md))
 
-## Task 2 — PresenceLens Capture
+### 2. Flutter Application
+- **Start Here**: [docs/flutter/README.md](flutter/README.md)
+- **Architecture**: [docs/flutter/ARCHITECTURE.md](flutter/ARCHITECTURE.md)
+- **UX & Behavior**: [docs/flutter/UX_SPEC.md](flutter/UX_SPEC.md)
+- **Test Strategy**: [docs/flutter/TEST_STRATEGY.md](flutter/TEST_STRATEGY.md)
+- **Design Reference**: [docs/flutter/design/index.html](flutter/design/index.html)
 
-Primary:
-- [flutter/README.md](flutter/README.md)
+## Cross-Project Documentation
 
-## Runtime evidence
+- **[Architecture](ARCHITECTURE.md)**: Shared engineering principles and cross-project boundaries.
+- **[Requirements Matrix](REQUIREMENTS_MATRIX.md)**: Exhaustive traceability of all assessment requirements to their implementation, tests, and runtime evidence.
+- **[Project State](PROJECT_STATE.md)**: Current submission status, release tags, QA boundaries, and known limitations.
+- **[AI Usage Disclosure](AI_USAGE.md)**: Transparency logs and AI collaboration records.
 
-- [assets/android/](assets/android/)
-- [assets/flutter/](assets/flutter/)
+## Runtime Evidence
 
-## Canonical engineering provenance
-
-- [DECISIONS.md](DECISIONS.md)
-- [RESEARCH.md](RESEARCH.md)
-- [EXECUTION_PLAN.md](EXECUTION_PLAN.md)
-
-Published canonical provenance paths remain stable intentionally. Current app-specific docs live in `docs/android` and `docs/flutter`.
+All device runtime evidence, screenshots, and verifications are stored stably at:
+- [docs/assets/android/](assets/android/)
+- [docs/assets/flutter/](assets/flutter/)

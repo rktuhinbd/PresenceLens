@@ -1,382 +1,98 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pending uploads - draining</title>
-<style>
-/* PresenceLens Capture - design tokens.
-   Generated artefact. The authority is docs/flutter/UX_SPEC.md section 2.
-
-   Two palettes live here on purpose:
-   - Application surfaces follow the Material 3 scheme and respond to
-     prefers-color-scheme (FLT-UX-008).
-   - Camera surfaces are FIXED DARK and deliberately ignore the system theme
-     (ADR-F07), because the content behind them is always a live image. */
-
-:root {
-  /* --- seed ------------------------------------------------------------ */
-  --seed: #00A884;
-
-  /* --- application surfaces, light ------------------------------------- */
-  --primary:            #006B58;
-  --on-primary:         #FFFFFF;
-  --primary-container:  #82F8D8;
-  --on-primary-container:#002019;
-  --tertiary:           #3F6375;
-  --on-tertiary:        #FFFFFF;
-  --error:              #BA1A1A;
-  --on-error:           #FFFFFF;
-  --error-container:    #FFDAD6;
-  --surface:            #F5FBF7;
-  --surface-container:  #E9EFEB;
-  --surface-container-high:#E3E9E5;
-  --on-surface:         #171D1B;
-  --on-surface-variant: #3F4945;
-  --outline-variant:    #BFC9C4;
-  --scrim-page:         rgba(0,0,0,.06);
-
-  /* --- camera surfaces, FIXED (never themed) --------------------------- */
-  --cam-control:        rgba(255,255,255,.92);
-  --cam-control-dim:    rgba(255,255,255,.62);
-  --cam-control-bg:     rgba(0,0,0,.45);
-  /* Active state is the ACCENT on a darker pill, not white-on-translucent-white.
-     The prototype showed the latter washing out over a bright document. */
-  --cam-control-active: #00E5A8;
-  --cam-control-active-bg: rgba(0,0,0,.62);
-  --cam-shutter:        #FFFFFF;
-  --cam-accent:         #00E5A8;
-  --cam-warning:        #FFB74D;
-
-  /* --- spacing (4dp grid) ---------------------------------------------- */
-  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px; --s12: 48px;
-
-  /* --- shape ------------------------------------------------------------ */
-  --r-card: 16px; --r-row: 12px; --r-thumb: 8px; --r-full: 999px;
-
-  /* --- type ------------------------------------------------------------- */
-  --font: "Inter", "Roboto", -apple-system, "Segoe UI", system-ui, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary:            #65DBBB;
-    --on-primary:         #00382C;
-    --primary-container:  #005140;
-    --on-primary-container:#82F8D8;
-    --tertiary:           #A7CBE0;
-    --on-tertiary:        #0B3446;
-    --error:              #FFB4AB;
-    --on-error:           #690005;
-    --error-container:    #93000A;
-    --surface:            #0E1513;
-    --surface-container:  #1A211F;
-    --surface-container-high:#242B29;
-    --on-surface:         #DDE4E0;
-    --on-surface-variant: #BFC9C4;
-    --outline-variant:    #3F4945;
-    --scrim-page:         rgba(0,0,0,.5);
-  }
-}
-
-/* PresenceLens Capture - prototype layout.
-   These styles exist to render STATIC review artefacts. They are not the
-   production implementation and are not ported to Flutter verbatim; the
-   production source of truth is docs/flutter/UX_SPEC.md. */
-
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  font-family: var(--font);
-  background: var(--surface);
-  color: var(--on-surface);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ---------- gallery chrome ---------- */
-.page-head { max-width: 1180px; margin: 0 auto; padding: 40px 24px 8px; }
-.page-head h1 { font-size: 26px; font-weight: 650; margin: 0 0 6px; letter-spacing: -.01em; }
-.page-head p  { margin: 0 0 4px; color: var(--on-surface-variant); font-size: 14.5px; line-height: 1.55; max-width: 68ch; }
-.gate {
-  display:inline-block; margin-top:14px; padding:8px 14px; border-radius: var(--r-full);
-  background: var(--primary-container); color: var(--on-primary-container);
-  font-size: 12.5px; font-weight: 650; letter-spacing: .02em;
-}
-
-.stage {
-  max-width: 1320px; margin: 0 auto; padding: 24px;
-  display: grid; gap: 44px 36px;
-  grid-template-columns: repeat(auto-fit, 390px);
-  justify-content: center;
-}
-body.standalone .stage { grid-template-columns: 390px; padding-top: 40px; }
-
-.screen-card { margin: 0; width: 390px; display: flex; flex-direction: column; gap: 14px; }
-.screen-card figcaption { font-size: 13px; line-height: 1.5; color: var(--on-surface-variant); }
-.screen-card figcaption b { display:block; color: var(--on-surface); font-size: 14px; font-weight: 650; margin-bottom: 3px; }
-.screen-card figcaption code {
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 11.5px;
-  background: var(--surface-container); padding: 1px 5px; border-radius: 5px;
-}
-
-/* ---------- phone frame ----------
-   Fixed 390x844 (a common Android logical viewport). Everything inside is
-   authored against that box: percentages for layout, em for type off a 16px
-   root. Fixed rather than fluid so the proportions a reviewer signs off on are
-   the proportions that were designed. */
-.phone {
-  position: relative; width: 390px; height: 844px; flex: none;
-  font-size: 16px; line-height: 1.35;
-  border-radius: 40px; overflow: hidden; background: #000;
-  box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 18px 40px -12px rgba(0,0,0,.34);
-}
-.phone > .layer { position: absolute; inset: 0; width: 100%; height: 100%; }
-
-/* ---------- camera ---------- */
-.cam-scrim-top {
-  position:absolute; left:0; right:0; top:0; height: 24%;
-  background: linear-gradient(to bottom, rgba(0,0,0,.72), rgba(0,0,0,.34) 48%, rgba(0,0,0,0));
-  pointer-events:none;
-}
-/* Deliberately strong. The subject may be a bright document in daylight, and
-   every control below sits on top of it (RU-02, contrast >= 4.5:1). */
-.cam-scrim-bottom {
-  position:absolute; left:0; right:0; bottom:0; height: 42%;
-  background: linear-gradient(to top, rgba(0,0,0,.88), rgba(0,0,0,.66) 34%, rgba(0,0,0,.30) 66%, rgba(0,0,0,0));
-  pointer-events:none;
-}
-
-.cam-topbar {
-  position:absolute; left:0; right:0; top: 5.6%;
-  display:flex; align-items:center; justify-content:space-between;
-  padding: 0 4.1%;
-}
-.cbtn {
-  width: 48px; height: 48px; flex: none; border-radius: var(--r-full);
-  background: var(--cam-control-bg);
-  display:grid; place-items:center; color: var(--cam-control);
-  backdrop-filter: blur(6px);
-}
-.cbtn svg { width: 52%; height: 52%; }
-
-.chip-offline {
-  display:flex; align-items:center; gap: .45em; min-height: 36px;
-  padding: 0 12px; border-radius: var(--r-full);
-  background: rgba(0,0,0,.42); backdrop-filter: blur(6px);
-  color: var(--cam-warning); font-size: .72em; font-weight: 600; letter-spacing:.01em;
-  white-space: nowrap;
-}
-.chip-offline svg { width: 1.05em; height: 1.05em; }
-
-.uploads-entry {
-  display:flex; align-items:center; gap: .4em; min-height: 48px;
-  padding: 0 10px 0 14px; border-radius: var(--r-full);
-  background: rgba(0,0,0,.42); backdrop-filter: blur(6px);
-  color: var(--cam-control); font-size: .74em; font-weight: 600;
-}
-.uploads-entry .n {
-  min-width: 1.55em; height: 1.55em; padding: 0 .3em; border-radius: var(--r-full);
-  background: var(--cam-accent); color: #00281E;
-  display:grid; place-items:center; font-size: .82em; font-weight: 700;
-}
-.uploads-entry svg { width: .9em; height: .9em; opacity:.75; }
-
-/* focus reticle */
-.reticle { position:absolute; width: 18.5%; aspect-ratio:1; transform: translate(-50%,-50%); }
-.reticle .ring {
-  position:absolute; inset:0; border: 1.6px solid var(--cam-accent); border-radius: var(--r-full);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.28), 0 0 14px rgba(0,229,168,.45);
-}
-.reticle .tick { position:absolute; background: var(--cam-accent); }
-.reticle .t1 { left:50%; top:-9%; width:1.6px; height:11%; transform:translateX(-50%); }
-.reticle .t2 { left:50%; bottom:-9%; width:1.6px; height:11%; transform:translateX(-50%); }
-.reticle .t3 { top:50%; left:-9%; height:1.6px; width:11%; transform:translateY(-50%); }
-.reticle .t4 { top:50%; right:-9%; height:1.6px; width:11%; transform:translateY(-50%); }
-
-/* zoom slider */
-.zoom {
-  position:absolute; right: 4.1%; top: 44%; transform: translateY(-50%);
-  width: 10.3%; height: 30%;
-  border-radius: var(--r-full); background: rgba(0,0,0,.48); backdrop-filter: blur(6px);
-  display:flex; flex-direction:column; align-items:center; justify-content:space-between;
-  padding: .55em 0; color: var(--cam-control-dim); font-size: .62em; font-weight:600;
-}
-.zoom .track {
-  position:relative; flex:1; width: 2.5px; margin: .5em 0;
-  background: rgba(255,255,255,.28); border-radius: var(--r-full);
-}
-.zoom .fill { position:absolute; left:0; right:0; bottom:0; background: var(--cam-control); border-radius: var(--r-full); }
-.zoom .thumb {
-  position:absolute; left:50%; width: 1.05em; height: 1.05em; border-radius: var(--r-full);
-  background: var(--cam-shutter); transform: translate(-50%, 50%);
-  box-shadow: 0 1px 4px rgba(0,0,0,.5);
-}
-.zoom-readout {
-  position:absolute; right: 17%; top: 44%; transform: translateY(-50%);
-  background: rgba(0,0,0,.5); backdrop-filter: blur(6px);
-  color: var(--cam-control-active); font-size:.72em; font-weight:700;
-  padding: .3em .6em; border-radius: var(--r-full);
-}
-
-/* zoom presets */
-.presets {
-  position:absolute; left:0; right:0; bottom: 25.5%;
-  display:flex; justify-content:center; gap: .6em;
-}
-.preset {
-  min-width: 48px; height: 48px; padding: 0 10px; border-radius: var(--r-full);
-  background: var(--cam-control-bg); backdrop-filter: blur(6px);
-  color: rgba(255,255,255,.80); font-size: .8em; font-weight: 650;
-  display:grid; place-items:center; font-variant-numeric: tabular-nums;
-}
-.preset.on {
-  background: var(--cam-control-active-bg); color: var(--cam-control-active);
-  font-weight: 750; box-shadow: inset 0 0 0 1.5px rgba(0,229,168,.55);
-}
-
-/* bottom bar */
-.cam-bottom {
-  position:absolute; left:0; right:0; bottom: 10.5%;
-  display:flex; align-items:center; justify-content:space-between; padding: 0 8%;
-}
-.shutter {
-  width: 72px; height: 72px; flex: none; border-radius: var(--r-full);
-  border: 3px solid var(--cam-shutter); display:grid; place-items:center;
-}
-.shutter i { display:block; width: 84%; height: 84%; border-radius: var(--r-full); background: var(--cam-shutter); }
-.thumbstack { position:relative; width: 56px; height: 56px; flex: none; }
-.thumbstack .sheet {
-  position:absolute; inset:0; border-radius: var(--r-thumb); overflow:hidden;
-  border: 1.5px solid rgba(255,255,255,.55); background:#2A3330;
-}
-.thumbstack .sheet.b2 { transform: translate(-5%, -5%) rotate(-5deg); opacity:.55; }
-.thumbstack .sheet.b1 { transform: translate(-2.5%, -2.5%) rotate(-2.5deg); opacity:.8; }
-.thumbstack .count {
-  position:absolute; right:-18%; top:-18%;
-  min-width: 1.5em; height: 1.5em; padding: 0 .25em; border-radius: var(--r-full);
-  background: var(--cam-accent); color:#00281E; font-size:.72em; font-weight:750;
-  display:grid; place-items:center; border: 1.5px solid rgba(0,0,0,.35);
-}
-.flip { width: 48px; height: 48px; flex: none; border-radius: var(--r-full);
-  background: var(--cam-control-bg); backdrop-filter: blur(6px);
-  display:grid; place-items:center; color: var(--cam-control); }
-.flip svg { width:52%; height:52%; }
-
-.batch-cta {
-  position:absolute; left:50%; transform:translateX(-50%); bottom: 4.2%;
-  display:flex; align-items:center; gap:.5em; min-height: 48px;
-  padding: 0 22px; border-radius: var(--r-full);
-  background: var(--cam-accent); color:#00281E;
-  font-size:.82em; font-weight:700; letter-spacing:.005em;
-  box-shadow: 0 4px 16px rgba(0,229,168,.28);
-}
-.batch-cta svg { width:1.05em; height:1.05em; }
-
-/* camera error panel */
-.cam-error {
-  position:absolute; inset:0; background: #0B0F0E;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; padding: 0 12%;
-}
-.cam-error .ic {
-  width: 20%; aspect-ratio:1; border-radius: var(--r-full);
-  background: rgba(255,255,255,.07); display:grid; place-items:center;
-  color: var(--cam-warning); margin-bottom: 1.4em;
-}
-.cam-error .ic svg { width:48%; height:48%; }
-.cam-error h2 { margin:0 0 .5em; font-size:1.18em; font-weight:650; color: rgba(255,255,255,.95); }
-.cam-error p  { margin:0 0 1.9em; font-size:.87em; line-height:1.55; color: rgba(255,255,255,.62); }
-.cam-error .act {
-  min-height: 48px; display:grid; place-items:center;
-  padding: 0 26px; border-radius: var(--r-full);
-  background: var(--cam-accent); color:#00281E; font-size:.85em; font-weight:700;
-}
-.cam-error .act2 { margin-top:1.1em; min-height:44px; display:grid; place-items:center; font-size:.82em; font-weight:600; color: rgba(255,255,255,.72); }
-
-/* ---------- upload manager ---------- */
-.um { position:absolute; inset:0; background: var(--surface); display:flex; flex-direction:column; }
-.um-top {
-  display:flex; align-items:center; gap:.7em; padding: 4.4em 4.6% 1.1em;
-  font-size:1em;
-}
-.um-top .back { width:48px; height:48px; margin-left:-12px; flex:none;
-  display:grid; place-items:center; color: var(--on-surface); }
-.um-top .back svg { width:26px; height:26px; }
-.um-top h2 { margin:0; font-size:1.28em; font-weight:640; letter-spacing:-.01em; }
-
-.um-body { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0 4.6%; }
-
-.link-chip {
-  display:flex; align-items:center; gap:.6em;
-  padding: .85em 1em; border-radius: var(--r-row);
-  background: var(--surface-container); color: var(--on-surface-variant);
-  font-size:.85em; font-weight:600; margin-bottom: 1.7em;
-}
-.link-chip svg { width:1.15em; height:1.15em; flex:none; }
-.link-chip.ok  { color: var(--primary); }
-.link-chip.off { color: var(--on-surface-variant); }
-
-.batch-head {
-  display:flex; align-items:baseline; justify-content:space-between;
-  margin: 0 0 .8em; font-size:.75em;
-}
-.batch-head .ttl { font-weight:700; letter-spacing:.09em; text-transform:uppercase; color: var(--on-surface-variant); }
-.batch-head .cnt { font-weight:650; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
-.bar { height:4px; border-radius: var(--r-full); background: var(--outline-variant); margin: 0 0 1.05em; overflow:hidden; }
-.bar i { display:block; height:100%; border-radius: var(--r-full); background: var(--primary); }
-
-.rows { border-radius: var(--r-card); background: var(--surface-container); overflow:hidden; margin-bottom:2.15em; }
-.row { display:flex; align-items:center; gap:.9em; padding:.95em 1em; }
-.row + .row { border-top: 1px solid var(--outline-variant); }
-.row .th { width:2.6em; height:2.6em; border-radius: var(--r-thumb); overflow:hidden; flex:none; background:#2A3330; }
-.row .meta { flex:1; min-width:0; }
-.row .nm { font-size:.88em; font-weight:600; color: var(--on-surface); margin-bottom:.26em; letter-spacing:.005em; }
-.row .st { display:flex; align-items:center; gap:.42em; font-size:.8em; font-weight:600; }
-.row .st svg { width:1.05em; height:1.05em; flex:none; }
-.st.queued   { color: var(--on-surface-variant); }
-.st.waiting  { color: var(--on-surface-variant); }
-.st.uploading{ color: var(--primary); }
-.st.retrying { color: var(--tertiary); }
-.st.synced   { color: var(--primary); }
-.st.failed   { color: var(--error); }
-
-.reassure {
-  flex: 0 0 auto;
-  display:flex; gap:.65em; align-items:flex-start;
-  font-size:.8em; line-height:1.5; color: var(--on-surface-variant);
-  padding: 0 .2em; margin-bottom: 1.35em;
-}
-.reassure svg { width:1.15em; height:1.15em; flex:none; margin-top:.12em; color: var(--primary); }
-
-.um-foot { flex: 0 0 auto; padding: 0 4.6% 3.6em; }
-.cta {
-  display:flex; align-items:center; justify-content:center; gap:.5em;
-  min-height: 52px; padding: 0 16px; border-radius: var(--r-full);
-  background: var(--primary); color: var(--on-primary);
-  font-size:.87em; font-weight:680;
-}
-.cta svg { width:1.15em; height:1.15em; }
-
-/* empty state */
-.empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding: 0 12%; }
-.empty .ic {
-  width:22%; aspect-ratio:1; border-radius: var(--r-full);
-  background: var(--primary-container); color: var(--on-primary-container);
-  display:grid; place-items:center; margin-bottom:1.5em;
-}
-.empty .ic svg { width:46%; height:46%; }
-.empty h3 { margin:0 0 .55em; font-size:1.12em; font-weight:650; }
-.empty p { margin:0; font-size:.85em; line-height:1.55; color: var(--on-surface-variant); }
-
-</style>
+  <meta charset="utf-8">
+  <title>04 Upload Manager Pending</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="screens.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
-<body class="standalone">
-<div class="stage">
-<figure class="screen-card">
-<div class="phone"><div class="um"><div class="um-top"><span class="back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h2>Pending uploads</h2></div><div class="um-body"><div class="link-chip ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5z" fill="currentColor"/></svg>Connected &middot; uploading automatically</div><div class="batch-head"><span class="ttl">Batch &middot; 2 min ago</span><span class="cnt">3 of 5</span></div><div class="bar"><i style="width:60%"></i></div><div class="rows"><div class="row"><div class="th"><svg viewBox="0 0 40 40" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="40" height="40" fill="#3B3226"/><rect x="7" y="9" width="26" height="24" rx="2" fill="#DDD5C4"/><rect x="11" y="14" width="15" height="2.4" rx="1.2" fill="#9A9080"/><rect x="11" y="19" width="18" height="2.4" rx="1.2" fill="#B3A996"/><rect x="11" y="24" width="12" height="2.4" rx="1.2" fill="#B3A996"/></svg></div><div class="meta"><div class="nm">IMG_0031</div><div class="st synced"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8.2 12.4l2.6 2.6 5-5.4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Synced</span></div></div></div><div class="row"><div class="th"><svg viewBox="0 0 40 40" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="40" height="40" fill="#3B3226"/><rect x="7" y="9" width="26" height="24" rx="2" fill="#DDD5C4"/><rect x="11" y="14" width="15" height="2.4" rx="1.2" fill="#9A9080"/><rect x="11" y="19" width="18" height="2.4" rx="1.2" fill="#B3A996"/><rect x="11" y="24" width="12" height="2.4" rx="1.2" fill="#B3A996"/></svg></div><div class="meta"><div class="nm">IMG_0032</div><div class="st uploading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Uploading</span></div></div></div><div class="row"><div class="th"><svg viewBox="0 0 40 40" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="40" height="40" fill="#3B3226"/><rect x="7" y="9" width="26" height="24" rx="2" fill="#DDD5C4"/><rect x="11" y="14" width="15" height="2.4" rx="1.2" fill="#9A9080"/><rect x="11" y="19" width="18" height="2.4" rx="1.2" fill="#B3A996"/><rect x="11" y="24" width="12" height="2.4" rx="1.2" fill="#B3A996"/></svg></div><div class="meta"><div class="nm">IMG_0033</div><div class="st queued"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>In queue</span></div></div></div></div><div class="batch-head"><span class="ttl">Batch &middot; 1 hr ago</span><span class="cnt">0 of 2</span></div><div class="bar"><i style="width:0%"></i></div><div class="rows"><div class="row"><div class="th"><svg viewBox="0 0 40 40" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="40" height="40" fill="#3B3226"/><rect x="7" y="9" width="26" height="24" rx="2" fill="#DDD5C4"/><rect x="11" y="14" width="15" height="2.4" rx="1.2" fill="#9A9080"/><rect x="11" y="19" width="18" height="2.4" rx="1.2" fill="#B3A996"/><rect x="11" y="24" width="12" height="2.4" rx="1.2" fill="#B3A996"/></svg></div><div class="meta"><div class="nm">IMG_0028</div><div class="st queued"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>In queue</span></div></div></div><div class="row"><div class="th"><svg viewBox="0 0 40 40" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="40" height="40" fill="#3B3226"/><rect x="7" y="9" width="26" height="24" rx="2" fill="#DDD5C4"/><rect x="11" y="14" width="15" height="2.4" rx="1.2" fill="#9A9080"/><rect x="11" y="19" width="18" height="2.4" rx="1.2" fill="#B3A996"/><rect x="11" y="24" width="12" height="2.4" rx="1.2" fill="#B3A996"/></svg></div><div class="meta"><div class="nm">IMG_0029</div><div class="st queued"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>In queue</span></div></div></div></div></div><div class="reassure"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8.1-7 9.5-4.1-1.4-7-5.2-7-9.5V6l7-3z" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linejoin="round"/><path d="M8.8 12.2l2.3 2.3 4.1-4.4" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Saved on this device. Uploads resume automatically when you&rsquo;re connected.</span></div><div class="um-foot"><div class="cta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>Start new batch</div></div></div></div>
-<figcaption><b>Pending uploads &mdash; draining</b>Two batches, oldest processed first. Progress is <b style='display:inline;font-weight:650'>count-based</b> (&ldquo;3 of 5&rdquo;), never a fabricated byte percentage. Every state carries an icon <i>and</i> a word, so nothing depends on colour alone. The chip says <i>uploading</i> automatically rather than <i>retrying</i> &mdash; retry is what happens after a failure, and nothing here has failed.<div style="margin-top:8px"><code>FLT-BAT-003 &middot; FLT-UX-010 &middot; FLT-UX-011 &middot; FLT-SYNC-013</code></div></figcaption>
-</figure>
-</div>
+<body>
+  <div class="device-frame">
+    <div class="screen upload-manager">
+      <div class="um-appbar">
+        <div class="um-icon-btn" style="margin-left: 4px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </div>
+        <div class="um-appbar-title">Pending uploads</div>
+
+          <div class="um-icon-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+          </div>
+      </div>
+
+      <div class="um-body">
+        <div class="um-list">
+
+            <div class="um-chip" style="background-color: var(--um-primary-container, #00513E); color: var(--um-on-primary-container, #A4F3D6);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.16-.28L11.75 4h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>
+              <div class="um-chip-text">Connected &middot; uploading automatically</div>
+            </div>
+            <div style="height: 20px;"></div>
+          <div class="um-batch">
+            <div class="um-batch-header">
+              <div class="um-batch-title">BATCH &middot; just now</div>
+              <div class="um-batch-count">0 of 5</div>
+              <div class="um-progress-container">
+                <div class="um-progress-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+            <div class="um-card">
+              <div class="um-row">
+                <div class="um-thumb"></div>
+                <div class="um-filename">IMG_0031.jpg</div>
+                <div class="um-status-icon" style="color: var(--um-primary);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>
+                </div>
+                <div class="um-status-text" style="color: var(--um-primary);">Uploading</div>
+              </div>
+              <div class="um-row">
+                <div class="um-thumb"></div>
+                <div class="um-filename">IMG_0032.jpg</div>
+                <div class="um-status-icon" style="color: var(--um-primary);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>
+                </div>
+                <div class="um-status-text" style="color: var(--um-primary);">Uploading</div>
+              </div>
+              <div class="um-row">
+                <div class="um-thumb"></div>
+                <div class="um-filename">IMG_0033.jpg</div>
+                <div class="um-status-icon" style="color: var(--um-on-surface-variant);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                </div>
+                <div class="um-status-text" style="color: var(--um-on-surface-variant);">In queue</div>
+              </div>
+              <div class="um-row">
+                <div class="um-thumb"></div>
+                <div class="um-filename">IMG_0034.jpg</div>
+                <div class="um-status-icon" style="color: var(--um-on-surface-variant);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                </div>
+                <div class="um-status-text" style="color: var(--um-on-surface-variant);">In queue</div>
+              </div>
+              <div class="um-row">
+                <div class="um-thumb"></div>
+                <div class="um-filename">IMG_0035.jpg</div>
+                <div class="um-status-icon" style="color: var(--um-on-surface-variant);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                </div>
+                <div class="um-status-text" style="color: var(--um-on-surface-variant);">In queue</div>
+              </div>
+            </div>
+          </div>
+
+            <div style="height: 8px;"></div>
+            <div class="um-reassurance">Saved on this device. Uploads resume automatically when you're connected.</div>
+          <div class="um-btn-container">
+            <div class="um-outlined-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              Start new batch
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
